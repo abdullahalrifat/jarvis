@@ -603,6 +603,7 @@ class _LocalAgentBackend:
     """Adapter that gives each role a bounded local tool loop."""
 
     model = ""
+    metered = True
 
     def __init__(
         self,
