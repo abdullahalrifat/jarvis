@@ -10,6 +10,7 @@ from aistack_cli.local_agent import (
     LocalConfig,
     LocalTools,
     ModelProvider,
+    _parse_verification_verdict,
     resolve_local_config,
     run_local_agent,
 )
@@ -208,3 +209,19 @@ def test_agent_executes_tool_then_returns_final_answer(tmp_path):
         tools=LocalTools(config(tmp_path)),
     )
     assert result == "finished"
+
+
+def test_verifier_requires_structured_verdict():
+    verdict = _parse_verification_verdict(
+        json.dumps(
+            {
+                "status": "passed",
+                "checks": ["pytest"],
+                "failed_checks": [],
+                "retry_instruction": None,
+            }
+        )
+    )
+    assert verdict.passed
+    with pytest.raises(APIError, match="structured verdict"):
+        _parse_verification_verdict("tests look fine")
