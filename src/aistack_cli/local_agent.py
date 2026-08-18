@@ -21,7 +21,9 @@ from jarvis_core import (
     AgentResult,
     MemoryArtifactStore,
     SelectiveOrchestrator,
-    TaskProfile,
+    VerificationStatus,
+    VerificationVerdict,
+    default_prompt_registry,
     TokenBudget,
     TokenLedger,
     Usage,
@@ -605,11 +607,29 @@ def _run_single_agent(
     raise APIError(f"Local agent exceeded the {config.max_steps}-step limit.")
 
 
+def _parse_verification_verdict(summary: str) -> VerificationVerdict:
+    try:
+        payload = json.loads(summary)
+        status = VerificationStatus(payload["status"])
+        checks = tuple(str(item) for item in payload.get("checks", []))
+        failed_checks = tuple(str(item) for item in payload.get("failed_checks", []))
+        retry_instruction = payload.get("retry_instruction")
+        if retry_instruction is not None:
+            retry_instruction = str(retry_instruction)
+        return VerificationVerdict(
+            status=status,
+            checks=checks,
+            failed_checks=failed_checks,
+            retry_instruction=retry_instruction,
+        )
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise APIError("Verifier returned an invalid structured verdict.") from exc
+
+
 class _LocalAgentBackend:
     """Adapter that gives each role a bounded local tool loop."""
 
     model = ""
-    metered = True
     metered = True
 
     def __init__(
@@ -633,12 +653,13 @@ class _LocalAgentBackend:
         context: dict[str, Any],
         max_output_tokens: int,
     ) -> AgentResult:
-        role_instructions = {
-            "explorer": "Inspect only. Identify relevant files, symbols, risks, and tests. Do not edit.",
-            "implementer": "Implement the smallest correct change and verify it.",
-            "verifier": "Independently inspect the current diff and test evidence. Do not edit.",
-            "risk": "Inspect security, permission, migration, and destructive-operation risks. Do not edit.",
-        }[role]
+        template = default_prompt_registry().get(role)
+        role_instructions = template.system
+        if role == "verifier":
+            role_instructions += (
+                " Return only one JSON object with status, checks, failed_checks, "
+                "and retry_instruction."
+            )
         role_task = (
             f"Role: {role}. {role_instructions}\nOriginal task: {task}\n"
             f"Prior bounded evidence: {json.dumps(context, default=str)[:6000]}"
@@ -662,16 +683,8 @@ class _LocalAgentBackend:
             ledger=self.ledger,
             role=role,
         )
-        verified = role == "verifier" and not any(
-            marker in summary.lower()
-            for marker in ("failed", "not verified", "cannot verify", "error")
-        )
-        return AgentResult(
-            role=role,
-            summary=summary,
-            verified=verified,
-            retryable=role == "verifier" and not verified,
-        )
+        verdict = _parse_verification_verdict(summary) if role == "verifier" else None
+        return AgentResult(role=role, summary=summary, verdict=verdict)
 
 
 def run_local_agent(
@@ -707,14 +720,12 @@ def run_local_agent(
             task, config, provider=provider, tools=tools, ledger=ledger
         )
     backend = _LocalAgentBackend(config, provider, tools, ledger)
-    profile = TaskProfile.COMPLEX
     results = SelectiveOrchestrator(backend, ledger).run(
         task,
         {
             "workspace": str(config.workspace),
             "write_allowed": config.allow_edits,
         },
-        profile=profile,
     )
     verifier = next(
         (result for result in reversed(results) if result.role == "verifier"),
