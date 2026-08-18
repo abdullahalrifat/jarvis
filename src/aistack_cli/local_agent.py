@@ -150,9 +150,14 @@ def resolve_local_config(args: Any) -> LocalConfig:
         accept_commands=bool(getattr(args, "accept_commands", False)),
         max_steps=max(1, min(int(args.max_steps), 100)),
         timeout=max(10.0, float(args.timeout)),
-        multi_agent=bool(getattr(args, "multi_agent", False) or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}),
+        multi_agent=bool(
+            getattr(args, "multi_agent", False)
+            or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
+        ),
         max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),
-        max_output_tokens=max(1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))),
+        max_output_tokens=max(
+            1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
+        ),
     )
 
 
@@ -599,12 +604,11 @@ def _run_single_agent(
     raise APIError(f"Local agent exceeded the {config.max_steps}-step limit.")
 
 
-
-
 class _LocalAgentBackend:
     """Adapter that gives each role a bounded local tool loop."""
 
     model = ""
+    metered = True
     metered = True
 
     def __init__(
@@ -642,7 +646,9 @@ class _LocalAgentBackend:
         role_config = replace(
             self.config,
             allow_edits=False if read_only else self.config.allow_edits,
-            max_steps=min(self.config.max_steps, 12 if read_only else self.config.max_steps),
+            max_steps=min(
+                self.config.max_steps, 12 if read_only else self.config.max_steps
+            ),
             multi_agent=False,
         )
         role_tools = LocalTools(role_config, approval=self.tools.approval)
