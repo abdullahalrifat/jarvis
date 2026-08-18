@@ -537,6 +537,8 @@ def _run_single_agent(
         TokenBudget(
             max_run_input=config.max_input_tokens,
             max_run_output=config.max_output_tokens,
+            max_turn_input=min(32_000, config.max_input_tokens),
+            max_turn_output=min(4_096, config.max_output_tokens),
             max_agent_input=config.max_input_tokens,
             max_agent_output=config.max_output_tokens,
         )
@@ -678,6 +680,8 @@ def run_local_agent(
         TokenBudget(
             max_run_input=config.max_input_tokens,
             max_run_output=config.max_output_tokens,
+            max_turn_input=min(32_000, config.max_input_tokens),
+            max_turn_output=min(4_096, config.max_output_tokens),
             max_agent_input=max(4_000, config.max_input_tokens // 2),
             max_agent_output=max(1_000, config.max_output_tokens // 2),
         )
