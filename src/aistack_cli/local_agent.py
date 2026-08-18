@@ -215,6 +215,7 @@ class ModelProvider:
                 "messages": messages,
                 "tools": [{"type": "function", "function": tool} for tool in tools],
                 "tool_choice": "auto",
+                "max_tokens": min(4_096, self.config.max_output_tokens),
             },
             (
                 {"Authorization": f"Bearer {self.config.api_key}"}
@@ -258,7 +259,7 @@ class ModelProvider:
             f"{self.config.base_url}/v1/messages",
             {
                 "model": self.config.model,
-                "max_tokens": 4096,
+                "max_tokens": min(4_096, self.config.max_output_tokens),
                 "system": system,
                 "messages": anthropic_messages,
                 "tools": [
@@ -650,6 +651,7 @@ class _LocalAgentBackend:
                 self.config.max_steps, 12 if read_only else self.config.max_steps
             ),
             multi_agent=False,
+            max_output_tokens=max_output_tokens,
         )
         role_tools = LocalTools(role_config, approval=self.tools.approval)
         summary = _run_single_agent(
