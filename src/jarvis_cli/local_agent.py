@@ -39,8 +39,9 @@ from jarvis_core import (
 from jarvis_core.tokens import estimate_tokens
 
 from .client import APIError
-from .mcp import MCPClient
-from .profiles import load_profiles, select_calibrated
+from .mcp_registry import call_configured_tool
+from .profiles import load_profiles, profile_api_key_env, select_calibrated
+from .provider_messages import to_anthropic, to_openai
 from .repository_map import build_repository_map
 from .sandbox import sandbox_command
 from .web import fetch_web, search_web
@@ -249,6 +250,7 @@ class ModelProvider:
         self.config = config
         self.opener = opener
         self.last_usage: dict[str, int] = {}
+        self.active_provider = config.provider
 
     def complete(
         self,
@@ -294,7 +296,7 @@ class ModelProvider:
             f"{self.config.base_url}/chat/completions",
             {
                 "model": self.config.model,
-                "messages": messages,
+                "messages": to_openai(messages),
                 "tools": [{"type": "function", "function": tool} for tool in tools],
                 "tool_choice": "auto",
                 "max_tokens": min(4_096, self.config.max_output_tokens),
@@ -330,14 +332,7 @@ class ModelProvider:
         return str(message.get("content") or ""), calls, message
 
     def _anthropic(self, messages, tools):
-        system = "\n\n".join(
-            str(message.get("content", ""))
-            for message in messages
-            if message.get("role") == "system"
-        )
-        anthropic_messages = [
-            message for message in messages if message.get("role") != "system"
-        ]
+        system, anthropic_messages = to_anthropic(messages)
         response = _request_json(
             f"{self.config.base_url}/v1/messages",
             {
@@ -538,12 +533,14 @@ class ResilientModelProvider:
         self.pool = ProviderPool(providers, name=lambda item: item.config.model)
         self.last_usage: dict[str, int] = {}
         self.active_model = providers[0].config.model
+        self.active_provider = providers[0].config.provider
 
     def complete(self, messages, tools):
         def invoke(provider):
             result = provider.complete(messages, tools)
             self.last_usage = provider.last_usage
             self.active_model = provider.config.model
+            self.active_provider = provider.config.provider
             return result
 
         return self.pool.call(invoke)
@@ -553,6 +550,7 @@ class ResilientModelProvider:
             result = provider.complete_structured(messages, schema)
             self.last_usage = provider.last_usage
             self.active_model = provider.config.model
+            self.active_provider = provider.config.provider
             return result
 
         return self.pool.call(invoke)
@@ -573,6 +571,11 @@ def build_model_provider(config: LocalConfig):
         profile = profiles.get(name)
         if profile is None or profile.model == config.model:
             continue
+        key_env = profile_api_key_env(name)
+        default_key_env = (
+            "ANTHROPIC_API_KEY" if profile.provider == "anthropic" else "OPENAI_API_KEY"
+        )
+        fallback_key = os.getenv(key_env or default_key_env, "")
         providers.append(
             ModelProvider(
                 replace(
@@ -580,6 +583,7 @@ def build_model_provider(config: LocalConfig):
                     provider=profile.provider,
                     model=profile.model,
                     base_url=profile.base_url,
+                    api_key=fallback_key,
                 )
             )
         )
@@ -703,11 +707,8 @@ class LocalTools:
         if name == "web_fetch":
             return json.dumps(fetch_web(str(arguments["url"])), ensure_ascii=False)
         if name == "mcp_call":
-            configured = json.loads(os.getenv("JARVIS_MCP_SERVERS_JSON", "{}"))
-            command = configured.get(str(arguments["server"]))
-            if not isinstance(command, list) or not command:
-                raise APIError("MCP server alias is not configured.")
-            result = MCPClient([str(part) for part in command]).call_tool(
+            result = call_configured_tool(
+                str(arguments["server"]),
                 str(arguments["tool_name"]),
                 dict(arguments.get("arguments") or {}),
             )
@@ -967,10 +968,10 @@ def _run_single_agent(
         )
         actual_usage.compaction_saved_tokens = saved
         ledger.commit(reservation, actual_usage)
-        if config.provider == "anthropic":
-            messages.append({"role": "assistant", "content": raw_assistant})
-        else:
+        if isinstance(raw_assistant, dict):
             messages.append(raw_assistant)
+        else:
+            messages.append({"role": "assistant", "content": raw_assistant})
         if checkpoint:
             checkpoint(messages)
         if not calls:
@@ -1036,7 +1037,7 @@ def _run_single_agent(
             )
             messages.append(
                 _tool_result_message(
-                    config.provider,
+                    getattr(provider, "active_provider", config.provider),
                     call,
                     json.dumps(compact, ensure_ascii=False),
                 )
