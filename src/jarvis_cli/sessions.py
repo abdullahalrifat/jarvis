@@ -171,26 +171,37 @@ class SessionStore:
             "SELECT role, content, metadata, sequence FROM messages WHERE session_id=? ORDER BY sequence",
             (session_id,),
         ).fetchall()
-        return [
-            {
-                "role": row["role"],
-                "content": row["content"],
-                "metadata": json.loads(row["metadata"]),
-                "sequence": row["sequence"],
-            }
-            for row in rows
-        ]
+        transcript = []
+        for row in rows:
+            metadata = json.loads(row["metadata"])
+            original = metadata.get("canonical_message")
+            if isinstance(original, dict):
+                transcript.append(original)
+            else:
+                transcript.append(
+                    {
+                        "role": row["role"],
+                        "content": row["content"],
+                    }
+                )
+        return transcript
 
     def checkpoint(self, session_id: str, messages: list[dict[str, Any]]) -> None:
         self.connection.execute(
             "DELETE FROM messages WHERE session_id=?", (session_id,)
         )
         for message in messages:
+            content = message.get("content", "")
+            display = (
+                content
+                if isinstance(content, str)
+                else json.dumps(content, ensure_ascii=False)
+            )
             self.append_message(
                 session_id,
                 str(message["role"]),
-                str(message.get("content", "")),
-                dict(message.get("metadata") or {}),
+                display,
+                {"canonical_message": message},
             )
 
     def request_approval(
