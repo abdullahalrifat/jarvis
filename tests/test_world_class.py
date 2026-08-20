@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import subprocess
 
 from jarvis_core import MemoryRecord, ReviewHunk
 
@@ -69,6 +70,10 @@ def test_instruction_precedence_and_expiring_memory(tmp_path, monkeypatch):
 
 
 def test_review_render_and_mcp_policy_config(tmp_path):
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "--allow-empty", "-m", "base"], cwd=tmp_path, check=True, capture_output=True)
     hunk = ReviewHunk("a.py", "@@ -1 +1 @@\n-old\n+new", ("pytest passed",))
     ledger = ReviewLedger(tmp_path, tmp_path / "reviews")
     transaction = ledger.create([hunk])
