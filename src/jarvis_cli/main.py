@@ -770,6 +770,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Always use simulated streaming output instead of a real local model.",
     )
 
+    sessions = subparsers.add_parser("sessions", help="List durable local sessions")
+    sessions.add_argument("--limit", type=int, default=50)
+    local_show = subparsers.add_parser("session-show", help="Show one local session")
+    local_show.add_argument("session_id")
+    repo_map = subparsers.add_parser("repo-map", help="Build an incremental repository map")
+    repo_map.add_argument("--workspace", dest="local_workspace")
+    models = subparsers.add_parser("models", help="List and route named model profiles")
+    models.add_argument("--require", action="append", default=[])
+    web_search = subparsers.add_parser("web-search", help="Search the current public web")
+    web_search.add_argument("query", nargs="+")
+    web_search.add_argument("--limit", type=int, default=8)
+    trace = subparsers.add_parser("trace", help="Print a local JSONL agent trace")
+    trace.add_argument("path")
+    trace.add_argument("--kind", action="append")
+    mcp = subparsers.add_parser("mcp-tools", help="List tools from an MCP stdio server")
+    mcp.add_argument("server_command")
+    evaluate = subparsers.add_parser("eval", help="Run JSON-defined local agent evaluations")
+    evaluate.add_argument("file")
+    evaluate.add_argument("--provider", choices=("openai", "anthropic"))
+    evaluate.add_argument("--base-url")
+    evaluate.add_argument("--model")
+    evaluate.add_argument("--api-key-env")
+    evaluate.add_argument("--no-api-key", action="store_true")
+    evaluate.add_argument("--workspace", dest="local_workspace")
+    evaluate.add_argument("--timeout", type=float, default=180)
+    evaluate.add_argument("--max-steps", type=int, default=30)
+    evaluate.set_defaults(
+        multi_agent=False,
+        accept_edits=False,
+        accept_commands=False,
+        write=False,
+    )
+
     listing = subparsers.add_parser("list", help="List recent runs")
     listing.add_argument("--limit", type=int, default=20)
     show = subparsers.add_parser("show", help="Show one run")
@@ -796,6 +829,14 @@ def main(argv: list[str] | None = None) -> int:
         "list",
         "local",
         "model-doctor",
+        "models",
+        "mcp-tools",
+        "eval",
+        "repo-map",
+        "session-show",
+        "sessions",
+        "trace",
+        "web-search",
         "projects",
         "resume",
         "run",
@@ -824,13 +865,96 @@ def main(argv: list[str] | None = None) -> int:
             config = resolve_local_config(args)
             if not task:
                 return run_local_shell(config)
+            from jarvis_core import TraceRecorder
+            from .sessions import SessionStore
+
             tools = LocalTools(config, approval=interactive_approval)
-            print(run_local_agent(task, config, tools=tools))
+            store = SessionStore()
+            session = store.create(
+                workspace=str(config.workspace),
+                task=task,
+                model=config.model,
+            )
+            trace = TraceRecorder()
+            trace_path = store.path.parent / "traces" / f"{session.id}.jsonl"
+            try:
+                result = run_local_agent(task, config, tools=tools, trace=trace)
+            except BaseException as exc:
+                trace.record("session_failed", error=str(exc))
+                trace.write_jsonl(trace_path)
+                store.finish(
+                    session.id,
+                    result=str(exc),
+                    status="failed",
+                    trace_path=str(trace_path),
+                )
+                raise
+            trace.record("session_completed")
+            trace.write_jsonl(trace_path)
+            store.finish(
+                session.id,
+                result=result,
+                trace_path=str(trace_path),
+            )
+            print(result)
+            print(f"\nSession: {session.id}", file=sys.stderr)
             return 0
         except KeyboardInterrupt:
             print("\nInterrupted.", file=sys.stderr)
             return 130
         except APIError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+    if args.command in {
+        "sessions",
+        "session-show",
+        "repo-map",
+        "models",
+        "web-search",
+        "trace",
+        "mcp-tools",
+        "eval",
+    }:
+        try:
+            from .features import (
+                create_repository_map,
+                list_local_sessions,
+                list_models,
+                mcp_tools,
+                run_eval_file,
+                search_command,
+                show_local_session,
+                show_trace,
+            )
+
+            if args.command == "sessions":
+                return list_local_sessions(args.limit)
+            if args.command == "session-show":
+                return show_local_session(args.session_id)
+            if args.command == "repo-map":
+                return create_repository_map(args.local_workspace)
+            if args.command == "models":
+                return list_models(args.require)
+            if args.command == "web-search":
+                return search_command(" ".join(args.query), args.limit)
+            if args.command == "trace":
+                return show_trace(args.path, args.kind)
+            if args.command == "mcp-tools":
+                return mcp_tools(args.server_command)
+            if args.command == "eval":
+                from .local_agent import (
+                    LocalTools,
+                    resolve_local_config,
+                    run_local_agent,
+                )
+
+                config = resolve_local_config(args)
+                tools = LocalTools(config)
+                return run_eval_file(
+                    args.file,
+                    lambda case: run_local_agent(case.task, config, tools=tools),
+                )
+        except (APIError, LookupError, OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
     if args.command == "model-doctor":
