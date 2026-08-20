@@ -92,7 +92,9 @@ class SessionStore:
             ("archived_at", "TEXT"),
         ):
             if name not in columns:
-                self.connection.execute(f"ALTER TABLE sessions ADD COLUMN {name} {sql_type}")
+                self.connection.execute(
+                    f"ALTER TABLE sessions ADD COLUMN {name} {sql_type}"
+                )
         self.connection.commit()
 
     def create(
@@ -180,7 +182,9 @@ class SessionStore:
         ]
 
     def checkpoint(self, session_id: str, messages: list[dict[str, Any]]) -> None:
-        self.connection.execute("DELETE FROM messages WHERE session_id=?", (session_id,))
+        self.connection.execute(
+            "DELETE FROM messages WHERE session_id=?", (session_id,)
+        )
         for message in messages:
             self.append_message(
                 session_id,
@@ -189,7 +193,9 @@ class SessionStore:
                 dict(message.get("metadata") or {}),
             )
 
-    def request_approval(self, session_id: str, kind: str, payload: dict[str, Any]) -> str:
+    def request_approval(
+        self, session_id: str, kind: str, payload: dict[str, Any]
+    ) -> str:
         approval_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         self.connection.execute(
@@ -236,7 +242,9 @@ class SessionStore:
         )
         self.connection.commit()
 
-    def resume(self, session_id: str) -> tuple[LocalSession, list[dict[str, Any]], list[dict[str, Any]]]:
+    def resume(
+        self, session_id: str
+    ) -> tuple[LocalSession, list[dict[str, Any]], list[dict[str, Any]]]:
         session = self.get(session_id)
         if session.archived_at:
             raise ValueError("archived sessions must be restored before resuming")
@@ -259,7 +267,11 @@ class SessionStore:
             raise ValueError("session name cannot be empty")
         self.connection.execute(
             "UPDATE sessions SET name=?, updated_at=? WHERE id=?",
-            (name.strip(), datetime.now(timezone.utc).isoformat(), self.get(session_id).id),
+            (
+                name.strip(),
+                datetime.now(timezone.utc).isoformat(),
+                self.get(session_id).id,
+            ),
         )
         self.connection.commit()
         return self.get(session_id)
