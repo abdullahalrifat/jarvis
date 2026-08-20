@@ -22,21 +22,27 @@ optional; Jarvis does not require a commercial model subscription.
 | Repositories mounted only in a remote environment | **Server** |
 
 Server mode is explicit through `jarvis run`. See the
-[Server guide](https://github.com/abdullahalrifat/ai-stack/blob/agent/shared-runtime-server/server/README.md)
-and [product architecture](https://github.com/abdullahalrifat/ai-stack/blob/agent/shared-runtime-server/docs/product-architecture.md).
+[Server guide](https://github.com/abdullahalrifat/ai-stack/blob/main/server/README.md)
+and [product architecture](https://github.com/abdullahalrifat/ai-stack/blob/main/docs/product-architecture.md).
 
 ## Install
 
 Python 3.10 or newer is required.
 
 ```bash
+git clone https://github.com/abdullahalrifat/jarvis.git
+cd jarvis
 pipx install .
 jarvis --version
 ```
 
-Jarvis consumes the separately released
-[jarvis-agent-core](https://github.com/abdullahalrifat/jarvis-core). Release and
-install the matching core version before installing an unreleased Jarvis branch.
+The package metadata pins the exact Core 0.2.0 release artifact. Pip downloads
+that public wheel automatically and verifies its SHA-256 during installation.
+
+Jarvis installs the separately released
+[jarvis-agent-core v0.2.0](https://github.com/abdullahalrifat/jarvis-core/releases/tag/v0.2.0)
+wheel directly from GitHub with a verified SHA-256. A clean `pipx install .`
+therefore does not depend on PyPI or require a separate Core bootstrap step.
 
 ## Connect a model
 
