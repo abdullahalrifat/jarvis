@@ -386,6 +386,56 @@ TOOL_SCHEMAS = [
 ]
 
 
+def probe_model(
+    config: LocalConfig, provider: ModelProvider | None = None
+) -> dict[str, Any]:
+    """Verify endpoint reachability, authentication, response shape, and tool calling."""
+
+    model_provider = provider or ModelProvider(config)
+    probe_tool = {
+        "name": "jarvis_capability_probe",
+        "description": "Return the supplied value to verify native tool calling.",
+        "parameters": {
+            "type": "object",
+            "properties": {"value": {"type": "string", "enum": ["ok"]}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+    }
+    content, calls, _ = model_provider.complete(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You are a capability probe. Call jarvis_capability_probe "
+                    "exactly once with value ok; do not answer in prose."
+                ),
+            },
+            {"role": "user", "content": "Run the capability probe now."},
+        ],
+        [probe_tool],
+    )
+    valid_call = any(
+        call.get("name") == "jarvis_capability_probe"
+        and call.get("arguments", {}).get("value") == "ok"
+        for call in calls
+    )
+    if not valid_call:
+        detail = content[:240] if content else "no tool call returned"
+        raise APIError(
+            "Endpoint responded but native tool calling failed: " + detail
+        )
+    return {
+        "status": "ok",
+        "provider": config.provider,
+        "model": config.model,
+        "base_url": config.base_url,
+        "authentication": "configured" if config.api_key else "disabled",
+        "native_tool_calling": True,
+        "usage": model_provider.last_usage,
+    }
+
+
 class LocalTools:
     def __init__(
         self,
