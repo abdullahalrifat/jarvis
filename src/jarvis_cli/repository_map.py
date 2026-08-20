@@ -9,8 +9,20 @@ from pathlib import Path
 from typing import Any
 
 _TEXT_SUFFIXES = {
-    ".c", ".cc", ".cpp", ".go", ".java", ".js", ".jsx", ".kt", ".py",
-    ".rb", ".rs", ".scala", ".ts", ".tsx",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".go",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".py",
+    ".rb",
+    ".rs",
+    ".scala",
+    ".ts",
+    ".tsx",
 }
 _SKIP = {".git", ".jarvis", ".mypy_cache", ".pytest_cache", ".venv", "node_modules"}
 
@@ -67,5 +79,7 @@ def write_repository_map(root: str | Path) -> Path:
     workspace = Path(root).resolve()
     target = workspace / ".jarvis/repository-map.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(build_repository_map(workspace), indent=2), encoding="utf-8")
+    target.write_text(
+        json.dumps(build_repository_map(workspace), indent=2), encoding="utf-8"
+    )
     return target
