@@ -310,7 +310,12 @@ class SessionStore:
             "UPDATE sessions SET status=?, result=?, trace_path=?, updated_at=? WHERE id=?",
             (status, result, trace_path, now, target.id),
         )
-        self.append_message(target.id, "assistant", result)
+        transcript = self.transcript(target.id)
+        if not transcript or not (
+            transcript[-1].get("role") == "assistant"
+            and transcript[-1].get("content") == result
+        ):
+            self.append_message(target.id, "assistant", result)
         self.connection.commit()
         return self.get(target.id)
 
