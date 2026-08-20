@@ -30,6 +30,7 @@ from jarvis_core import (
     TokenLedger,
     TraceRecorder,
     Usage,
+    ProviderPool,
     classify_failure,
     compact_messages,
     summarize_tool_result,
@@ -525,6 +526,65 @@ VERDICT_TOOL_SCHEMA = {
 }
 
 
+
+class ResilientModelProvider:
+    """Ordered model provider pool with health scoring and circuit breakers."""
+
+    def __init__(self, providers: list[ModelProvider]) -> None:
+        if not providers:
+            raise ValueError("at least one model provider is required")
+        self.providers = providers
+        self.pool = ProviderPool(providers, name=lambda item: item.config.model)
+        self.last_usage: dict[str, int] = {}
+        self.active_model = providers[0].config.model
+
+    def complete(self, messages, tools):
+        def invoke(provider):
+            result = provider.complete(messages, tools)
+            self.last_usage = provider.last_usage
+            self.active_model = provider.config.model
+            return result
+
+        return self.pool.call(invoke)
+
+    def complete_structured(self, messages, schema):
+        def invoke(provider):
+            result = provider.complete_structured(messages, schema)
+            self.last_usage = provider.last_usage
+            self.active_model = provider.config.model
+            return result
+
+        return self.pool.call(invoke)
+
+
+def build_model_provider(config: LocalConfig):
+    primary = ModelProvider(config)
+    names = [
+        item.strip()
+        for item in os.getenv("JARVIS_FALLBACK_PROFILES", "").split(",")
+        if item.strip()
+    ]
+    if not names:
+        return primary
+    profiles = {item.name: item for item in load_profiles().list()}
+    providers = [primary]
+    for name in names:
+        profile = profiles.get(name)
+        if profile is None or profile.model == config.model:
+            continue
+        providers.append(
+            ModelProvider(
+                replace(
+                    config,
+                    provider=profile.provider,
+                    model=profile.model,
+                    base_url=profile.base_url,
+                )
+            )
+        )
+    return ResilientModelProvider(providers)
+
+
 def probe_model(
     config: LocalConfig, provider: ModelProvider | None = None
 ) -> dict[str, Any]:
@@ -816,7 +876,7 @@ def _run_single_agent(
     initial_messages: list[dict[str, Any]] | None = None,
     checkpoint: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> str:
-    provider = provider or ModelProvider(config)
+    provider = provider or build_model_provider(config)
     ledger = ledger or TokenLedger(
         TokenBudget(
             max_run_input=config.max_input_tokens,
