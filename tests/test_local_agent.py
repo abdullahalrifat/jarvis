@@ -7,8 +7,8 @@ import pytest
 
 from jarvis_core import ArtifactResolver, MemoryArtifactStore, TokenBudget, TokenLedger
 
-from aistack_cli.client import APIError
-from aistack_cli.local_agent import (
+from jarvis_cli.client import APIError
+from jarvis_cli.local_agent import (
     LocalConfig,
     LocalTools,
     ModelProvider,
@@ -48,8 +48,8 @@ def config(tmp_path, **values):
 
 def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
     for name in (
-        "AISTACK_LOCAL_BASE_URL",
-        "AISTACK_MODEL_API_KEY",
+        "JARVIS_SERVER_LOCAL_BASE_URL",
+        "JARVIS_SERVER_MODEL_API_KEY",
         "OPENAI_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -262,7 +262,7 @@ def test_model_failure_refunds_reserved_tokens(tmp_path):
         )
     )
     with pytest.raises(APIError, match="endpoint failed"):
-        from aistack_cli.local_agent import _run_single_agent
+        from jarvis_cli.local_agent import _run_single_agent
 
         _run_single_agent(
             "inspect",
