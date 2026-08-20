@@ -12,7 +12,9 @@ from jarvis_cli.sessions import SessionStore
 
 def test_session_continuation_fork_archive_and_approval(tmp_path):
     store = SessionStore(tmp_path / "sessions.db")
-    session = store.create(workspace=str(tmp_path), task="hello", model="coder", name="one")
+    session = store.create(
+        workspace=str(tmp_path), task="hello", model="coder", name="one"
+    )
     store.append_message(session.id, "assistant", "hi")
     approval = store.request_approval(session.id, "patch", {"path": "a.py"})
     resumed, transcript, pending = store.resume(session.id)
@@ -71,9 +73,16 @@ def test_instruction_precedence_and_expiring_memory(tmp_path, monkeypatch):
 
 def test_review_render_and_mcp_policy_config(tmp_path):
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "--allow-empty", "-m", "base"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "base"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
     hunk = ReviewHunk("a.py", "@@ -1 +1 @@\n-old\n+new", ("pytest passed",))
     ledger = ReviewLedger(tmp_path, tmp_path / "reviews")
     transaction = ledger.create([hunk])
@@ -83,8 +92,7 @@ def test_review_render_and_mcp_policy_config(tmp_path):
     assert "pytest passed" in rendered
 
     config = tmp_path / "mcp.toml"
-    config.write_text(
-        """
+    config.write_text("""
 [servers.docs]
 transport = "http"
 endpoint = "https://mcp.example.com"
@@ -94,8 +102,7 @@ health_interval_seconds = 10
 allow = true
 requires_approval = false
 read_only = true
-"""
-    )
+""")
     loaded = load_mcp_config(config)
     assert loaded["docs"].permissions[0].allow
     assert loaded["docs"].permissions[0].read_only
