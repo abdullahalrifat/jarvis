@@ -13,7 +13,6 @@ import sys
 import tempfile
 from urllib.request import Request, urlopen
 
-
 RELEASE_API = "https://api.github.com/repos/abdullahalrifat/jarvis/releases"
 
 
