@@ -16,13 +16,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check out pinned shared runtime
+        uses: actions/checkout@v4
+        with:
+          repository: abdullahalrifat/jarvis-core
+          ref: ${{ env.JARVIS_CORE_REF }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: .deps/jarvis-core
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
       - name: Install pinned shared runtime
-        run: |
-          python -m pip install             "jarvis-agent-core @ https://github.com/abdullahalrifat/jarvis-core/archive/${JARVIS_CORE_REF}.zip"
+        run: python -m pip install .deps/jarvis-core
       - name: Install Jarvis and development dependencies
         run: python -m pip install -e . -r requirements.txt
       - run: black --check src tests
