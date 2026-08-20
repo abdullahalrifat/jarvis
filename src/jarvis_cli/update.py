@@ -19,13 +19,20 @@ RELEASE_API = "https://api.github.com/repos/abdullahalrifat/jarvis/releases"
 
 def _asset_name(version: str) -> str:
     system = platform.system().lower()
-    machine = (\n        platform.machine()\n        .lower()\n        .replace("x86_64", "amd64")\n        .replace("aarch64", "arm64")\n    )
+    machine = (
+        platform.machine()
+        .lower()
+        .replace("x86_64", "amd64")
+        .replace("aarch64", "arm64")
+    )
     suffix = ".exe" if system == "windows" else ""
     return f"jarvis-{version}-{system}-{machine}{suffix}"
 
 
 def _read_json(url: str) -> dict:
-    with urlopen(\n        Request(url, headers={"Accept": "application/vnd.github+json"}), timeout=30\n    ) as response:
+    with urlopen(
+        Request(url, headers={"Accept": "application/vnd.github+json"}), timeout=30
+    ) as response:
         return json.loads(response.read())
 
 
@@ -35,7 +42,9 @@ def update_binary(version: str | None = None) -> str:
             "Self-update is for signed standalone binaries. Upgrade a pipx installation "
             "with: pipx upgrade --force jarvis-agent-cli"
         )
-    release = _read_json(\n        f"{RELEASE_API}/tags/v{version}" if version else f"{RELEASE_API}/latest"\n    )
+    release = _read_json(
+        f"{RELEASE_API}/tags/v{version}" if version else f"{RELEASE_API}/latest"
+    )
     resolved = str(release["tag_name"]).removeprefix("v")
     name = _asset_name(resolved)
     assets = {item["name"]: item["browser_download_url"] for item in release["assets"]}
