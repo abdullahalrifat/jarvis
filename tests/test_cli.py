@@ -5,8 +5,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 import pytest
-from aistack_cli.client import AgentClient, APIError
-from aistack_cli.main import (
+from jarvis_cli.client import AgentClient, APIError
+from jarvis_cli.main import (
     build_parser,
     cancellation_signals,
     configure_shell_history,
@@ -24,8 +24,8 @@ from aistack_cli.main import (
     run_task,
     task_requests_edits,
 )
-from aistack_cli.protocol import PROTOCOL_HEADER, validate_capabilities
-from aistack_cli.render import EventRenderer
+from jarvis_cli.protocol import PROTOCOL_HEADER, validate_capabilities
+from jarvis_cli.render import EventRenderer
 
 
 class FakeResponse:
@@ -188,7 +188,7 @@ def test_client_rejects_oversized_sse_event(monkeypatch):
     response = FakeResponse(
         lines=[b'data: {"event_type":"output_delta","payload":{"content":"large"}}\n']
     )
-    monkeypatch.setattr("aistack_cli.client.MAX_SSE_EVENT_BYTES", 16)
+    monkeypatch.setattr("jarvis_cli.client.MAX_SSE_EVENT_BYTES", 16)
     client = AgentClient(
         "http://agent.test",
         "secret",
@@ -202,7 +202,7 @@ def test_client_rejects_oversized_sse_event(monkeypatch):
 
 
 def test_client_rejects_oversized_json_response(monkeypatch):
-    monkeypatch.setattr("aistack_cli.client.MAX_HTTP_RESPONSE_BYTES", 64)
+    monkeypatch.setattr("jarvis_cli.client.MAX_HTTP_RESPONSE_BYTES", 64)
     client = AgentClient(
         "http://agent.test",
         "secret",
@@ -275,9 +275,9 @@ def test_api_key_can_be_read_from_non_executable_env_file(
 ):
     env_file = tmp_path / ".env"
     env_file.write_text("OTHER=value\nAGENT_API_KEY='local-secret'\n")
-    monkeypatch.delenv("AISTACK_API_KEY", raising=False)
+    monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
-    monkeypatch.setenv("AISTACK_ENV_FILE", str(env_file))
+    monkeypatch.setenv("JARVIS_SERVER_ENV_FILE", str(env_file))
 
     assert resolve_api_key() == "local-secret"
 
@@ -311,9 +311,9 @@ def test_shell_history_is_persistent_and_completes_commands(monkeypatch, tmp_pat
 
     callbacks = []
     history_file = tmp_path / "state" / "history"
-    monkeypatch.setenv("AISTACK_HISTORY_FILE", str(history_file))
+    monkeypatch.setenv("JARVIS_SERVER_HISTORY_FILE", str(history_file))
     monkeypatch.setitem(sys.modules, "readline", FakeReadline())
-    monkeypatch.setattr("aistack_cli.main.atexit.register", callbacks.append)
+    monkeypatch.setattr("jarvis_cli.main.atexit.register", callbacks.append)
 
     configure_shell_history()
 
@@ -641,7 +641,7 @@ def test_follow_run_reconnects_from_last_durable_event(monkeypatch):
         def action(self, run_id, action):
             raise AssertionError("cancel should not be called")
 
-    monkeypatch.setattr("aistack_cli.main.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("jarvis_cli.main.time.sleep", lambda seconds: None)
     output = io.StringIO()
     renderer = EventRenderer(stream=output, color=False)
     client = FakeClient()
@@ -680,7 +680,7 @@ def test_follow_run_reconnects_after_stream_timeout(monkeypatch):
         def action(self, run_id, action):
             raise AssertionError("cancel should not be called")
 
-    monkeypatch.setattr("aistack_cli.main.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("jarvis_cli.main.time.sleep", lambda seconds: None)
     output = io.StringIO()
     client = FakeClient()
 
@@ -715,7 +715,7 @@ def test_follow_run_resets_retry_budget_after_progress(monkeypatch):
         def action(self, run_id, action):
             raise AssertionError("cancel should not be called")
 
-    monkeypatch.setattr("aistack_cli.main.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("jarvis_cli.main.time.sleep", lambda seconds: None)
     client = FakeClient()
 
     run = follow_run(
@@ -740,7 +740,7 @@ def test_follow_run_cancels_foreground_run_after_unrecovered_error(monkeypatch):
             actions.append((run_id, action))
             return {"status": "cancelling"}
 
-    monkeypatch.setattr("aistack_cli.main.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("jarvis_cli.main.time.sleep", lambda seconds: None)
 
     with pytest.raises(APIError, match="connection lost"):
         follow_run(
@@ -969,8 +969,8 @@ def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys)
         def capabilities(self):
             return {"api_version": "1", "features": ["client_leases"]}
 
-    monkeypatch.setenv("AISTACK_API_KEY", "secret")
-    monkeypatch.setattr("aistack_cli.main.AgentClient", FakeClient)
+    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
 
     assert main(["--url", "http://agent.test", "doctor"]) == 0
     assert capsys.readouterr().out == (
@@ -1003,9 +1003,9 @@ def test_main_explicit_run_starts_with_mapped_workspace(
     checkout = tmp_path / "example"
     checkout.mkdir()
     monkeypatch.chdir(checkout)
-    monkeypatch.setenv("AISTACK_API_KEY", "secret")
-    monkeypatch.setattr("aistack_cli.main.AgentClient", FakeClient)
-    monkeypatch.setattr("aistack_cli.main.run_task", fake_run_task)
+    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
+    monkeypatch.setattr("jarvis_cli.main.run_task", fake_run_task)
 
     assert main(["run", "review", "the repo"]) == 0
     assert calls[0][1] == "review the repo"
@@ -1031,9 +1031,9 @@ def test_main_shorthand_automatically_allows_requested_edit(monkeypatch, tmp_pat
     checkout = tmp_path / "example"
     checkout.mkdir()
     monkeypatch.chdir(checkout)
-    monkeypatch.setenv("AISTACK_API_KEY", "secret")
-    monkeypatch.setattr("aistack_cli.main.AgentClient", FakeClient)
-    monkeypatch.setattr("aistack_cli.main.run_task", fake_run_task)
+    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
+    monkeypatch.setattr("jarvis_cli.main.run_task", fake_run_task)
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(
         "builtins.input",
@@ -1055,7 +1055,7 @@ def test_main_local_stream_simulate_mode(capsys):
 
 def test_main_local_stream_fails_when_runtime_is_unavailable(monkeypatch, capsys):
     monkeypatch.setattr(
-        "aistack_cli.main._import_chat_stream_text",
+        "jarvis_cli.main._import_chat_stream_text",
         lambda: None,
     )
 
@@ -1067,9 +1067,9 @@ def test_main_local_stream_fails_when_runtime_is_unavailable(monkeypatch, capsys
 
 
 def test_main_reports_configuration_errors_without_traceback(monkeypatch, capsys):
-    monkeypatch.delenv("AISTACK_API_KEY", raising=False)
+    monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
-    monkeypatch.delenv("AISTACK_ENV_FILE", raising=False)
+    monkeypatch.delenv("JARVIS_SERVER_ENV_FILE", raising=False)
 
     assert main(["doctor"]) == 1
     assert "No API key configured" in capsys.readouterr().err
@@ -1093,8 +1093,8 @@ def test_main_handles_broken_pipe_without_traceback(monkeypatch):
         def list_runs(self, _limit):
             return [{"id": "run-1", "status": "completed", "task": "done"}]
 
-    monkeypatch.setenv("AISTACK_API_KEY", "secret")
-    monkeypatch.setattr("aistack_cli.main.AgentClient", FakeClient)
+    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
     monkeypatch.setattr(sys, "stdout", BrokenOutput())
 
     assert main(["list"]) == 0
@@ -1134,7 +1134,7 @@ def test_interactive_shell_automatically_allows_edit_tasks(monkeypatch, capsys):
         }
 
     monkeypatch.setattr("builtins.input", lambda _prompt: next(commands))
-    monkeypatch.setattr("aistack_cli.main.run_task", fake_run_task)
+    monkeypatch.setattr("jarvis_cli.main.run_task", fake_run_task)
 
     assert (
         interactive_shell(
