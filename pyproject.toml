@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,9 +11,7 @@ dependencies = ["jarvis-agent-core>=0.2,<0.3"]
 dynamic = ["version"]
 
 [project.scripts]
-jarvis = "aistack_cli.main:main"
-# Backward-compatible command during the migration.
-aistack = "aistack_cli.main:main"
+jarvis = "jarvis_cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
