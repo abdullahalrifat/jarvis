@@ -5,6 +5,8 @@ from urllib.error import HTTPError
 
 import pytest
 
+from jarvis_core import ArtifactResolver, MemoryArtifactStore, TokenBudget, TokenLedger
+
 from aistack_cli.client import APIError
 from aistack_cli.local_agent import (
     LocalConfig,
@@ -225,3 +227,48 @@ def test_verifier_requires_structured_verdict():
     assert verdict.passed
     with pytest.raises(APIError, match="structured verdict"):
         _parse_verification_verdict("tests look fine")
+
+
+def test_read_artifact_uses_shared_bounded_resolver(tmp_path):
+    store = MemoryArtifactStore()
+    artifact = store.put("abcdefghij")
+    tools = LocalTools(
+        config(tmp_path),
+        artifact_resolver=ArtifactResolver(store, max_bytes=5),
+    )
+    result = json.loads(
+        tools.execute(
+            "read_artifact",
+            {"uri": artifact.uri, "offset": 2, "limit": 4},
+        )
+    )
+    assert result["content"] == "cdef"
+    assert result["next_offset"] == 6
+
+
+def test_model_failure_refunds_reserved_tokens(tmp_path):
+    class FailingProvider:
+        def complete(self, messages, schemas):
+            raise APIError("endpoint failed")
+
+    ledger = TokenLedger(
+        TokenBudget(
+            max_run_input=10000,
+            max_run_output=10000,
+            max_turn_input=10000,
+            max_turn_output=10000,
+            max_agent_input=10000,
+            max_agent_output=10000,
+        )
+    )
+    with pytest.raises(APIError, match="endpoint failed"):
+        from aistack_cli.local_agent import _run_single_agent
+
+        _run_single_agent(
+            "inspect",
+            config(tmp_path),
+            provider=FailingProvider(),
+            tools=LocalTools(config(tmp_path)),
+            ledger=ledger,
+        )
+    assert ledger.totals(include_reserved=True).input_tokens == 0
