@@ -44,7 +44,9 @@ def _public_url(url: str) -> str:
     try:
         addresses = {
             item[4][0]
-            for item in socket.getaddrinfo(\n                parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)\n            )
+            for item in socket.getaddrinfo(
+                parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
+            )
         }
     except OSError as exc:
         raise APIError(f"Could not resolve web host: {parsed.hostname}") from exc
