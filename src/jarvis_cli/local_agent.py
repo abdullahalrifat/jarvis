@@ -38,7 +38,7 @@ from jarvis_core.tokens import estimate_tokens
 
 from .client import APIError
 from .mcp import MCPClient
-from .profiles import load_profiles
+from .profiles import load_profiles, select_calibrated
 from .repository_map import build_repository_map
 from .web import fetch_web, search_web
 
@@ -106,9 +106,17 @@ def resolve_local_config(args: Any) -> LocalConfig:
     profile_names = {item.name for item in profiles.list()}
     if requested_model in {None, "auto"} or requested_model in profile_names:
         try:
-            profile = profiles.select(
-                preferred=requested_model,
-                required=("tool_calling",),
+            profile = (
+                select_calibrated(
+                    profiles,
+                    task=getattr(args, "routing_task", "code"),
+                    required=("tool_calling",),
+                )
+                if requested_model in {None, "auto"}
+                else profiles.select(
+                    preferred=requested_model,
+                    required=("tool_calling",),
+                )
             )
         except LookupError:
             if requested_model == "auto" or requested_model in profile_names:
