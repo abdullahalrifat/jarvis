@@ -736,6 +736,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable the local patch tool",
     )
 
+    model_doctor = subparsers.add_parser(
+        "model-doctor",
+        help="Verify a remote model endpoint and native tool calling",
+    )
+    model_doctor.add_argument("--provider", choices=("openai", "anthropic"))
+    model_doctor.add_argument("--base-url", help="Remote model API base URL")
+    model_doctor.add_argument("--model", help="Remote model identifier")
+    model_doctor.add_argument("--api-key-env")
+    model_doctor.add_argument("--no-api-key", action="store_true")
+    model_doctor.add_argument("--workspace", dest="local_workspace")
+    model_doctor.add_argument("--timeout", type=float, default=30)
+    model_doctor.set_defaults(
+        max_steps=1,
+        multi_agent=False,
+        accept_edits=False,
+        accept_commands=False,
+        write=False,
+    )
+
     stream = subparsers.add_parser(
         "stream",
         help="Stream a local prompt with a lightweight local LLM UX",
@@ -776,6 +795,7 @@ def main(argv: list[str] | None = None) -> int:
         "doctor",
         "list",
         "local",
+        "model-doctor",
         "projects",
         "resume",
         "run",
@@ -810,6 +830,16 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             print("\nInterrupted.", file=sys.stderr)
             return 130
+        except APIError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+    if args.command == "model-doctor":
+        try:
+            from .local_agent import probe_model, resolve_local_config
+
+            result = probe_model(resolve_local_config(args))
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
         except APIError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
