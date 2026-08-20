@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+
 try:
     import tomllib
 except ModuleNotFoundError:  # Python 3.10
