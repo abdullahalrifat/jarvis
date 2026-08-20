@@ -15,4 +15,4 @@ script_dir="$(cd -- "$(dirname -- "${script_path}")" && pwd)"
 jarvis_dir="$(cd -- "${script_dir}/.." && pwd)"
 
 export PYTHONPATH="${jarvis_dir}/src${PYTHONPATH:+:${PYTHONPATH}}"
-exec python3 -m aistack_cli "$@"
+exec python3 -m jarvis_cli "$@"
