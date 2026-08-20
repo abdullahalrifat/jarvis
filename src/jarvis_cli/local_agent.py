@@ -42,7 +42,7 @@ from .client import APIError
 from .mcp_registry import call_configured_tool
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .provider_messages import to_anthropic, to_openai
-from .repository_map import build_repository_map
+from .repository_map import build_repository_map\nfrom .quality_runtime import classify_request
 from .sandbox import sandbox_command
 from .web import fetch_web, search_web
 
@@ -194,6 +194,10 @@ def resolve_local_config(args: Any) -> LocalConfig:
         multi_agent=bool(
             getattr(args, "multi_agent", False)
             or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
+            or (
+                os.getenv("JARVIS_ADAPTIVE_AGENTS", "true").lower() in {"1", "true", "yes"}
+                and classify_request(str(getattr(args, "task", "") or "")).needs_multi_agent
+            )
         ),
         max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),
         max_output_tokens=max(
