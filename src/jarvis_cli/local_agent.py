@@ -260,12 +260,12 @@ class ModelProvider:
         try:
             payload = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise APIError("Model did not return the required structured result.") from exc
+            raise APIError(
+                "Model did not return the required structured result."
+            ) from exc
         if not isinstance(payload, dict):
             raise APIError("Structured model result must be a JSON object.")
-        missing = [
-            key for key in schema.get("required", []) if key not in payload
-        ]
+        missing = [key for key in schema.get("required", []) if key not in payload]
         if missing:
             raise APIError(
                 "Structured model result omitted required fields: "
@@ -853,7 +853,11 @@ def _run_single_agent(
                 failure=decision.kind.value,
                 recovery=decision.action,
             )
-            if decision.retryable and not decision.switch_model and recovery_retries < 2:
+            if (
+                decision.retryable
+                and not decision.switch_model
+                and recovery_retries < 2
+            ):
                 recovery_retries += 1
                 messages.append(
                     {
