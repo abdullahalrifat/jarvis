@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -53,7 +54,7 @@ def update_binary(version: str | None = None) -> str:
     with urlopen(assets[name], timeout=120) as response:
         payload = response.read()
     actual = hashlib.sha256(payload).hexdigest()
-    if not hashlib.compare_digest(actual, expected):
+    if not hmac.compare_digest(actual, expected):
         raise RuntimeError("Downloaded binary failed SHA-256 verification")
     target = Path(sys.executable).resolve()
     with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as output:
