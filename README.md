@@ -1,45 +1,44 @@
 # Jarvis CLI
 
-Jarvis is the primary product in this repository: a standalone coding agent that
-runs on your computer and sends inference requests to a model endpoint. Docker,
-the AI Stack server, PostgreSQL, Redis, and Qdrant are **not** required for normal
-local repository work.
+Jarvis is the primary product: a standalone coding and research agent that runs
+on your computer while inference can run on any OpenAI-compatible remote GPU
+endpoint. Docker, Server, PostgreSQL, Redis, and Qdrant are not required for
+normal local work.
 
-Jarvis is provider-independent. The recommended deployment is an open-weight
-coding model served by Hugging Face Inference Endpoints, vLLM, TGI, LiteLLM, or
-another OpenAI-compatible API. A trusted local endpoint also works. Anthropic's
-Messages API is supported as an optional compatibility provider, but it is not
-required by the product.
+Use an open-weight model served by Hugging Face Inference Endpoints, vLLM, TGI,
+LiteLLM, or a trusted local endpoint. Anthropic Messages compatibility remains
+optional; Jarvis does not require a commercial model subscription.
 
 ## Choose Jarvis or Server
 
 | Need | Use |
 | --- | --- |
-| Read, review, edit, and test a repository on this computer | **Jarvis** |
-| Keep source code local while using a remote GPU for inference | **Jarvis** |
-| Interactive terminal work or a one-shot coding task | **Jarvis** |
-| Durable work that survives terminal disconnects | **Server** |
+| Read, review, edit, and test a checkout on this computer | **Jarvis** |
+| Keep code and tools local while inference runs remotely | **Jarvis** |
+| One developer, interactive terminal work, or local automation | **Jarvis** |
+| Work that survives client disconnects | **Server** |
+| Shared users, queues, policy, documents, and audit history | **Server** |
 | Telegram, WhatsApp, web, or mobile clients | **Server** |
-| Shared users, central policy, queues, documents, or audit history | **Server** |
-| Work on repositories mounted only in a remote environment | **Server** |
+| Repositories mounted only in a remote environment | **Server** |
 
-Use Server explicitly with `jarvis run`. See
-[server/README.md](https://github.com/abdullahalrifat/ai-stack/blob/main/server/README.md) and
-[product architecture](https://github.com/abdullahalrifat/ai-stack/blob/main/docs/product-architecture.md).
+Server mode is explicit through `jarvis run`. See the
+[Server guide](https://github.com/abdullahalrifat/ai-stack/blob/agent/shared-runtime-server/server/README.md)
+and [product architecture](https://github.com/abdullahalrifat/ai-stack/blob/agent/shared-runtime-server/docs/product-architecture.md).
 
 ## Install
 
 Python 3.10 or newer is required.
 
 ```bash
-cd jarvis
 pipx install .
 jarvis --version
 ```
 
-## Connect to an open model
+Jarvis consumes the separately released
+[jarvis-agent-core](https://github.com/abdullahalrifat/jarvis-core). Release and
+install the matching core version before installing an unreleased Jarvis branch.
 
-### OpenAI-compatible remote endpoint
+## Connect a model
 
 ```bash
 export JARVIS_PROVIDER=openai
@@ -47,109 +46,80 @@ export JARVIS_BASE_URL=https://your-endpoint.example/v1
 export JARVIS_MODEL=your-org/your-coding-model
 export JARVIS_API_KEY=your-secret
 
+jarvis model-doctor
 cd /path/to/repository
 jarvis "review this repository and fix the highest-impact issue"
 ```
 
-Verify endpoint compatibility before the first agent run:\n\n```bash\njarvis model-doctor\n```\n\nThis checks authentication, response shape, usage reporting, and—critically—native tool calling. A prose-only chat endpoint cannot power the coding agent.\n\nFor a private endpoint that deliberately has no authentication, add
-`--no-api-key`. Do not expose an unauthenticated model endpoint to the public
-internet.
+For a trusted endpoint that deliberately has no authentication, pass
+`--no-api-key`. Never expose an unauthenticated model endpoint publicly.
+`model-doctor` checks authentication, response shape, usage reporting, and
+native tool calling. A prose-only chat endpoint cannot drive the coding agent.
 
-### Local model endpoint
+A local endpoint uses the same contract:
 
 ```bash
-export JARVIS_PROVIDER=openai
 export JARVIS_BASE_URL=http://127.0.0.1:8001/v1
 export JARVIS_MODEL=local-coding-model
 jarvis --no-api-key "explain this codebase"
 ```
 
-### Optional Anthropic compatibility
-
-```bash
-export JARVIS_PROVIDER=anthropic
-export JARVIS_MODEL=your-model-id
-export ANTHROPIC_API_KEY=your-secret
-jarvis "fix the failing tests"
-```
+Named profiles and `--model auto` are documented in
+[docs/models.md](docs/models.md).
 
 ## Daily use
 
-Start an interactive local session:
-
 ```bash
-cd /path/to/repository
 jarvis
-```
-
-Run a one-shot task:
-
-```bash
 jarvis "review auth.py for security defects"
 jarvis local --read-only "review this repository"
 jarvis local --max-steps 40 --timeout 300 "implement and verify the change"
-```
-
-Edits and commands require interactive confirmation by default. These options
-are intended only for trusted repositories:
-
-```bash
 jarvis local --accept-edits --accept-commands "implement and test the change"
+jarvis local --file notes.txt "summarize and verify this document"
 ```
 
-Jarvis loads repository instructions from `AGENTS.md`. Its local tools can:
+Jarvis loads root `AGENTS.md` instructions. Its local agent can list and read
+bounded files, search text, inspect Git state and diffs, apply checked unified
+patches, run constrained shell-free commands, build a repository map, plan,
+implement, verify, review, search the web, fetch public pages, and call
+administrator-selected MCP tools. Paths and symlinks cannot escape the
+workspace. Edits and commands require confirmation by default.
 
-- list files and inspect bounded file contents;
-- search repository text with regular expressions;
-- inspect Git status and diffs;
-- apply unified patches after `git apply --check`;
-- run a constrained, shell-free command allowlist;
-- reject path and symlink escapes outside the workspace;
-- plan, implement, verify, and review in a bounded model/tool loop.
+The model receives prompts and selected tool results, not direct filesystem or
+process access. Local tools remain on the user's computer.
 
-The model API receives prompts and selected tool results. It does not receive
-unrequested access to the local filesystem; filesystem and process tools run
-inside Jarvis on the user's machine.
+## Search, sessions, traces, and evaluations
 
-## Daily answers, web search, sessions, and evaluations
-
-Jarvis can answer general day-to-day questions as well as coding tasks. For
-current information, configure a self-hosted SearXNG endpoint. SearXNG may use
-Google, Bing, Brave, and other enabled engines without coupling Jarvis to a
-paid search subscription.
+Configure a self-hosted SearXNG endpoint for current answers:
 
 ```bash
 export JARVIS_SEARCH_URL=https://search.example.com
-jarvis "find the latest primary sources about this topic and give me a cited answer"
+jarvis "find current primary sources and give me a cited answer"
 jarvis web-search "latest open-weight coding models" --limit 8
 ```
 
-Search snippets and fetched pages are marked as untrusted evidence, bounded,
-and required to retain source URLs. Private/local network targets are rejected
-by `web_fetch`.
-
-Local work is durable and inspectable:
+SearXNG can aggregate whichever engines its administrator enables, including
+Google, Bing, or Brave; Jarvis does not require a paid search API. Search and
+page content is bounded and labeled untrusted, source URLs are preserved, and
+private/local network fetches are rejected. Search improves access to current
+information but does not guarantee that every answer is correct; verify
+high-stakes claims with primary sources.
 
 ```bash
 jarvis sessions
 jarvis session-show SESSION_ID
 jarvis trace ~/.local/state/jarvis/traces/SESSION_ID.jsonl
 jarvis repo-map
-jarvis local --file notes.txt "summarize and verify this document"
 jarvis undo
 jarvis models --require tool_calling
 jarvis eval evals/smoke.json
 jarvis mcp-tools "python -m your_mcp_server"
 ```
 
-Named model profiles live in `~/.config/jarvis/models.toml`. Choosing
-`--model auto`, or omitting a model when profiles exist, routes to an enabled
-profile with native tool calling. JSON-defined eval suites make prompt/model
-comparisons repeatable instead of anecdotal.
+These commands are covered in [docs/operations.md](docs/operations.md),
+[docs/web-search.md](docs/web-search.md), and [docs/mcp.md](docs/mcp.md).
 
-## Use the optional server
-
-Server mode is intentionally explicit:
+## Optional Server mode
 
 ```bash
 export JARVIS_SERVER_URL=https://agent.example.com
@@ -165,55 +135,48 @@ jarvis approve RUN_ID
 jarvis discard RUN_ID
 ```
 
-Server-mode automation supports `--output text|json|stream-json`, standard
-input, durable conversations, detached runs, event replay, cancellation, and
-reviewable sandbox changes.
+Server mode supports durable conversations, detached runs, event replay,
+cancellation, reviewable sandbox changes, stdin, and text/JSON/JSONL output.
 
-## Current capability boundary
+## Capability boundary
 
-Jarvis already covers the core coding-agent loop: reasoning through the model,
-repository reading and search, guarded editing, command execution, verification,
-review, workspace isolation, interactive use, and remote open-model inference.
+Implemented now:
 
-It is not yet feature-equivalent to the most mature commercial coding-agent
-terminals. The important remaining gaps are tracked in [ROADMAP.md](ROADMAP.md):
+- standalone bounded agent loop with guarded repository tools;
+- remote or local open-model inference and capability-aware profiles;
+- token budgets, context compaction, artifacts, and selective multi-agent mode;
+- web evidence with citations and SSRF/prompt-injection boundaries;
+- local session records, redacted traces, repository maps, attachments, undo,
+  MCP foundations, and replayable evaluation cases;
+- explicit durable Server mode.
 
-- named, searchable, resumable local sessions;
-- named local session persistence and richer local JSON/streaming event output;
-- plan-only mode and layered permission/configuration policy;
-- richer terminal editing, attachments, and per-hunk diff review;
-- MCP, hooks, skills/plugins, and connector support;
-- worktree/branch workflows and safe parallel local agents;
-- OS keyring/profile support, telemetry controls, and release hardening.
+Not yet complete:
 
-“Claude-like” in this project means comparable dependable outcomes, not copying
-another product or depending on a paid provider. Capability claims must remain
-backed by tests and documented limitations.
+- resuming a local transcript into a continued agent conversation;
+- session rename, fork, archive, delete, and interactive search;
+- image/PDF attachments and multimodal tool flow;
+- per-file/per-hunk diff approval and a complete undo ledger;
+- full MCP lifecycle/configuration, hooks, and signed plugins;
+- hierarchical instruction/memory policy and OS keyring integration;
+- provider failover/circuit breakers and benchmark-driven route optimization;
+- signed standalone binaries, secure updater, SBOM, and OS sandbox profiles.
+
+See [ROADMAP.md](ROADMAP.md). “Claude-like” means dependable comparable
+outcomes, not copying another product or requiring a paid provider.
 
 ## Development
 
 ```bash
-cd jarvis
 python -m pytest
 python -m build
 ```
 
-The CLI and server share the versioned protocol contract at
-[`contracts/jarvis-protocol-v1.json`](https://github.com/abdullahalrifat/ai-stack/blob/main/contracts/jarvis-protocol-v1.json).
-Keeping both packages in one repository currently makes protocol changes
-atomic. Split Jarvis into its own repository only after the protocol artifact
-is published/versioned independently and cross-repository compatibility tests
-run in CI.
-
-
-## Shared runtime
-
-Jarvis consumes [jarvis-core](https://github.com/abdullahalrifat/jarvis-core)
-for token budgets, token accounting, context compaction, content-addressed
-artifacts, delta context, and selective multi-agent orchestration.
-
-Enable the Explorer -> Implementer -> Verifier flow explicitly:
+Run the selective Explorer → Implementer → Verifier workflow with:
 
 ```bash
 jarvis local --multi-agent "implement and verify this change"
 ```
+
+Jarvis and Server share behavior through `jarvis-agent-core`; they share the
+versioned Server protocol contract without sharing tool implementations or
+storage policy.
