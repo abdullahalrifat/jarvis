@@ -1008,6 +1008,7 @@ def main(argv: list[str] | None = None) -> int:
         "eval",
     }:
         try:
+            from .sessions import SessionStore
             from .features import (
                 create_repository_map,
                 list_local_sessions,
