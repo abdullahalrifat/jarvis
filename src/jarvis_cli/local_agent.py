@@ -1095,6 +1095,45 @@ class _LocalAgentBackend:
         self.artifacts = artifacts
         self.model = config.model
 
+    def _route_config(self, role: str, config: LocalConfig) -> LocalConfig:
+        """Resolve an optional per-role profile from trusted local configuration."""
+
+        try:
+            routes = json.loads(os.getenv("JARVIS_ROLE_MODELS", "{}"))
+        except json.JSONDecodeError:
+            routes = {}
+        profile_name = routes.get(role) if isinstance(routes, dict) else None
+        if not isinstance(profile_name, str) or not profile_name.strip():
+            return config
+        try:
+            profile = load_profiles().select(
+                preferred=profile_name.strip(),
+                required=("tool_calling",),
+            )
+        except LookupError as exc:
+            raise APIError(
+                f"Role {role!r} selects unavailable model profile {profile_name!r}."
+            ) from exc
+        key_env = profile_api_key_env(profile.name) or (
+            "ANTHROPIC_API_KEY"
+            if profile.provider.lower() == "anthropic"
+            else "OPENAI_API_KEY"
+        )
+        api_key = os.getenv("JARVIS_API_KEY") or os.getenv(key_env, "")
+        output_limit = profile.capabilities.max_output_tokens
+        return replace(
+            config,
+            provider=profile.provider.lower(),
+            model=profile.model,
+            base_url=profile.base_url.rstrip("/"),
+            api_key=api_key,
+            max_output_tokens=(
+                min(config.max_output_tokens, output_limit)
+                if output_limit
+                else config.max_output_tokens
+            ),
+        )
+
     def run(
         self,
         *,
@@ -1124,15 +1163,19 @@ class _LocalAgentBackend:
             multi_agent=False,
             max_output_tokens=max_output_tokens,
         )
+        role_config = self._route_config(role, role_config)
         role_tools = LocalTools(
             role_config,
             approval=self.tools.approval,
             artifact_resolver=ArtifactResolver(self.artifacts),
         )
+        role_provider = self.provider
+        if role_config.model != self.config.model or role_config.provider != self.config.provider:
+            role_provider = ModelProvider(role_config)
         summary = _run_single_agent(
             role_task,
             role_config,
-            provider=self.provider,
+            provider=role_provider,
             tools=role_tools,
             ledger=self.ledger,
             artifacts=self.artifacts,
@@ -1205,8 +1248,14 @@ def run_local_agent(
         results[-1],
     )
     verification = verifier.summary if verifier else "No verifier result."
+    verdict = verifier.verdict if verifier else None
+    completion = (
+        "verified"
+        if verdict is not None and verdict.status == VerificationStatus.PASSED
+        else "incomplete: independent verification did not pass"
+    )
     return (
-        f"{implementer.summary}\n\nVerification:\n{verification}\n\n"
+        f"{implementer.summary}\n\nVerification ({completion}):\n{verification}\n\n"
         f"Token usage: {json.dumps(ledger.to_dict()['totals'])}"
     )
 
