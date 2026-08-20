@@ -135,6 +135,8 @@ jarvis sessions
 jarvis session-show SESSION_ID
 jarvis trace ~/.local/state/jarvis/traces/SESSION_ID.jsonl
 jarvis repo-map
+jarvis local --file notes.txt "summarize and verify this document"
+jarvis undo
 jarvis models --require tool_calling
 jarvis eval evals/smoke.json
 jarvis mcp-tools "python -m your_mcp_server"
