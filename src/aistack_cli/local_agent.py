@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from jarvis_core import (
     AgentResult,
+    ArtifactResolver,
     MemoryArtifactStore,
     SelectiveOrchestrator,
     VerificationStatus,
@@ -199,6 +200,7 @@ class ModelProvider:
     def __init__(self, config: LocalConfig, opener=urlopen):
         self.config = config
         self.opener = opener
+        self.last_usage: dict[str, int] = {}
 
     def complete(
         self,
@@ -233,6 +235,7 @@ class ModelProvider:
             raise APIError(
                 "OpenAI-compatible endpoint omitted choices[0].message."
             ) from exc
+        self.last_usage = dict(response.get("usage") or {})
         calls = []
         for call in message.get("tool_calls") or []:
             try:
@@ -280,6 +283,11 @@ class ModelProvider:
             self.config.timeout,
             self.opener,
         )
+        usage = response.get("usage") or {}
+        self.last_usage = {
+            "input_tokens": int(usage.get("input_tokens", 0)),
+            "output_tokens": int(usage.get("output_tokens", 0)),
+        }
         blocks = response.get("content") or []
         text = "".join(
             str(block.get("text", ""))
@@ -352,6 +360,19 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "read_artifact",
+        "description": "Read a bounded chunk from a previously stored large tool result.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "uri": {"type": "string"},
+                "offset": {"type": "integer", "minimum": 0, "default": 0},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 64000},
+            },
+            "required": ["uri"],
+        },
+    },
+    {
         "name": "run_command",
         "description": "Run one allowlisted command without a shell.",
         "parameters": {
@@ -370,10 +391,12 @@ class LocalTools:
         self,
         config: LocalConfig,
         approval: Callable[[str], bool] | None = None,
+        artifact_resolver: ArtifactResolver | None = None,
     ):
         self.config = config
         self.root = config.workspace
         self.approval = approval or (lambda _description: False)
+        self.artifact_resolver = artifact_resolver
 
     def _path(self, value: str) -> Path:
         candidate = (self.root / value).resolve()
@@ -425,6 +448,21 @@ class LocalTools:
             return self._command(["git", "diff", "--no-ext-diff"])
         if name == "apply_patch":
             return self._apply_patch(str(arguments["patch"]))
+        if name == "read_artifact":
+            if self.artifact_resolver is None:
+                raise APIError("No artifact store is available for this run.")
+            return json.dumps(
+                self.artifact_resolver.read(
+                    str(arguments["uri"]),
+                    offset=int(arguments.get("offset", 0)),
+                    limit=(
+                        int(arguments["limit"])
+                        if arguments.get("limit") is not None
+                        else None
+                    ),
+                ),
+                ensure_ascii=False,
+            )
         if name == "run_command":
             argv = arguments.get("argv")
             if not isinstance(argv, list) or not all(isinstance(x, str) for x in argv):
@@ -538,6 +576,7 @@ def _run_single_agent(
     provider: ModelProvider | None = None,
     tools: LocalTools | None = None,
     ledger: TokenLedger | None = None,
+    artifacts: MemoryArtifactStore | None = None,
     role: str = "implementer",
 ) -> str:
     provider = provider or ModelProvider(config)
@@ -556,24 +595,32 @@ def _run_single_agent(
         {"role": "system", "content": _system_prompt(config)},
         {"role": "user", "content": task},
     ]
-    artifacts = MemoryArtifactStore()
+    artifacts = artifacts or MemoryArtifactStore()
     for _step in range(config.max_steps):
         if estimate_tokens(messages) >= min(24_000, config.max_input_tokens * 3 // 4):
             messages, saved = compact_messages(messages, keep_recent=4)
         else:
             saved = 0
         turn_input = estimate_tokens({"messages": messages, "tools": TOOL_SCHEMAS})
-        ledger.reserve(role, turn_input, min(4_096, config.max_output_tokens))
-        text, calls, raw_assistant = provider.complete(messages, TOOL_SCHEMAS)
-        ledger.record(
-            Usage(
-                agent=role,
-                model=config.model,
-                input_tokens=turn_input,
-                output_tokens=estimate_tokens(text),
-                compaction_saved_tokens=saved,
-            )
+        reservation = ledger.reserve(
+            role, turn_input, min(4_096, config.max_output_tokens)
         )
+        try:
+            text, calls, raw_assistant = provider.complete(messages, TOOL_SCHEMAS)
+        except BaseException:
+            ledger.refund(reservation)
+            raise
+        provider_usage = TokenLedger.usage_from_provider(
+            role, config.model, getattr(provider, "last_usage", None)
+        )
+        actual_usage = provider_usage or Usage(
+            agent=role,
+            model=config.model,
+            input_tokens=turn_input,
+            output_tokens=estimate_tokens(text),
+        )
+        actual_usage.compaction_saved_tokens = saved
+        ledger.commit(reservation, actual_usage)
         if config.provider == "anthropic":
             messages.append({"role": "assistant", "content": raw_assistant})
         else:
@@ -590,7 +637,7 @@ def _run_single_agent(
             compact = summarize_tool_result(
                 call["name"], result, max_chars=6_000, artifact_store=artifacts
             )
-            ledger.entries.append(
+            ledger.record(
                 Usage(
                     agent=role,
                     model=config.model,
@@ -638,11 +685,13 @@ class _LocalAgentBackend:
         provider: ModelProvider | None,
         tools: LocalTools,
         ledger: TokenLedger,
+        artifacts: MemoryArtifactStore,
     ) -> None:
         self.config = config
         self.provider = provider
         self.tools = tools
         self.ledger = ledger
+        self.artifacts = artifacts
         self.model = config.model
 
     def run(
@@ -674,13 +723,18 @@ class _LocalAgentBackend:
             multi_agent=False,
             max_output_tokens=max_output_tokens,
         )
-        role_tools = LocalTools(role_config, approval=self.tools.approval)
+        role_tools = LocalTools(
+            role_config,
+            approval=self.tools.approval,
+            artifact_resolver=ArtifactResolver(self.artifacts),
+        )
         summary = _run_single_agent(
             role_task,
             role_config,
             provider=self.provider,
             tools=role_tools,
             ledger=self.ledger,
+            artifacts=self.artifacts,
             role=role,
         )
         verdict = _parse_verification_verdict(summary) if role == "verifier" else None
@@ -696,7 +750,10 @@ def run_local_agent(
 ) -> str:
     """Run one efficient agent or the selective multi-agent DAG."""
 
-    tools = tools or LocalTools(config)
+    artifacts = MemoryArtifactStore()
+    tools = tools or LocalTools(
+        config, artifact_resolver=ArtifactResolver(artifacts)
+    )
     ledger = TokenLedger(
         TokenBudget(
             max_run_input=config.max_input_tokens,
@@ -717,9 +774,14 @@ def run_local_agent(
     )
     if not config.multi_agent:
         return _run_single_agent(
-            task, config, provider=provider, tools=tools, ledger=ledger
+            task,
+            config,
+            provider=provider,
+            tools=tools,
+            ledger=ledger,
+            artifacts=artifacts,
         )
-    backend = _LocalAgentBackend(config, provider, tools, ledger)
+    backend = _LocalAgentBackend(config, provider, tools, ledger, artifacts)
     results = SelectiveOrchestrator(backend, ledger).run(
         task,
         {
