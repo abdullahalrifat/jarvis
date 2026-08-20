@@ -26,11 +26,11 @@ class APIError(RuntimeError):
 
 MAX_SSE_EVENT_BYTES = max(
     16_384,
-    int(os.getenv("AISTACK_MAX_SSE_EVENT_BYTES", "1048576")),
+    int(os.getenv("JARVIS_MAX_SSE_EVENT_BYTES", "1048576")),
 )
 MAX_HTTP_RESPONSE_BYTES = max(
     65_536,
-    int(os.getenv("AISTACK_MAX_HTTP_RESPONSE_BYTES", "4194304")),
+    int(os.getenv("JARVIS_MAX_HTTP_RESPONSE_BYTES", "4194304")),
 )
 
 
@@ -244,7 +244,7 @@ class AgentClient:
                             raise APIError(
                                 "Agent event exceeded the configured "
                                 f"{MAX_SSE_EVENT_BYTES}-byte safety limit. "
-                                "Increase AISTACK_MAX_SSE_EVENT_BYTES only for "
+                                "Increase JARVIS_MAX_SSE_EVENT_BYTES only for "
                                 "a trusted server."
                             )
                         data_lines.append(data)
