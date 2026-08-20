@@ -8,7 +8,13 @@ from threading import Lock
 from typing import Any
 
 from .client import APIError
-from .mcp import HTTPMCPClient, MCPClient, default_mcp_config_path, load_mcp_config, oauth_token
+from .mcp import (
+    HTTPMCPClient,
+    MCPClient,
+    default_mcp_config_path,
+    load_mcp_config,
+    oauth_token,
+)
 
 _clients: dict[str, MCPClient | HTTPMCPClient] = {}
 _lock = Lock()
