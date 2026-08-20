@@ -51,7 +51,7 @@ cd /path/to/repository
 jarvis "review this repository and fix the highest-impact issue"
 ```
 
-For a private endpoint that deliberately has no authentication, add
+Verify endpoint compatibility before the first agent run:\n\n```bash\njarvis model-doctor\n```\n\nThis checks authentication, response shape, usage reporting, and—critically—native tool calling. A prose-only chat endpoint cannot power the coding agent.\n\nFor a private endpoint that deliberately has no authentication, add
 `--no-api-key`. Do not expose an unauthenticated model endpoint to the public
 internet.
 
@@ -143,7 +143,7 @@ It is not yet feature-equivalent to the most mature commercial coding-agent
 terminals. The important remaining gaps are tracked in [ROADMAP.md](ROADMAP.md):
 
 - named, searchable, resumable local sessions;
-- local JSON/streaming output and context compaction;
+- named local session persistence and richer local JSON/streaming event output;
 - plan-only mode and layered permission/configuration policy;
 - richer terminal editing, attachments, and per-hunk diff review;
 - MCP, hooks, skills/plugins, and connector support;
