@@ -774,11 +774,15 @@ def build_parser() -> argparse.ArgumentParser:
     sessions.add_argument("--limit", type=int, default=50)
     local_show = subparsers.add_parser("session-show", help="Show one local session")
     local_show.add_argument("session_id")
-    repo_map = subparsers.add_parser("repo-map", help="Build an incremental repository map")
+    repo_map = subparsers.add_parser(
+        "repo-map", help="Build an incremental repository map"
+    )
     repo_map.add_argument("--workspace", dest="local_workspace")
     models = subparsers.add_parser("models", help="List and route named model profiles")
     models.add_argument("--require", action="append", default=[])
-    web_search = subparsers.add_parser("web-search", help="Search the current public web")
+    web_search = subparsers.add_parser(
+        "web-search", help="Search the current public web"
+    )
     web_search.add_argument("query", nargs="+")
     web_search.add_argument("--limit", type=int, default=8)
     trace = subparsers.add_parser("trace", help="Print a local JSONL agent trace")
@@ -786,7 +790,9 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("--kind", action="append")
     mcp = subparsers.add_parser("mcp-tools", help="List tools from an MCP stdio server")
     mcp.add_argument("server_command")
-    evaluate = subparsers.add_parser("eval", help="Run JSON-defined local agent evaluations")
+    evaluate = subparsers.add_parser(
+        "eval", help="Run JSON-defined local agent evaluations"
+    )
     evaluate.add_argument("file")
     evaluate.add_argument("--provider", choices=("openai", "anthropic"))
     evaluate.add_argument("--base-url")
@@ -954,7 +960,13 @@ def main(argv: list[str] | None = None) -> int:
                     args.file,
                     lambda case: run_local_agent(case.task, config, tools=tools),
                 )
-        except (APIError, LookupError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            APIError,
+            LookupError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
     if args.command == "model-doctor":
