@@ -37,8 +37,7 @@ def test_repository_map_contains_python_symbols(tmp_path):
 
 def test_model_profiles_load_and_route(tmp_path):
     path = tmp_path / "models.toml"
-    path.write_text(
-        """
+    path.write_text("""
 [models.coder]
 provider = "openai"
 model = "qwen"
@@ -49,8 +48,7 @@ priority = 10
 tool_calling = true
 structured_output = true
 context_tokens = 32768
-"""
-    )
+""")
     selected = load_profiles(path).select(required=("tool_calling",))
     assert selected.model == "qwen"
 
