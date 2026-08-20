@@ -79,7 +79,9 @@ def load_benchmarks(path: str | Path | None = None) -> BenchmarkRegistry:
     return registry
 
 
-def record_benchmark(observation: BenchmarkObservation, path: str | Path | None = None) -> None:
+def record_benchmark(
+    observation: BenchmarkObservation, path: str | Path | None = None
+) -> None:
     import json
     from dataclasses import asdict
 
@@ -97,9 +99,15 @@ def select_calibrated(
     required: tuple[str, ...] = (),
 ) -> ModelProfile:
     candidates = [
-        item for item in profiles.list() if item.enabled and item.capabilities.supports(required)
+        item
+        for item in profiles.list()
+        if item.enabled and item.capabilities.supports(required)
     ]
     benchmarks = load_benchmarks()
-    if any(item.model == candidate.name for item in benchmarks.observations for candidate in candidates):
+    if any(
+        item.model == candidate.name
+        for item in benchmarks.observations
+        for candidate in candidates
+    ):
         return benchmarks.select(candidates, task)
     return profiles.select(required=required)
