@@ -35,7 +35,9 @@ def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
                 enabled=bool(item.get("enabled", True)),
                 capabilities=ModelCapabilities(
                     tool_calling=bool(capabilities.get("tool_calling", False)),
-                    structured_output=bool(capabilities.get("structured_output", False)),
+                    structured_output=bool(
+                        capabilities.get("structured_output", False)
+                    ),
                     vision=bool(capabilities.get("vision", False)),
                     context_tokens=int(capabilities.get("context_tokens", 0)),
                     max_output_tokens=int(capabilities.get("max_output_tokens", 0)),
