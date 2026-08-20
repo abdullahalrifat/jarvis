@@ -800,10 +800,14 @@ def build_parser() -> argparse.ArgumentParser:
     local_fork = subparsers.add_parser("session-fork", help="Fork a local session")
     local_fork.add_argument("session_id")
     local_fork.add_argument("--name")
-    local_rename = subparsers.add_parser("session-rename", help="Rename a local session")
+    local_rename = subparsers.add_parser(
+        "session-rename", help="Rename a local session"
+    )
     local_rename.add_argument("session_id")
     local_rename.add_argument("name")
-    local_archive = subparsers.add_parser("session-archive", help="Archive or restore a session")
+    local_archive = subparsers.add_parser(
+        "session-archive", help="Archive or restore a session"
+    )
     local_archive.add_argument("session_id")
     local_archive.add_argument("--restore", action="store_true")
     repo_map = subparsers.add_parser(
@@ -906,7 +910,10 @@ def main(argv: list[str] | None = None) -> int:
             session, messages, pending = store.resume(args.session_id)
             if pending and not args.approve_pending:
                 print(json.dumps(pending, indent=2), file=sys.stderr)
-                print("Pending approvals must be reviewed; pass --approve-pending to accept.", file=sys.stderr)
+                print(
+                    "Pending approvals must be reviewed; pass --approve-pending to accept.",
+                    file=sys.stderr,
+                )
                 return 2
             for approval in pending:
                 store.resolve_approval(approval["id"], True)
