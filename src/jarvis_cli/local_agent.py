@@ -792,6 +792,7 @@ def _run_single_agent(
     trace.record("agent_started", role=role, model=config.model, task=task)
     web_required = requires_web_search(task)
     web_attempted = False
+    recovery_retries = 0
     active_schemas = (
         [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
@@ -822,6 +823,19 @@ def _run_single_agent(
                 failure=decision.kind.value,
                 recovery=decision.action,
             )
+            if decision.retryable and not decision.switch_model and recovery_retries < 2:
+                recovery_retries += 1
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The previous model call failed. Recovery policy: "
+                            f"{decision.action}. Retry without repeating completed tools, "
+                            "and keep the next response bounded."
+                        ),
+                    }
+                )
+                continue
             raise
         provider_usage = TokenLedger.usage_from_provider(
             role, config.model, getattr(provider, "last_usage", None)
