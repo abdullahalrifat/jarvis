@@ -19,7 +19,7 @@ def test_repository_launcher_loads_the_cli_from_its_own_package(tmp_path):
 
 def test_installer_manages_only_its_symlink(tmp_path):
     install_dir = tmp_path / "bin"
-    env = {**os.environ, "AISTACK_INSTALL_DIR": str(install_dir)}
+    env = {**os.environ, "JARVIS_SERVER_INSTALL_DIR": str(install_dir)}
     installer = CLI_ROOT / "scripts" / "install-aistack"
 
     subprocess.run([installer], env=env, check=True, capture_output=True, text=True)
