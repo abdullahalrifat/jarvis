@@ -65,3 +65,30 @@ class MCPClient:
             if response.get("id") == 2:
                 return list((response.get("result") or {}).get("tools") or [])
         raise APIError("MCP server did not return tools/list")
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        responses = self._exchange(
+            [
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2026-07-28",
+                        "capabilities": {},
+                        "clientInfo": {"name": "jarvis", "version": "0.1"},
+                    },
+                },
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {"name": name, "arguments": arguments},
+                },
+            ]
+        )
+        for response in responses:
+            if response.get("id") == 2:
+                return response.get("result")
+        raise APIError("MCP server did not return tools/call")
