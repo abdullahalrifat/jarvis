@@ -379,6 +379,22 @@ TOOL_SCHEMAS = [
     },
 ]
 
+VERDICT_TOOL_SCHEMA = {
+    "name": "submit_verdict",
+    "description": "Submit the verifier's final machine-readable verdict.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["passed", "failed", "blocked"]},
+            "checks": {"type": "array", "items": {"type": "string"}},
+            "failed_checks": {"type": "array", "items": {"type": "string"}},
+            "retry_instruction": {"type": ["string", "null"]},
+        },
+        "required": ["status", "checks", "failed_checks", "retry_instruction"],
+        "additionalProperties": False,
+    },
+}
+
 
 def probe_model(
     config: LocalConfig, provider: ModelProvider | None = None
@@ -640,17 +656,22 @@ def _run_single_agent(
         {"role": "user", "content": task},
     ]
     artifacts = artifacts or MemoryArtifactStore()
+    active_schemas = (
+        [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA]
+        if role == "verifier"
+        else TOOL_SCHEMAS
+    )
     for _step in range(config.max_steps):
         if estimate_tokens(messages) >= min(24_000, config.max_input_tokens * 3 // 4):
             messages, saved = compact_messages(messages, keep_recent=4)
         else:
             saved = 0
-        turn_input = estimate_tokens({"messages": messages, "tools": TOOL_SCHEMAS})
+        turn_input = estimate_tokens({"messages": messages, "tools": active_schemas})
         reservation = ledger.reserve(
             role, turn_input, min(4_096, config.max_output_tokens)
         )
         try:
-            text, calls, raw_assistant = provider.complete(messages, TOOL_SCHEMAS)
+            text, calls, raw_assistant = provider.complete(messages, active_schemas)
         except BaseException:
             ledger.refund(reservation)
             raise
@@ -674,6 +695,8 @@ def _run_single_agent(
                 raise APIError("Model stopped without a final answer.")
             return text
         for call in calls:
+            if role == "verifier" and call["name"] == "submit_verdict":
+                return json.dumps(call["arguments"], ensure_ascii=False)
             try:
                 result = tools.execute(call["name"], call["arguments"])
             except Exception as exc:
@@ -750,8 +773,8 @@ class _LocalAgentBackend:
         role_instructions = template.system
         if role == "verifier":
             role_instructions += (
-                " Return only one JSON object with status, checks, failed_checks, "
-                "and retry_instruction."
+                " Finish by calling submit_verdict exactly once with status, checks, "
+                "failed_checks, and retry_instruction. Do not return the verdict as prose."
             )
         role_task = (
             f"Role: {role}. {role_instructions}\nOriginal task: {task}\n"
