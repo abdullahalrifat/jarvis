@@ -1,4 +1,4 @@
-"""Command-line entry point for the durable ai-stack coding agent."""
+"""Command-line entry point for the Jarvis coding agent."""
 
 from __future__ import annotations
 
