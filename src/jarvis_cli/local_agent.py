@@ -96,12 +96,12 @@ def resolve_local_config(args: Any) -> LocalConfig:
     provider = (
         args.provider
         or os.getenv("JARVIS_PROVIDER")
-        or os.getenv("AISTACK_LOCAL_PROVIDER", "openai")
+        or "openai"
     ).lower()
     if provider not in {"openai", "anthropic"}:
         raise APIError("Local provider must be 'openai' or 'anthropic'.")
 
-    model = args.model or os.getenv("JARVIS_MODEL") or os.getenv("AISTACK_LOCAL_MODEL")
+    model = args.model or os.getenv("JARVIS_MODEL")
     if not model:
         raise APIError("No model configured. Pass --model or set JARVIS_MODEL.")
 
@@ -122,7 +122,7 @@ def resolve_local_config(args: Any) -> LocalConfig:
         api_key = os.getenv(args.api_key_env or "OPENAI_API_KEY", "")
     api_key = os.getenv(
         "JARVIS_API_KEY",
-        os.getenv("AISTACK_MODEL_API_KEY", api_key),
+        api_key,
     )
 
     if not base_url:
