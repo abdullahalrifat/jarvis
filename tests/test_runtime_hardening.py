@@ -81,3 +81,93 @@ def test_mcp_is_denied_when_tool_has_no_explicit_policy(monkeypatch):
     )
     with pytest.raises(APIError, match="denied by policy"):
         client.call_tool("filesystem.write", {})
+
+
+class ScriptedProvider:
+    def __init__(self, turns):
+        self.turns = iter(turns)
+        self.last_usage = {"prompt_tokens": 10, "completion_tokens": 5}
+        self.active_provider = "openai"
+        self.active_model = "scripted"
+
+    def complete(self, messages, tools):
+        name, arguments, final = next(self.turns)
+        if name is None:
+            return final, [], {"role": "assistant", "content": final}
+        call = {"id": f"call-{name}", "name": name, "arguments": arguments}
+        raw = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": call["id"],
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": json.dumps(arguments),
+                    },
+                }
+            ],
+        }
+        return "", [call], raw
+
+
+class FixtureTools:
+    def __init__(self):
+        self.calls = []
+
+    def execute(self, name, arguments):
+        self.calls.append((name, arguments))
+        return {
+            "web_search": "https://example.test/source",
+            "apply_patch": "patch applied",
+            "run_command": "1 passed",
+        }[name]
+
+
+def test_search_patch_test_and_resume_fixture(tmp_path):
+    from jarvis_cli.local_agent import LocalConfig, run_local_agent
+
+    config = LocalConfig(
+        provider="openai",
+        model="scripted",
+        api_key="test",
+        base_url="https://example.test/v1",
+        workspace=tmp_path,
+        accept_edits=True,
+        accept_commands=True,
+    )
+    tools = FixtureTools()
+    store = SessionStore(tmp_path / "fixture.sqlite3")
+    session = store.create(workspace=str(tmp_path), task="latest fix", model="scripted")
+    provider = ScriptedProvider(
+        [
+            ("web_search", {"query": "current API"}, ""),
+            ("apply_patch", {"patch": "fixture"}, ""),
+            ("run_command", {"argv": ["pytest", "-q"]}, ""),
+            (None, {}, "implemented and verified"),
+        ]
+    )
+    answer = run_local_agent(
+        "latest fix",
+        config,
+        provider=provider,
+        tools=tools,
+        checkpoint=lambda messages: store.checkpoint(session.id, messages),
+    )
+    store.finish(session.id, result=answer)
+    assert [name for name, _ in tools.calls] == [
+        "web_search",
+        "apply_patch",
+        "run_command",
+    ]
+    _, transcript, _ = store.resume(session.id)
+    resumed = run_local_agent(
+        "explain the verified change",
+        config,
+        provider=ScriptedProvider([(None, {}, "resume ok")]),
+        tools=tools,
+        initial_messages=transcript,
+        checkpoint=lambda messages: store.checkpoint(session.id, messages),
+    )
+    assert resumed == "resume ok"
