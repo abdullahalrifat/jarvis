@@ -45,7 +45,8 @@ def _public_url(url: str) -> str:
         addresses = {
             item[4][0]
             for item in socket.getaddrinfo(
-                parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
+                parsed.hostname,
+                parsed.port or (443 if parsed.scheme == "https" else 80),
             )
         }
     except OSError as exc:
