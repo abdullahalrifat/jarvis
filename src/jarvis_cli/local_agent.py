@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass, replace
@@ -181,6 +182,17 @@ def resolve_local_config(args: Any) -> LocalConfig:
             1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
         ),
     )
+
+
+_WEB_REQUIRED = re.compile(
+    r"\b(?:current|currently|latest|today|news|weather|price|schedule|"
+    r"google|search (?:the )?web|find online|look up|verify online)\b",
+    re.IGNORECASE,
+)
+
+
+def requires_web_search(task: str) -> bool:
+    return bool(_WEB_REQUIRED.search(task))
 
 
 def _request_json(
@@ -726,6 +738,8 @@ def _run_single_agent(
     artifacts = artifacts or MemoryArtifactStore()
     trace = trace or TraceRecorder()
     trace.record("agent_started", role=role, model=config.model, task=task)
+    web_required = requires_web_search(task)
+    web_attempted = False
     active_schemas = (
         [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
@@ -775,8 +789,24 @@ def _run_single_agent(
         if not calls:
             if not text.strip():
                 raise APIError("Model stopped without a final answer.")
+            if web_required and not web_attempted:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "This request requires current external evidence. "
+                            "Call web_search now, fetch primary sources when useful, "
+                            "then answer with source URLs. Do not rely on memory."
+                        ),
+                    }
+                )
+                web_attempted = True
+                continue
+            trace.record("agent_completed", role=role)
             return text
         for call in calls:
+            if call["name"] in {"web_search", "web_fetch"}:
+                web_attempted = True
             if role == "verifier" and call["name"] == "submit_verdict":
                 return json.dumps(call["arguments"], ensure_ascii=False)
             trace.record(
