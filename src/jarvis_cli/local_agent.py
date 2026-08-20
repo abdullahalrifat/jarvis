@@ -243,6 +243,36 @@ class ModelProvider:
             return self._anthropic(messages, tools)
         return self._openai(messages, tools)
 
+    def complete_structured(
+        self,
+        messages: list[dict[str, Any]],
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        tool = {
+            "name": "submit_structured_result",
+            "description": "Submit the final result matching the required JSON schema.",
+            "parameters": schema,
+        }
+        content, calls, _ = self.complete(messages, [tool])
+        for call in calls:
+            if call["name"] == "submit_structured_result":
+                return dict(call["arguments"])
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise APIError("Model did not return the required structured result.") from exc
+        if not isinstance(payload, dict):
+            raise APIError("Structured model result must be a JSON object.")
+        missing = [
+            key for key in schema.get("required", []) if key not in payload
+        ]
+        if missing:
+            raise APIError(
+                "Structured model result omitted required fields: "
+                + ", ".join(str(key) for key in missing)
+            )
+        return payload
+
     def _openai(self, messages, tools):
         response = _request_json(
             f"{self.config.base_url}/chat/completions",
