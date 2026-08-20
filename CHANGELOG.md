@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Install the verified `jarvis-agent-core` 0.2.0 GitHub Release wheel directly,
+  allowing clean Jarvis installation without PyPI or a manual Core bootstrap.
+- Validate clean wheel installation across supported Python versions.
+- Correct Server documentation links to target `main`.
+
+
 ## 0.1.0
 
 - Launch the standalone `jarvis` coding-agent CLI.
