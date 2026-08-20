@@ -259,8 +259,6 @@ class ModelProvider:
             "parameters": schema,
         }
         content, calls, _ = self.complete(messages, [tool])
-        if checkpoint:
-            checkpoint(messages)
         for call in calls:
             if call["name"] == "submit_structured_result":
                 return dict(call["arguments"])
@@ -901,6 +899,8 @@ def _run_single_agent(
             messages.append({"role": "assistant", "content": raw_assistant})
         else:
             messages.append(raw_assistant)
+        if checkpoint:
+            checkpoint(messages)
         if not calls:
             if not text.strip():
                 raise APIError("Model stopped without a final answer.")
@@ -958,6 +958,8 @@ def _run_single_agent(
                     json.dumps(compact, ensure_ascii=False),
                 )
             )
+            if checkpoint:
+                checkpoint(messages)
     raise APIError(f"Local agent exceeded the {config.max_steps}-step limit.")
 
 
