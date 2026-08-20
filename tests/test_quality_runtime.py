@@ -2,7 +2,10 @@ from pathlib import Path
 
 from jarvis_core import ClaimProof, CompletionRequirement, ProofKind
 from jarvis_cli.quality_runtime import (
-    IncrementalRepositoryIndex, JsonCache, classify_request, should_use_multi_agent,
+    IncrementalRepositoryIndex,
+    JsonCache,
+    classify_request,
+    should_use_multi_agent,
     audit_completion,
 )
 
@@ -10,8 +13,10 @@ from jarvis_cli.quality_runtime import (
 def test_complex_request_selects_multi_agent():
     analysis = classify_request("Refactor authentication across the entire repository")
     assert analysis.needs_multi_agent
-    assert analysis.risk >= .45
-    assert should_use_multi_agent("Refactor authentication across the entire repository")
+    assert analysis.risk >= 0.45
+    assert should_use_multi_agent(
+        "Refactor authentication across the entire repository"
+    )
 
 
 def test_incremental_index_uses_hashes_and_symbols(tmp_path):

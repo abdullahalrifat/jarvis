@@ -196,8 +196,11 @@ def resolve_local_config(args: Any) -> LocalConfig:
             getattr(args, "multi_agent", False)
             or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
             or (
-                os.getenv("JARVIS_ADAPTIVE_AGENTS", "true").lower() in {"1", "true", "yes"}
-                and classify_request(str(getattr(args, "task", "") or "")).needs_multi_agent
+                os.getenv("JARVIS_ADAPTIVE_AGENTS", "true").lower()
+                in {"1", "true", "yes"}
+                and classify_request(
+                    str(getattr(args, "task", "") or "")
+                ).needs_multi_agent
             )
         ),
         max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),

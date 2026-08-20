@@ -27,16 +27,26 @@ from jarvis_core import (
     stable_cache_key,
 )
 
-_WRITE = re.compile(r"\b(add|build|change|create|edit|fix|implement|modify|refactor|remove|rename|replace|update|write)\b", re.I)
-_RISK = re.compile(r"\b(auth|credential|migration|payment|permission|security|secret|breaking)\b", re.I)
-_COMPLEX = re.compile(r"\b(architecture|across|entire|multi[- ]module|multi[- ]service|refactor|repository)\b", re.I)
+_WRITE = re.compile(
+    r"\b(add|build|change|create|edit|fix|implement|modify|refactor|remove|rename|replace|update|write)\b",
+    re.I,
+)
+_RISK = re.compile(
+    r"\b(auth|credential|migration|payment|permission|security|secret|breaking)\b", re.I
+)
+_COMPLEX = re.compile(
+    r"\b(architecture|across|entire|multi[- ]module|multi[- ]service|refactor|repository)\b",
+    re.I,
+)
 _WEB = re.compile(r"\b(current|latest|today|online|web|search|price|news)\b", re.I)
 
 
 def classify_request(task: str, paths: tuple[str, ...] = ()) -> TaskAnalysis:
     """Conservative deterministic fallback for malformed/unavailable model classifiers."""
-    complexity = .2 + (.35 if _COMPLEX.search(task) else 0) + min(.3, len(paths) * .04)
-    risk = .15 + (.55 if _RISK.search(task) else 0)
+    complexity = (
+        0.2 + (0.35 if _COMPLEX.search(task) else 0) + min(0.3, len(paths) * 0.04)
+    )
+    risk = 0.15 + (0.55 if _RISK.search(task) else 0)
     write = bool(_WRITE.search(task))
     scope = Scope.SINGLE_FILE
     if len(paths) > 8 or "repository" in task.lower() or "entire" in task.lower():
@@ -48,8 +58,13 @@ def classify_request(task: str, paths: tuple[str, ...] = ()) -> TaskAnalysis:
     checks = ("tests", "static_analysis") if write else ()
     roles = ("explorer", "implementer", "verifier")
     return TaskAnalysis(
-        min(1, complexity), min(1, risk), scope, write, bool(_WEB.search(task)),
-        checks, roles,
+        min(1, complexity),
+        min(1, risk),
+        scope,
+        write,
+        bool(_WEB.search(task)),
+        checks,
+        roles,
     )
 
 
@@ -80,8 +95,11 @@ class IncrementalRepositoryIndex:
 
     def update(self, paths: list[Path] | None = None) -> dict[str, int]:
         candidates = paths or [
-            item for item in self.workspace.rglob("*")
-            if item.is_file() and ".git" not in item.parts and ".jarvis" not in item.parts
+            item
+            for item in self.workspace.rglob("*")
+            if item.is_file()
+            and ".git" not in item.parts
+            and ".jarvis" not in item.parts
         ]
         changed = removed = 0
         seen: set[str] = set()
@@ -107,7 +125,9 @@ class IncrementalRepositoryIndex:
                 removed += 1
                 del self.files[relative]
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(json.dumps({"version": 1, "files": self.files}, sort_keys=True))
+        self.state_path.write_text(
+            json.dumps({"version": 1, "files": self.files}, sort_keys=True)
+        )
         return {"changed": changed, "removed": removed, "total": len(self.files)}
 
     def _symbols(self, relative: str, raw: bytes) -> list[Symbol]:
@@ -119,14 +139,26 @@ class IncrementalRepositoryIndex:
             return [
                 Symbol(relative, node.name, type(node).__name__.lower(), node.lineno)
                 for node in ast.walk(tree)
-                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                if isinstance(
+                    node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+                )
             ]
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:
             return []
-        pattern = re.compile(r"^\s*(?:class|def|func|function|interface|type)\s+([A-Za-z_$][\w$]*)", re.M)
-        return [Symbol(relative, match.group(1), "symbol", text.count("\n", 0, match.start()) + 1) for match in pattern.finditer(text)]
+        pattern = re.compile(
+            r"^\s*(?:class|def|func|function|interface|type)\s+([A-Za-z_$][\w$]*)", re.M
+        )
+        return [
+            Symbol(
+                relative,
+                match.group(1),
+                "symbol",
+                text.count("\n", 0, match.start()) + 1,
+            )
+            for match in pattern.finditer(text)
+        ]
 
     def find_symbol(self, name: str) -> list[Symbol]:
         return [
@@ -159,7 +191,11 @@ class JsonCache:
 class LSPClient:
     """Small capability probe; actual JSON-RPC stays behind an optional server."""
 
-    SERVERS = {".py": ("pyright-langserver", "--stdio"), ".ts": ("typescript-language-server", "--stdio"), ".go": ("gopls",)}
+    SERVERS = {
+        ".py": ("pyright-langserver", "--stdio"),
+        ".ts": ("typescript-language-server", "--stdio"),
+        ".go": ("gopls",),
+    }
 
     def command_for(self, path: Path) -> tuple[str, ...] | None:
         command = self.SERVERS.get(path.suffix)
@@ -167,7 +203,11 @@ class LSPClient:
 
     def diagnostics(self, path: Path) -> dict[str, Any]:
         command = self.command_for(path)
-        return {"available": bool(command), "server": command[0] if command else None, "path": str(path)}
+        return {
+            "available": bool(command),
+            "server": command[0] if command else None,
+            "path": str(path),
+        }
 
 
 class WorktreeManager:
@@ -181,20 +221,37 @@ class WorktreeManager:
         target = self.root / safe
         target.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
-            ["git", "-C", str(self.repository), "worktree", "add", "-b", f"jarvis/{safe}", str(target), base],
-            check=True, capture_output=True, text=True,
+            [
+                "git",
+                "-C",
+                str(self.repository),
+                "worktree",
+                "add",
+                "-b",
+                f"jarvis/{safe}",
+                str(target),
+                base,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return target
 
     def remove(self, target: Path) -> None:
         resolved = target.resolve()
         resolved.relative_to(self.root)
-        subprocess.run(["git", "-C", str(self.repository), "worktree", "remove", str(resolved)], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.repository), "worktree", "remove", str(resolved)],
+            check=True,
+        )
 
 
 def route_team(roles: tuple[str, ...], candidates: tuple[RouteCandidate, ...]):
     return route_roles(roles, candidates, diverse=True)
 
 
-def audit_completion(requirements: tuple[CompletionRequirement, ...], proofs: tuple[ClaimProof, ...]):
+def audit_completion(
+    requirements: tuple[CompletionRequirement, ...], proofs: tuple[ClaimProof, ...]
+):
     return EvidenceGate().audit(requirements, proofs)
