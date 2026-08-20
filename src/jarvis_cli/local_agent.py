@@ -31,6 +31,7 @@ from jarvis_core import (
     TraceRecorder,
     Usage,
     ProviderPool,
+    IdempotencyLedger,
     classify_failure,
     compact_messages,
     summarize_tool_result,
@@ -904,6 +905,8 @@ def _run_single_agent(
     web_required = requires_web_search(task)
     web_attempted = False
     recovery_retries = 0
+    idempotency = IdempotencyLedger()
+    mutating_tools = {"apply_patch", "run_command"}
     active_schemas = (
         [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
@@ -999,7 +1002,18 @@ def _run_single_agent(
                 arguments=call["arguments"],
             )
             try:
-                result = tools.execute(call["name"], call["arguments"])
+                if call["name"] in mutating_tools:
+                    key = json.dumps(
+                        [call["name"], call["arguments"]],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    result = idempotency.execute(
+                        key,
+                        lambda: tools.execute(call["name"], call["arguments"]),
+                    )
+                else:
+                    result = tools.execute(call["name"], call["arguments"])
             except Exception as exc:
                 decision = classify_failure(exc)
                 trace.record(
