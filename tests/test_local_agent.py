@@ -48,8 +48,8 @@ def config(tmp_path, **values):
 
 def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
     for name in (
-        "JARVIS_SERVER_LOCAL_BASE_URL",
-        "JARVIS_SERVER_MODEL_API_KEY",
+        "JARVIS_BASE_URL",
+        "JARVIS_API_KEY",
         "OPENAI_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
