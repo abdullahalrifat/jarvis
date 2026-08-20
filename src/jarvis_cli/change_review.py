@@ -98,7 +98,9 @@ class ReviewLedger:
             shell=False,
         )
         if result.returncode:
-            raise RuntimeError(result.stderr.strip() or "transaction could not be reverted")
+            raise RuntimeError(
+                result.stderr.strip() or "transaction could not be reverted"
+            )
         transaction.mark_reverted()
         self.save(transaction)
 
