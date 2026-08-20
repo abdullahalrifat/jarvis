@@ -102,14 +102,19 @@ class LocalConfig:
 def resolve_local_config(args: Any) -> LocalConfig:
     requested_model = getattr(args, "model", None) or os.getenv("JARVIS_MODEL")
     profile = None
-    if requested_model in {None, "auto"}:
+    profiles = load_profiles()
+    profile_names = {item.name for item in profiles.list()}
+    if requested_model in {None, "auto"} or requested_model in profile_names:
         try:
-            profile = load_profiles().select(required=("tool_calling",))
+            profile = profiles.select(
+                preferred=requested_model,
+                required=("tool_calling",),
+            )
         except LookupError:
-            if requested_model == "auto":
+            if requested_model == "auto" or requested_model in profile_names:
                 raise APIError(
-                    "No model profile supports tool calling. Configure "
-                    "~/.config/jarvis/models.toml or pass --model."
+                    "No selected model profile supports tool calling. Configure "
+                    "~/.config/jarvis/models.toml or pass a model identifier."
                 )
     provider = (
         (profile.provider if profile else None)
