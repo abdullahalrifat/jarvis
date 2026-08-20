@@ -111,6 +111,40 @@ The model API receives prompts and selected tool results. It does not receive
 unrequested access to the local filesystem; filesystem and process tools run
 inside Jarvis on the user's machine.
 
+## Daily answers, web search, sessions, and evaluations
+
+Jarvis can answer general day-to-day questions as well as coding tasks. For
+current information, configure a self-hosted SearXNG endpoint. SearXNG may use
+Google, Bing, Brave, and other enabled engines without coupling Jarvis to a
+paid search subscription.
+
+```bash
+export JARVIS_SEARCH_URL=https://search.example.com
+jarvis "find the latest primary sources about this topic and give me a cited answer"
+jarvis web-search "latest open-weight coding models" --limit 8
+```
+
+Search snippets and fetched pages are marked as untrusted evidence, bounded,
+and required to retain source URLs. Private/local network targets are rejected
+by `web_fetch`.
+
+Local work is durable and inspectable:
+
+```bash
+jarvis sessions
+jarvis session-show SESSION_ID
+jarvis trace ~/.local/state/jarvis/traces/SESSION_ID.jsonl
+jarvis repo-map
+jarvis models --require tool_calling
+jarvis eval evals/smoke.json
+jarvis mcp-tools "python -m your_mcp_server"
+```
+
+Named model profiles live in `~/.config/jarvis/models.toml`. Choosing
+`--model auto`, or omitting a model when profiles exist, routes to an enabled
+profile with native tool calling. JSON-defined eval suites make prompt/model
+comparisons repeatable instead of anecdotal.
+
 ## Use the optional server
 
 Server mode is intentionally explicit:
