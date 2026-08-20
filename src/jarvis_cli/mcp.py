@@ -92,7 +92,9 @@ class MCPClient:
             try:
                 while monotonic() < deadline:
                     try:
-                        response = self._responses.get(timeout=max(0.01, deadline - monotonic()))
+                        response = self._responses.get(
+                            timeout=max(0.01, deadline - monotonic())
+                        )
                     except queue.Empty:
                         break
                     if response.get("id") != request_id:
@@ -161,7 +163,9 @@ class HTTPMCPClient:
         timeout: float = 30,
         permissions: dict[str, ToolPermission] | None = None,
     ) -> None:
-        if not endpoint.startswith(("https://", "http://127.0.0.1", "http://localhost")):
+        if not endpoint.startswith(
+            ("https://", "http://127.0.0.1", "http://localhost")
+        ):
             raise ValueError("remote MCP endpoints must use HTTPS")
         self.endpoint = endpoint
         self.token = token
@@ -173,12 +177,19 @@ class HTTPMCPClient:
     def _send(self, method: str, params: dict[str, Any] | None = None) -> Any:
         self._next_id += 1
         body = json.dumps(
-            {"jsonrpc": "2.0", "id": self._next_id, "method": method, "params": params or {}}
+            {
+                "jsonrpc": "2.0",
+                "id": self._next_id,
+                "method": method,
+                "params": params or {},
+            }
         ).encode()
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        with urlopen(Request(self.endpoint, body, headers), timeout=self.timeout) as response:
+        with urlopen(
+            Request(self.endpoint, body, headers), timeout=self.timeout
+        ) as response:
             payload = json.loads(response.read())
         if "error" in payload:
             raise APIError(f"MCP error: {payload['error']}")
