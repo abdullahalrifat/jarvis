@@ -274,7 +274,7 @@ def test_api_key_can_be_read_from_non_executable_env_file(
     tmp_path,
 ):
     env_file = tmp_path / ".env"
-    env_file.write_text("OTHER=value\nAGENT_API_KEY='local-secret'\n")
+    env_file.write_text("OTHER=value\nJARVIS_SERVER_API_KEY='local-secret'\n")
     monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
     monkeypatch.setenv("JARVIS_ENV_FILE", str(env_file))
