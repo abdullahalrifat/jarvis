@@ -1,4 +1,5 @@
 import json
+from jarvis_cli.attachments import attach_files
 from jarvis_cli.profiles import load_profiles
 from jarvis_cli.repository_map import build_repository_map
 from jarvis_cli.sessions import SessionStore
@@ -73,3 +74,10 @@ def test_searxng_search_returns_citation_context(monkeypatch):
     result = search_web("current answer", opener=opener)
     assert result["results"][0]["url"] == "https://example.com/report"
     assert "Cite factual claims" in result["citation_context"]
+
+
+def test_attachments_are_bounded_and_marked_untrusted(tmp_path):
+    (tmp_path / "notes.txt").write_text("reference fact")
+    prompt = attach_files("answer", tmp_path, ["notes.txt"])
+    assert "Untrusted attachment: notes.txt" in prompt
+    assert "reference fact" in prompt
