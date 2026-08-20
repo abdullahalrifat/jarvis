@@ -10,7 +10,13 @@ try:
 except ModuleNotFoundError:  # Python 3.10
     import tomli as tomllib
 
-from jarvis_core import CapabilityRegistry, ModelCapabilities, ModelProfile
+from jarvis_core import (
+    BenchmarkObservation,
+    BenchmarkRegistry,
+    CapabilityRegistry,
+    ModelCapabilities,
+    ModelProfile,
+)
 
 
 def default_profiles_path() -> Path:
@@ -52,3 +58,48 @@ def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
             )
         )
     return registry
+
+
+def benchmark_path() -> Path:
+    configured = os.getenv("JARVIS_BENCHMARK_FILE")
+    if configured:
+        return Path(configured).expanduser()
+    return default_profiles_path().with_name("benchmarks.json")
+
+
+def load_benchmarks(path: str | Path | None = None) -> BenchmarkRegistry:
+    import json
+
+    target = Path(path) if path else benchmark_path()
+    registry = BenchmarkRegistry()
+    if not target.exists():
+        return registry
+    for item in json.loads(target.read_text(encoding="utf-8")):
+        registry.record(BenchmarkObservation(**item))
+    return registry
+
+
+def record_benchmark(observation: BenchmarkObservation, path: str | Path | None = None) -> None:
+    import json
+    from dataclasses import asdict
+
+    target = Path(path) if path else benchmark_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    items = json.loads(target.read_text(encoding="utf-8")) if target.exists() else []
+    items.append(asdict(observation))
+    target.write_text(json.dumps(items, indent=2), encoding="utf-8")
+
+
+def select_calibrated(
+    profiles: CapabilityRegistry,
+    *,
+    task: str,
+    required: tuple[str, ...] = (),
+) -> ModelProfile:
+    candidates = [
+        item for item in profiles.list() if item.enabled and item.capabilities.supports(required)
+    ]
+    benchmarks = load_benchmarks()
+    if any(item.model == candidate.name for item in benchmarks.observations for candidate in candidates):
+        return benchmarks.select(candidates, task)
+    return profiles.select(required=required)
