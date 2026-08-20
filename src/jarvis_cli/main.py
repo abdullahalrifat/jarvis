@@ -776,7 +776,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Always use simulated streaming output instead of a real local model.",
     )
 
-    updater = subparsers.add_parser("self-update", help="Update a standalone Jarvis binary")
+    updater = subparsers.add_parser(\n        "self-update", help="Update a standalone Jarvis binary"\n    )
     updater.add_argument("--version")
     sessions = subparsers.add_parser("sessions", help="List durable local sessions")
     sessions.add_argument("--limit", type=int, default=50)
