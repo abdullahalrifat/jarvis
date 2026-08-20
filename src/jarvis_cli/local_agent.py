@@ -129,7 +129,9 @@ def resolve_local_config(args: Any) -> LocalConfig:
             or os.getenv("JARVIS_BASE_URL")
             or "https://api.anthropic.com"
         )
-        api_key = os.getenv(getattr(args, "api_key_env", None) or "ANTHROPIC_API_KEY", "")
+        api_key = os.getenv(
+            getattr(args, "api_key_env", None) or "ANTHROPIC_API_KEY", ""
+        )
     else:
         base_url = (
             (profile.base_url if profile else None)
@@ -487,9 +489,7 @@ def probe_model(
     )
     if not valid_call:
         detail = content[:240] if content else "no tool call returned"
-        raise APIError(
-            "Endpoint responded but native tool calling failed: " + detail
-        )
+        raise APIError("Endpoint responded but native tool calling failed: " + detail)
     return {
         "status": "ok",
         "provider": config.provider,
@@ -727,9 +727,7 @@ def _run_single_agent(
     trace = trace or TraceRecorder()
     trace.record("agent_started", role=role, model=config.model, task=task)
     active_schemas = (
-        [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA]
-        if role == "verifier"
-        else TOOL_SCHEMAS
+        [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
     for _step in range(config.max_steps):
         if estimate_tokens(messages) >= min(24_000, config.max_input_tokens * 3 // 4):
@@ -916,9 +914,7 @@ def run_local_agent(
     """Run one efficient agent or the selective multi-agent DAG."""
 
     artifacts = MemoryArtifactStore()
-    tools = tools or LocalTools(
-        config, artifact_resolver=ArtifactResolver(artifacts)
-    )
+    tools = tools or LocalTools(config, artifact_resolver=ArtifactResolver(artifacts))
     ledger = TokenLedger(
         TokenBudget(
             max_run_input=config.max_input_tokens,
