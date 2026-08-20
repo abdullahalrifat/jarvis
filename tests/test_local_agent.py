@@ -13,6 +13,7 @@ from jarvis_cli.local_agent import (
     LocalTools,
     ModelProvider,
     _parse_verification_verdict,
+    probe_model,
     resolve_local_config,
     run_local_agent,
 )
@@ -272,3 +273,37 @@ def test_model_failure_refunds_reserved_tokens(tmp_path):
             ledger=ledger,
         )
     assert ledger.totals(include_reserved=True).input_tokens == 0
+
+
+def test_probe_model_requires_native_tool_call(tmp_path):
+    class Provider:
+        last_usage = {"input_tokens": 4, "output_tokens": 2}
+
+        def complete(self, messages, tools):
+            assert tools[0]["name"] == "jarvis_capability_probe"
+            return (
+                "",
+                [
+                    {
+                        "name": "jarvis_capability_probe",
+                        "arguments": {"value": "ok"},
+                    }
+                ],
+                {},
+            )
+
+    result = probe_model(config(tmp_path), Provider())
+    assert result["status"] == "ok"
+    assert result["native_tool_calling"] is True
+    assert result["usage"]["input_tokens"] == 4
+
+
+def test_probe_model_rejects_prose_only_endpoint(tmp_path):
+    class Provider:
+        last_usage = {}
+
+        def complete(self, messages, tools):
+            return ("I cannot call tools.", [], {})
+
+    with pytest.raises(APIError, match="native tool calling failed"):
+        probe_model(config(tmp_path), Provider())
