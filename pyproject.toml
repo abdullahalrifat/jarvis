@@ -7,7 +7,7 @@ name = "jarvis-agent-cli"
 description = "Standalone and remote terminal coding agent"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["jarvis-agent-core>=0.1,<0.2"]
+dependencies = ["jarvis-agent-core>=0.2,<0.3"]
 dynamic = ["version"]
 
 [project.scripts]
@@ -19,10 +19,10 @@ aistack = "aistack_cli.main:main"
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "aistack_cli.__version__"}
+version = {attr = "jarvis_cli.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-cache_dir = "/tmp/aistack-cli-pytest-cache"
+cache_dir = "/tmp/jarvis-cli-pytest-cache"
 addopts = "--strict-markers"
