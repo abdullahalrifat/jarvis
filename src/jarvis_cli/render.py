@@ -11,7 +11,7 @@ from typing import Any, TextIO
 
 MAX_TEXT_EVENT_CHARS = max(
     1_024,
-    int(os.getenv("AISTACK_MAX_TEXT_EVENT_CHARS", "200000")),
+    int(os.getenv("JARVIS_MAX_TEXT_EVENT_CHARS", "200000")),
 )
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 _QUIET_READ_TOOLS = {
@@ -79,7 +79,7 @@ class EventRenderer:
         self.stream = stream or sys.stdout
         self.color = self.stream.isatty() if color is None else color
         self.verbose = (
-            os.getenv("AISTACK_VERBOSE", "").strip().lower() in {"1", "true", "yes"}
+            os.getenv("JARVIS_VERBOSE", "").strip().lower() in {"1", "true", "yes"}
             if verbose is None
             else verbose
         )
