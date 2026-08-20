@@ -36,6 +36,7 @@ from jarvis_core import (
 from jarvis_core.tokens import estimate_tokens
 
 from .client import APIError
+from .profiles import load_profiles
 from .repository_map import build_repository_map
 from .web import fetch_web, search_web
 
@@ -97,27 +98,45 @@ class LocalConfig:
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
-    provider = (args.provider or os.getenv("JARVIS_PROVIDER") or "openai").lower()
+    requested_model = getattr(args, "model", None) or os.getenv("JARVIS_MODEL")
+    profile = None
+    if requested_model in {None, "auto"}:
+        try:
+            profile = load_profiles().select(required=("tool_calling",))
+        except LookupError:
+            if requested_model == "auto":
+                raise APIError(
+                    "No model profile supports tool calling. Configure "
+                    "~/.config/jarvis/models.toml or pass --model."
+                )
+    provider = (
+        (profile.provider if profile else None)
+        or getattr(args, "provider", None)
+        or os.getenv("JARVIS_PROVIDER")
+        or "openai"
+    ).lower()
     if provider not in {"openai", "anthropic"}:
         raise APIError("Local provider must be 'openai' or 'anthropic'.")
 
-    model = args.model or os.getenv("JARVIS_MODEL")
+    model = profile.model if profile else requested_model
     if not model:
         raise APIError("No model configured. Pass --model or set JARVIS_MODEL.")
 
     if provider == "anthropic":
         base_url = (
-            args.base_url
+            (profile.base_url if profile else None)
+            or getattr(args, "base_url", None)
             or os.getenv("JARVIS_BASE_URL")
             or "https://api.anthropic.com"
         )
-        api_key = os.getenv(args.api_key_env or "ANTHROPIC_API_KEY", "")
+        api_key = os.getenv(getattr(args, "api_key_env", None) or "ANTHROPIC_API_KEY", "")
     else:
         base_url = (
-            args.base_url
+            (profile.base_url if profile else None)
+            or getattr(args, "base_url", None)
             or os.getenv("JARVIS_BASE_URL", "")
         )
-        api_key = os.getenv(args.api_key_env or "OPENAI_API_KEY", "")
+        api_key = os.getenv(getattr(args, "api_key_env", None) or "OPENAI_API_KEY", "")
     api_key = os.getenv(
         "JARVIS_API_KEY",
         api_key,
