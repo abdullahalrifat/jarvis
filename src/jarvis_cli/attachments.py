@@ -19,8 +19,24 @@ MAX_ATTACHMENT_BYTES = 8_000_000
 MAX_TOTAL_ATTACHMENT_BYTES = 16_000_000
 MAX_CONTEXT_TOKENS = 32_000
 TEXT_SUFFIXES = {
-    ".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".toml",
-    ".yaml", ".yml", ".csv", ".html", ".css", ".sql", ".go", ".rs", ".java",
+    ".txt",
+    ".md",
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".json",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".csv",
+    ".html",
+    ".css",
+    ".sql",
+    ".go",
+    ".rs",
+    ".java",
 }
 
 
@@ -40,7 +56,9 @@ def expand_attachment_paths(
     paths: list[Path] = []
     for value in values:
         candidate = _safe(root, value)
-        matches = [Path(item).resolve() for item in glob.glob(str(candidate), recursive=True)]
+        matches = [
+            Path(item).resolve() for item in glob.glob(str(candidate), recursive=True)
+        ]
         if not matches:
             matches = [candidate]
         for match in matches:
@@ -64,7 +82,9 @@ def read_clipboard() -> str:
         commands.append(["xclip", "-selection", "clipboard", "-o"])
     if not commands:
         raise APIError("No supported clipboard reader is installed")
-    result = subprocess.run(commands[0], capture_output=True, text=True, timeout=5, shell=False)
+    result = subprocess.run(
+        commands[0], capture_output=True, text=True, timeout=5, shell=False
+    )
     if result.returncode:
         raise APIError(result.stderr.strip() or "Clipboard read failed")
     return result.stdout
@@ -74,7 +94,9 @@ def _pdf_text(raw: bytes) -> str:
     try:
         from pypdf import PdfReader
     except ImportError as exc:
-        raise APIError("Install Jarvis with the 'multimodal' extra for PDF support") from exc
+        raise APIError(
+            "Install Jarvis with the 'multimodal' extra for PDF support"
+        ) from exc
     from io import BytesIO
 
     reader = PdfReader(BytesIO(raw))
