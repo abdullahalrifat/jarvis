@@ -776,6 +776,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Always use simulated streaming output instead of a real local model.",
     )
 
+    updater = subparsers.add_parser("self-update", help="Update a standalone Jarvis binary")
+    updater.add_argument("--version")
     sessions = subparsers.add_parser("sessions", help="List durable local sessions")
     sessions.add_argument("--limit", type=int, default=50)
     local_show = subparsers.add_parser("session-show", help="Show one local session")
@@ -876,6 +878,7 @@ def main(argv: list[str] | None = None) -> int:
         "eval",
         "repo-map",
         "session-show",
+        "self-update",
         "session-resume",
         "session-fork",
         "session-rename",
@@ -896,6 +899,15 @@ def main(argv: list[str] | None = None) -> int:
     elif not argv[0].startswith("-") and argv[0] not in commands:
         argv = ["local", *argv]
     args = build_parser().parse_args(argv)
+    if args.command == "self-update":
+        try:
+            from .update import update_binary
+
+            print(f"Updated Jarvis to {update_binary(args.version)}")
+            return 0
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
     if args.command == "session-resume":
         try:
             from .local_agent import (
