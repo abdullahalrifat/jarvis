@@ -88,9 +88,13 @@ def to_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             message = {"role": "assistant", "content": text or None}
             if calls:
                 message["tool_calls"] = calls
-        elif role == "user" and isinstance(content, list) and any(
-            isinstance(block, dict) and block.get("type") == "tool_result"
-            for block in content
+        elif (
+            role == "user"
+            and isinstance(content, list)
+            and any(
+                isinstance(block, dict) and block.get("type") == "tool_result"
+                for block in content
+            )
         ):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
@@ -108,9 +112,7 @@ def to_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return converted
 
 
-def to_anthropic(
-    messages: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
+def to_anthropic(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
     system: list[str] = []
     converted: list[dict[str, Any]] = []
     for source in messages:
