@@ -68,16 +68,16 @@ def _env_value(path: Path, name: str) -> str | None:
 def resolve_api_key(explicit: str | None = None) -> str:
     if explicit:
         return explicit
-    for name in ("JARVIS_SERVER_API_KEY", "AGENT_API_KEY"):
+    for name in ("JARVIS_SERVER_API_KEY",):
         if os.getenv(name):
             return str(os.environ[name])
     env_file = os.getenv("JARVIS_ENV_FILE")
     if env_file:
-        for name in ("JARVIS_SERVER_API_KEY", "AGENT_API_KEY"):
+        for name in ("JARVIS_SERVER_API_KEY",):
             value = _env_value(Path(env_file), name)
             if value:
                 return value
-    raise APIError("No API key configured. Set JARVIS_SERVER_API_KEY or AGENT_API_KEY.")
+    raise APIError("No API key configured. Set JARVIS_SERVER_API_KEY.")
 
 
 def _history_path() -> Path:
