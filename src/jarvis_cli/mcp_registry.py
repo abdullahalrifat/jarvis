@@ -2,40 +2,34 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from jarvis_core import ToolPermission
-
 from .client import APIError
-from .mcp import HTTPMCPClient, MCPClient, load_mcp_config
+from .mcp import HTTPMCPClient, MCPClient, default_mcp_config_path, load_mcp_config, oauth_token
 
 _clients: dict[str, MCPClient | HTTPMCPClient] = {}
 _lock = Lock()
 
 
 def configured_client(alias: str, path: str | Path | None = None):
-    configs = load_mcp_config(path)
+    configs = load_mcp_config(path or default_mcp_config_path())
     config = configs.get(alias)
     if config is None:
         raise APIError(f"MCP server alias is not configured: {alias}")
     with _lock:
         if alias in _clients:
             return _clients[alias]
-        permissions = {
-            name: ToolPermission(name=name, allow=permission.allow)
-            for name, permission in config.tools.items()
-        }
+        permissions = {item.tool: item for item in config.permissions}
         if config.transport == "stdio":
-            client = MCPClient(
-                list(config.command),
-                permissions=permissions,
-            )
-        elif config.transport == "http":
+            command = shlex.split(config.endpoint)
+            client = MCPClient(command, permissions=permissions)
+        elif config.transport in {"http", "streamable-http"}:
             client = HTTPMCPClient(
-                config.url or "",
-                token_env=config.oauth_token_env,
+                config.endpoint,
+                token=oauth_token(config),
                 permissions=permissions,
             )
         else:
