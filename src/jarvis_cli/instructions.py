@@ -9,7 +9,12 @@ import os
 from pathlib import Path
 from typing import Iterable
 
-from jarvis_core import Instruction, InstructionLevel, MemoryRecord, resolve_instructions
+from jarvis_core import (
+    Instruction,
+    InstructionLevel,
+    MemoryRecord,
+    resolve_instructions,
+)
 
 
 def user_config_root() -> Path:
@@ -71,9 +76,15 @@ class MemoryStore:
         data = json.loads(self.path.read_text(encoding="utf-8"))
         result = {}
         for key, item in data.items():
-            expires = datetime.fromisoformat(item["expires_at"]) if item.get("expires_at") else None
+            expires = (
+                datetime.fromisoformat(item["expires_at"])
+                if item.get("expires_at")
+                else None
+            )
             updated = datetime.fromisoformat(item["updated_at"])
-            result[key] = MemoryRecord(key, item["value"], item["scope"], expires, updated)
+            result[key] = MemoryRecord(
+                key, item["value"], item["scope"], expires, updated
+            )
         return result
 
     def _write(self, records: dict[str, MemoryRecord]) -> None:
@@ -82,9 +93,9 @@ class MemoryStore:
                 {
                     key: {
                         **asdict(value),
-                        "expires_at": value.expires_at.isoformat()
-                        if value.expires_at
-                        else None,
+                        "expires_at": (
+                            value.expires_at.isoformat() if value.expires_at else None
+                        ),
                         "updated_at": value.updated_at.isoformat(),
                     }
                     for key, value in records.items()
@@ -108,13 +119,9 @@ class MemoryStore:
 
     def list(self, scope: str | None = None) -> list[MemoryRecord]:
         records = self._read()
-        active = {
-            key: value for key, value in records.items() if not value.expired()
-        }
+        active = {key: value for key, value in records.items() if not value.expired()}
         if active.keys() != records.keys():
             self._write(active)
         return [
-            value
-            for value in active.values()
-            if scope is None or value.scope == scope
+            value for value in active.values() if scope is None or value.scope == scope
         ]
