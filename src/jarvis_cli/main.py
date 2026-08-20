@@ -711,6 +711,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Connect to a trusted private endpoint without authentication",
     )
     local.add_argument("--workspace", dest="local_workspace")
+    local.add_argument(
+        "--file",
+        action="append",
+        default=[],
+        help="Attach one bounded workspace-relative text file; repeat as needed",
+    )
     local.add_argument("--max-steps", type=int, default=30)
     local.add_argument(
         "--multi-agent",
@@ -872,6 +878,10 @@ def main(argv: list[str] | None = None) -> int:
             config = resolve_local_config(args)
             if not task:
                 return run_local_shell(config)
+            if args.file:
+                from .attachments import attach_files
+
+                task = attach_files(task, config.workspace, args.file)
             from jarvis_core import TraceRecorder
             from .sessions import SessionStore
 
