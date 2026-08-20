@@ -99,6 +99,7 @@ class IncrementalRepositoryIndex:
             item
             for item in self.workspace.rglob("*")
             if item.is_file()
+            and item.resolve() != self.state_path.resolve()
             and ".git" not in item.parts
             and ".jarvis" not in item.parts
         ]
