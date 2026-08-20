@@ -1,6 +1,4 @@
 import json
-from types import SimpleNamespace
-
 from jarvis_cli.profiles import load_profiles
 from jarvis_cli.repository_map import build_repository_map
 from jarvis_cli.sessions import SessionStore
