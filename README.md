@@ -205,3 +205,36 @@ jarvis self-update
 ```
 
 Security defaults are deliberate: MCP tools require explicit permission, secrets use the operating-system keyring when persistence is requested, self-update verifies SHA-256 checksums, and supported platform sandboxes can disable network access for commands. The temporary Core dependency is pinned to an immutable public commit while 0.3 is under review; it will be replaced with the signed 0.3 release wheel before this feature set is marked stable.
+
+
+## Runtime hardening in 0.3.1
+
+Local sessions checkpoint the complete canonical transcript after every model
+and tool turn. Resuming preserves tool-call IDs and converts the transcript to
+the selected provider, so a session can safely continue after a tool call or
+switch between OpenAI-compatible and Anthropic profiles.
+
+Each fallback profile may set its own credential source:
+
+```toml
+[models.local]
+provider = "openai"
+model = "coder"
+base_url = "http://127.0.0.1:4000/v1"
+api_key_env = "LOCAL_LITELLM_KEY"
+
+[models.claude]
+provider = "anthropic"
+model = "claude-sonnet-4-5"
+base_url = "https://api.anthropic.com"
+api_key_env = "ANTHROPIC_API_KEY"
+```
+
+Image attachments are sent as native OpenAI image URL parts or Anthropic base64
+image blocks; they are no longer exposed to the model as base64 text. PDF text
+extraction remains available through the `multimodal` extra.
+
+MCP configuration lives at `~/.config/jarvis/mcp.toml` (or
+`JARVIS_MCP_CONFIG`). Clients are cached for the process lifetime and every
+tool is denied unless its policy explicitly sets `allow = true`. Remote MCP
+endpoints require HTTPS except for localhost.

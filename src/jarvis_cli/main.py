@@ -987,7 +987,13 @@ def main(argv: list[str] | None = None) -> int:
             trace = TraceRecorder()
             trace_path = store.path.parent / "traces" / f"{session.id}.jsonl"
             try:
-                result = run_local_agent(task, config, tools=tools, trace=trace)
+                result = run_local_agent(
+                    task,
+                    config,
+                    tools=tools,
+                    trace=trace,
+                    checkpoint=lambda value: store.checkpoint(session.id, value),
+                )
             except BaseException as exc:
                 trace.record("session_failed", error=str(exc))
                 trace.write_jsonl(trace_path)

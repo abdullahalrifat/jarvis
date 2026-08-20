@@ -105,12 +105,21 @@ def _pdf_text(raw: bytes) -> str:
 
 def describe_attachment(path: Path, raw: bytes, preview: str) -> AttachmentDescriptor:
     media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    token_estimate = (
+        max(1_000, len(raw) // 750)
+        if media_type.startswith("image/")
+        else estimate_tokens(preview)
+    )
     return AttachmentDescriptor(
         str(path),
         media_type,
         len(raw),
-        estimate_tokens(preview),
-        preview[:500],
+        token_estimate,
+        (
+            f"Native image attachment ({media_type})"
+            if media_type.startswith("image/")
+            else preview[:500]
+        ),
         hashlib.sha256(raw).hexdigest(),
     )
 
@@ -142,7 +151,7 @@ def attachment_context(
             text = raw.decode("utf-8", errors="replace")
         elif media_type.startswith("image/"):
             encoded = base64.b64encode(raw).decode("ascii")
-            text = f"Image data URL ({media_type}): data:{media_type};base64,{encoded}"
+            text = f"[[JARVIS_IMAGE:{media_type}:{encoded}]]"
         else:
             raise APIError(f"Unsupported attachment type: {path.name}")
         descriptor = describe_attachment(path.relative_to(root), raw, text)

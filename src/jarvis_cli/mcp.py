@@ -136,7 +136,7 @@ class MCPClient:
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         permission = self.permissions.get(name)
-        if permission is not None and not permission.allow:
+        if permission is None or not permission.allow:
             raise APIError(f"MCP tool is denied by policy: {name}")
         self.initialize()
         return self._send("tools/call", {"name": name, "arguments": arguments})
@@ -201,7 +201,7 @@ class HTTPMCPClient:
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         permission = self.permissions.get(name)
-        if permission is not None and not permission.allow:
+        if permission is None or not permission.allow:
             raise APIError(f"MCP tool is denied by policy: {name}")
         return self._send("tools/call", {"name": name, "arguments": arguments})
 
@@ -209,8 +209,22 @@ class HTTPMCPClient:
         return {"running": True, "last_ok": self.last_ok, "endpoint": self.endpoint}
 
 
-def load_mcp_config(path: str | Path) -> dict[str, MCPServerConfig]:
-    data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+def default_mcp_config_path() -> Path:
+    configured = os.getenv("JARVIS_MCP_CONFIG")
+    if configured:
+        return Path(configured).expanduser()
+    base = Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "jarvis/mcp.toml"
+
+
+def load_mcp_config(
+    path: str | Path | None = None,
+) -> dict[str, MCPServerConfig]:
+    target = Path(path) if path is not None else default_mcp_config_path()
+    if not target.exists():
+        return {}
+
+    data = tomllib.loads(target.read_text(encoding="utf-8"))
     result = {}
     for name, item in (data.get("servers") or {}).items():
         permissions = tuple(

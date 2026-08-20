@@ -60,6 +60,16 @@ def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
     return registry
 
 
+def profile_api_key_env(name: str, path: str | Path | None = None) -> str | None:
+    target = Path(path) if path is not None else default_profiles_path()
+    if not target.exists():
+        return None
+    data = tomllib.loads(target.read_text(encoding="utf-8"))
+    item = (data.get("models") or {}).get(name) or {}
+    value = str(item.get("api_key_env") or "").strip()
+    return value or None
+
+
 def benchmark_path() -> Path:
     configured = os.getenv("JARVIS_BENCHMARK_FILE")
     if configured:
