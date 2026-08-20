@@ -122,8 +122,7 @@ P0 was completed with protocol v1 before work on the heavier terminal UI:
 
 ### 5. First-class session discovery
 
-The latest workspace conversation can be continued directly, but discovering
-or managing older conversations still requires IDs.
+Standalone Jarvis now persists local sessions and traces in SQLite/JSONL, and Server conversations remain durable. Rich interactive discovery and transcript continuation still need completion.
 
 Required work:
 
@@ -153,7 +152,7 @@ accessibility costs are justified.
 
 ### 7. Files, images, and explicit context
 
-The server can ingest documents, but the terminal cannot attach them.
+Jarvis now supports web evidence and repository maps, while Server can ingest documents. Explicit terminal file/image attachments still need completion.
 
 Required work:
 
@@ -438,7 +437,7 @@ Do not use that label until:
 
 ## Explicit non-goals
 
-- Do not move the planner or model-selected tool execution into the CLI.
+- Keep standalone planning and model-selected local tools inside Jarvis; Server remains optional and owns only durable remote execution.
 - Do not weaken server workspace boundaries to mimic local unrestricted access.
 - Do not approve writes automatically in headless mode.
 - Do not reintroduce a default workspace tied to one repository.
