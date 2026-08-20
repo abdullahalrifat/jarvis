@@ -32,7 +32,7 @@ _WRITE = re.compile(
     re.I,
 )
 _RISK = re.compile(
-    r"\b(auth|credential|migration|payment|permission|security|secret|breaking)\b", re.I
+    r"\b(auth\\w*|credential|migration|payment|permission|security|secret|breaking)\b", re.I
 )
 _COMPLEX = re.compile(
     r"\b(architecture|across|entire|multi[- ]module|multi[- ]service|refactor|repository)\b",
