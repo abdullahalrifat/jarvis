@@ -259,6 +259,8 @@ class ModelProvider:
             "parameters": schema,
         }
         content, calls, _ = self.complete(messages, [tool])
+        if checkpoint:
+            checkpoint(messages)
         for call in calls:
             if call["name"] == "submit_structured_result":
                 return dict(call["arguments"])
@@ -805,6 +807,8 @@ def _run_single_agent(
     artifacts: MemoryArtifactStore | None = None,
     role: str = "implementer",
     trace: TraceRecorder | None = None,
+    initial_messages: list[dict[str, Any]] | None = None,
+    checkpoint: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> str:
     provider = provider or ModelProvider(config)
     ledger = ledger or TokenLedger(
@@ -818,10 +822,16 @@ def _run_single_agent(
         )
     )
     tools = tools or LocalTools(config)
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _system_prompt(config)},
-        {"role": "user", "content": task},
-    ]
+    messages: list[dict[str, Any]] = (
+        [dict(message) for message in initial_messages]
+        if initial_messages
+        else [
+            {"role": "system", "content": _system_prompt(config)},
+            {"role": "user", "content": task},
+        ]
+    )
+    if initial_messages:
+        messages.append({"role": "user", "content": task})
     artifacts = artifacts or MemoryArtifactStore()
     trace = trace or TraceRecorder()
     trace.record("agent_started", role=role, model=config.model, task=task)
@@ -1045,6 +1055,8 @@ def run_local_agent(
     provider: ModelProvider | None = None,
     tools: LocalTools | None = None,
     trace: TraceRecorder | None = None,
+    initial_messages: list[dict[str, Any]] | None = None,
+    checkpoint: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> str:
     """Run one efficient agent or the selective multi-agent DAG."""
 
@@ -1077,7 +1089,11 @@ def run_local_agent(
             ledger=ledger,
             artifacts=artifacts,
             trace=trace,
+            initial_messages=initial_messages,
+            checkpoint=checkpoint,
         )
+    if initial_messages:
+        raise APIError("Resuming a transcript currently requires single-agent mode")
     backend = _LocalAgentBackend(config, provider, tools, ledger, artifacts)
     results = SelectiveOrchestrator(backend, ledger).run(
         task,
