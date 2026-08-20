@@ -84,7 +84,7 @@ P0 was completed with protocol v1 before work on the heavier terminal UI:
 
 ### 2. Versioned CLI/server protocol
 
-- [`contracts/aistack-protocol-v1.json`](../contracts/aistack-protocol-v1.json)
+- [`contracts/jarvis-protocol-v1.json`](https://github.com/abdullahalrifat/ai-stack/blob/main/contracts/jarvis-protocol-v1.json)
   is an OpenAPI 3.1 contract for every CLI-used resource. It stays at the
   repository root because the server, CLI, and Runs UI jointly own it.
 - Requests, responses, and events carry protocol/schema versions. The server
