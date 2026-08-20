@@ -1,4 +1,4 @@
-"""Terminal-client side of the ai-stack Runs protocol."""
+"""Terminal-client side of the Jarvis Server protocol."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ PROTOCOL_VERSION = 1
 MIN_SERVER_PROTOCOL_VERSION = 1
 MAX_SERVER_PROTOCOL_VERSION = 1
 EVENT_SCHEMA_VERSION = 1
-PROTOCOL_HEADER = "X-AIStack-Protocol-Version"
+PROTOCOL_HEADER = "X-Jarvis-Protocol-Version"
 
 
 class ProtocolError(RuntimeError):
