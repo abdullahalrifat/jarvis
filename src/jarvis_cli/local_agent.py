@@ -93,11 +93,7 @@ class LocalConfig:
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
-    provider = (
-        args.provider
-        or os.getenv("JARVIS_PROVIDER")
-        or "openai"
-    ).lower()
+    provider = (args.provider or os.getenv("JARVIS_PROVIDER") or "openai").lower()
     if provider not in {"openai", "anthropic"}:
         raise APIError("Local provider must be 'openai' or 'anthropic'.")
 
@@ -109,15 +105,13 @@ def resolve_local_config(args: Any) -> LocalConfig:
         base_url = (
             args.base_url
             or os.getenv("JARVIS_BASE_URL")
-            or os.getenv("AISTACK_LOCAL_BASE_URL")
             or "https://api.anthropic.com"
         )
         api_key = os.getenv(args.api_key_env or "ANTHROPIC_API_KEY", "")
     else:
         base_url = (
             args.base_url
-            or os.getenv("JARVIS_BASE_URL")
-            or os.getenv("AISTACK_LOCAL_BASE_URL", "")
+            or os.getenv("JARVIS_BASE_URL", "")
         )
         api_key = os.getenv(args.api_key_env or "OPENAI_API_KEY", "")
     api_key = os.getenv(
