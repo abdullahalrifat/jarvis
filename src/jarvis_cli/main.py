@@ -842,6 +842,7 @@ def main(argv: list[str] | None = None) -> int:
         "session-show",
         "sessions",
         "trace",
+        "undo",
         "web-search",
         "projects",
         "resume",
@@ -918,6 +919,7 @@ def main(argv: list[str] | None = None) -> int:
         "models",
         "web-search",
         "trace",
+        "undo",
         "mcp-tools",
         "eval",
     }:
@@ -939,6 +941,11 @@ def main(argv: list[str] | None = None) -> int:
                 return show_local_session(args.session_id)
             if args.command == "repo-map":
                 return create_repository_map(args.local_workspace)
+            if args.command == "undo":
+                from .local_agent import undo_last_patch
+
+                print(undo_last_patch(args.local_workspace or Path.cwd()))
+                return 0
             if args.command == "models":
                 return list_models(args.require)
             if args.command == "web-search":
