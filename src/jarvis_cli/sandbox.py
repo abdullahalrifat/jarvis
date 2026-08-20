@@ -20,7 +20,6 @@ def sandbox_command(argv: list[str], workspace: str | Path) -> list[str]:
             "--die-with-parent",
             "--new-session",
             "--unshare-all",
-            "--share-net",
             "--ro-bind",
             "/",
             "/",
