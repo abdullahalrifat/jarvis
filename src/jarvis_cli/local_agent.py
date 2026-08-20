@@ -42,6 +42,7 @@ from .client import APIError
 from .mcp import MCPClient
 from .profiles import load_profiles, select_calibrated
 from .repository_map import build_repository_map
+from .sandbox import sandbox_command
 from .web import fetch_web, search_web
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -757,8 +758,9 @@ class LocalTools:
             if not self.approval(f"Run command: {shlex.join(argv)}?"):
                 raise APIError("User rejected the proposed command.")
         try:
+            executed = sandbox_command(argv, self.root)
             result = subprocess.run(
-                argv,
+                executed,
                 cwd=self.root,
                 text=True,
                 capture_output=True,
