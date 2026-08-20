@@ -277,7 +277,7 @@ def test_api_key_can_be_read_from_non_executable_env_file(
     env_file.write_text("OTHER=value\nAGENT_API_KEY='local-secret'\n")
     monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
-    monkeypatch.setenv("JARVIS_SERVER_ENV_FILE", str(env_file))
+    monkeypatch.setenv("JARVIS_ENV_FILE", str(env_file))
 
     assert resolve_api_key() == "local-secret"
 
@@ -311,7 +311,7 @@ def test_shell_history_is_persistent_and_completes_commands(monkeypatch, tmp_pat
 
     callbacks = []
     history_file = tmp_path / "state" / "history"
-    monkeypatch.setenv("JARVIS_SERVER_HISTORY_FILE", str(history_file))
+    monkeypatch.setenv("JARVIS_HISTORY_FILE", str(history_file))
     monkeypatch.setitem(sys.modules, "readline", FakeReadline())
     monkeypatch.setattr("jarvis_cli.main.atexit.register", callbacks.append)
 
@@ -1069,7 +1069,7 @@ def test_main_local_stream_fails_when_runtime_is_unavailable(monkeypatch, capsys
 def test_main_reports_configuration_errors_without_traceback(monkeypatch, capsys):
     monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_API_KEY", raising=False)
-    monkeypatch.delenv("JARVIS_SERVER_ENV_FILE", raising=False)
+    monkeypatch.delenv("JARVIS_ENV_FILE", raising=False)
 
     assert main(["doctor"]) == 1
     assert "No API key configured" in capsys.readouterr().err
