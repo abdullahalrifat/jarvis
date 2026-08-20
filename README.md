@@ -186,3 +186,22 @@ jarvis local --multi-agent "implement and verify this change"
 Jarvis and Server share behavior through `jarvis-agent-core`; they share the
 versioned Server protocol contract without sharing tool implementations or
 storage policy.
+
+
+## World-class runtime (0.3 preview)
+
+The coordinated 0.3 release adds durable session continuation, provider fallback and circuit breaking, evidence contracts, transactional hunk review, benchmark-calibrated model routing, multimodal attachments, persistent policy-controlled MCP, hierarchical instructions and expiring memory, and hardened standalone distribution.
+
+Common workflows:
+
+```bash
+jarvis sessions
+jarvis session-resume SESSION_ID
+jarvis session-fork SESSION_ID --name experiment
+jarvis session-rename SESSION_ID "release investigation"
+jarvis session-archive SESSION_ID
+jarvis local --file report.pdf --file "screenshots/*.png" "verify the findings"
+jarvis self-update
+```
+
+Security defaults are deliberate: MCP tools require explicit permission, secrets use the operating-system keyring when persistence is requested, self-update verifies SHA-256 checksums, and supported platform sandboxes can disable network access for commands. The temporary Core dependency is pinned to an immutable public commit while 0.3 is under review; it will be replaced with the signed 0.3 release wheel before this feature set is marked stable.

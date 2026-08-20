@@ -30,6 +30,8 @@ from jarvis_core import (
     TokenLedger,
     TraceRecorder,
     Usage,
+    ProviderPool,
+    IdempotencyLedger,
     classify_failure,
     compact_messages,
     summarize_tool_result,
@@ -38,8 +40,9 @@ from jarvis_core.tokens import estimate_tokens
 
 from .client import APIError
 from .mcp import MCPClient
-from .profiles import load_profiles
+from .profiles import load_profiles, select_calibrated
 from .repository_map import build_repository_map
+from .sandbox import sandbox_command
 from .web import fetch_web, search_web
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -106,9 +109,17 @@ def resolve_local_config(args: Any) -> LocalConfig:
     profile_names = {item.name for item in profiles.list()}
     if requested_model in {None, "auto"} or requested_model in profile_names:
         try:
-            profile = profiles.select(
-                preferred=requested_model,
-                required=("tool_calling",),
+            profile = (
+                select_calibrated(
+                    profiles,
+                    task=getattr(args, "routing_task", "code"),
+                    required=("tool_calling",),
+                )
+                if requested_model in {None, "auto"}
+                else profiles.select(
+                    preferred=requested_model,
+                    required=("tool_calling",),
+                )
             )
         except LookupError:
             if requested_model == "auto" or requested_model in profile_names:
@@ -517,6 +528,64 @@ VERDICT_TOOL_SCHEMA = {
 }
 
 
+class ResilientModelProvider:
+    """Ordered model provider pool with health scoring and circuit breakers."""
+
+    def __init__(self, providers: list[ModelProvider]) -> None:
+        if not providers:
+            raise ValueError("at least one model provider is required")
+        self.providers = providers
+        self.pool = ProviderPool(providers, name=lambda item: item.config.model)
+        self.last_usage: dict[str, int] = {}
+        self.active_model = providers[0].config.model
+
+    def complete(self, messages, tools):
+        def invoke(provider):
+            result = provider.complete(messages, tools)
+            self.last_usage = provider.last_usage
+            self.active_model = provider.config.model
+            return result
+
+        return self.pool.call(invoke)
+
+    def complete_structured(self, messages, schema):
+        def invoke(provider):
+            result = provider.complete_structured(messages, schema)
+            self.last_usage = provider.last_usage
+            self.active_model = provider.config.model
+            return result
+
+        return self.pool.call(invoke)
+
+
+def build_model_provider(config: LocalConfig):
+    primary = ModelProvider(config)
+    names = [
+        item.strip()
+        for item in os.getenv("JARVIS_FALLBACK_PROFILES", "").split(",")
+        if item.strip()
+    ]
+    if not names:
+        return primary
+    profiles = {item.name: item for item in load_profiles().list()}
+    providers = [primary]
+    for name in names:
+        profile = profiles.get(name)
+        if profile is None or profile.model == config.model:
+            continue
+        providers.append(
+            ModelProvider(
+                replace(
+                    config,
+                    provider=profile.provider,
+                    model=profile.model,
+                    base_url=profile.base_url,
+                )
+            )
+        )
+    return ResilientModelProvider(providers)
+
+
 def probe_model(
     config: LocalConfig, provider: ModelProvider | None = None
 ) -> dict[str, Any]:
@@ -689,8 +758,9 @@ class LocalTools:
             if not self.approval(f"Run command: {shlex.join(argv)}?"):
                 raise APIError("User rejected the proposed command.")
         try:
+            executed = sandbox_command(argv, self.root)
             result = subprocess.run(
-                argv,
+                executed,
                 cwd=self.root,
                 text=True,
                 capture_output=True,
@@ -805,8 +875,10 @@ def _run_single_agent(
     artifacts: MemoryArtifactStore | None = None,
     role: str = "implementer",
     trace: TraceRecorder | None = None,
+    initial_messages: list[dict[str, Any]] | None = None,
+    checkpoint: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> str:
-    provider = provider or ModelProvider(config)
+    provider = provider or build_model_provider(config)
     ledger = ledger or TokenLedger(
         TokenBudget(
             max_run_input=config.max_input_tokens,
@@ -818,16 +890,24 @@ def _run_single_agent(
         )
     )
     tools = tools or LocalTools(config)
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": _system_prompt(config)},
-        {"role": "user", "content": task},
-    ]
+    messages: list[dict[str, Any]] = (
+        [dict(message) for message in initial_messages]
+        if initial_messages
+        else [
+            {"role": "system", "content": _system_prompt(config)},
+            {"role": "user", "content": task},
+        ]
+    )
+    if initial_messages:
+        messages.append({"role": "user", "content": task})
     artifacts = artifacts or MemoryArtifactStore()
     trace = trace or TraceRecorder()
     trace.record("agent_started", role=role, model=config.model, task=task)
     web_required = requires_web_search(task)
     web_attempted = False
     recovery_retries = 0
+    idempotency = IdempotencyLedger()
+    mutating_tools = {"apply_patch", "run_command"}
     active_schemas = (
         [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
@@ -891,6 +971,8 @@ def _run_single_agent(
             messages.append({"role": "assistant", "content": raw_assistant})
         else:
             messages.append(raw_assistant)
+        if checkpoint:
+            checkpoint(messages)
         if not calls:
             if not text.strip():
                 raise APIError("Model stopped without a final answer.")
@@ -921,7 +1003,18 @@ def _run_single_agent(
                 arguments=call["arguments"],
             )
             try:
-                result = tools.execute(call["name"], call["arguments"])
+                if call["name"] in mutating_tools:
+                    key = json.dumps(
+                        [call["name"], call["arguments"]],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    result = idempotency.execute(
+                        key,
+                        lambda: tools.execute(call["name"], call["arguments"]),
+                    )
+                else:
+                    result = tools.execute(call["name"], call["arguments"])
             except Exception as exc:
                 decision = classify_failure(exc)
                 trace.record(
@@ -948,6 +1041,8 @@ def _run_single_agent(
                     json.dumps(compact, ensure_ascii=False),
                 )
             )
+            if checkpoint:
+                checkpoint(messages)
     raise APIError(f"Local agent exceeded the {config.max_steps}-step limit.")
 
 
@@ -1045,6 +1140,8 @@ def run_local_agent(
     provider: ModelProvider | None = None,
     tools: LocalTools | None = None,
     trace: TraceRecorder | None = None,
+    initial_messages: list[dict[str, Any]] | None = None,
+    checkpoint: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> str:
     """Run one efficient agent or the selective multi-agent DAG."""
 
@@ -1077,7 +1174,11 @@ def run_local_agent(
             ledger=ledger,
             artifacts=artifacts,
             trace=trace,
+            initial_messages=initial_messages,
+            checkpoint=checkpoint,
         )
+    if initial_messages:
+        raise APIError("Resuming a transcript currently requires single-agent mode")
     backend = _LocalAgentBackend(config, provider, tools, ledger, artifacts)
     results = SelectiveOrchestrator(backend, ledger).run(
         task,

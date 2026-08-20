@@ -776,10 +776,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="Always use simulated streaming output instead of a real local model.",
     )
 
+    updater = subparsers.add_parser(
+        "self-update", help="Update a standalone Jarvis binary"
+    )
+    updater.add_argument("--version")
     sessions = subparsers.add_parser("sessions", help="List durable local sessions")
     sessions.add_argument("--limit", type=int, default=50)
     local_show = subparsers.add_parser("session-show", help="Show one local session")
     local_show.add_argument("session_id")
+    local_resume = subparsers.add_parser(
+        "session-resume", help="Continue a durable local transcript"
+    )
+    local_resume.add_argument("session_id")
+    local_resume.add_argument("task", nargs="*")
+    local_resume.add_argument("--provider", choices=("openai", "anthropic"))
+    local_resume.add_argument("--base-url")
+    local_resume.add_argument("--model")
+    local_resume.add_argument("--api-key-env")
+    local_resume.add_argument("--no-api-key", action="store_true")
+    local_resume.add_argument("--workspace", dest="local_workspace")
+    local_resume.add_argument("--timeout", type=float, default=180)
+    local_resume.add_argument("--max-steps", type=int, default=30)
+    local_resume.add_argument("--accept-edits", action="store_true")
+    local_resume.add_argument("--accept-commands", action="store_true")
+    local_resume.add_argument("--approve-pending", action="store_true")
+    local_resume.set_defaults(write=True, multi_agent=False)
+    local_fork = subparsers.add_parser("session-fork", help="Fork a local session")
+    local_fork.add_argument("session_id")
+    local_fork.add_argument("--name")
+    local_rename = subparsers.add_parser(
+        "session-rename", help="Rename a local session"
+    )
+    local_rename.add_argument("session_id")
+    local_rename.add_argument("name")
+    local_archive = subparsers.add_parser(
+        "session-archive", help="Archive or restore a session"
+    )
+    local_archive.add_argument("session_id")
+    local_archive.add_argument("--restore", action="store_true")
     repo_map = subparsers.add_parser(
         "repo-map", help="Build an incremental repository map"
     )
@@ -846,6 +880,11 @@ def main(argv: list[str] | None = None) -> int:
         "eval",
         "repo-map",
         "session-show",
+        "self-update",
+        "session-resume",
+        "session-fork",
+        "session-rename",
+        "session-archive",
         "sessions",
         "trace",
         "undo",
@@ -862,6 +901,59 @@ def main(argv: list[str] | None = None) -> int:
     elif not argv[0].startswith("-") and argv[0] not in commands:
         argv = ["local", *argv]
     args = build_parser().parse_args(argv)
+    if args.command == "self-update":
+        try:
+            from .update import update_binary
+
+            print(f"Updated Jarvis to {update_binary(args.version)}")
+            return 0
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+    if args.command == "session-resume":
+        try:
+            from .local_agent import (
+                LocalTools,
+                interactive_approval,
+                resolve_local_config,
+                run_local_agent,
+            )
+            from .sessions import SessionStore
+
+            store = SessionStore()
+            session, messages, pending = store.resume(args.session_id)
+            if pending and not args.approve_pending:
+                print(json.dumps(pending, indent=2), file=sys.stderr)
+                print(
+                    "Pending approvals must be reviewed; pass --approve-pending to accept.",
+                    file=sys.stderr,
+                )
+                return 2
+            for approval in pending:
+                store.resolve_approval(approval["id"], True)
+            if not args.local_workspace:
+                args.local_workspace = session.workspace
+            if not args.model:
+                args.model = session.model
+            config = resolve_local_config(args)
+            task = " ".join(args.task).strip()
+            if not task and not sys.stdin.isatty():
+                task = sys.stdin.read().strip()
+            if not task:
+                raise APIError("A follow-up task is required")
+            result = run_local_agent(
+                task,
+                config,
+                tools=LocalTools(config, approval=interactive_approval),
+                initial_messages=messages,
+                checkpoint=lambda value: store.checkpoint(session.id, value),
+            )
+            store.finish(session.id, result=result)
+            print(result)
+            return 0
+        except (APIError, LookupError, ValueError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
     if args.command == "local":
         try:
             from .local_agent import (
@@ -925,6 +1017,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {
         "sessions",
         "session-show",
+        "session-fork",
+        "session-rename",
+        "session-archive",
         "repo-map",
         "models",
         "web-search",
@@ -934,6 +1029,7 @@ def main(argv: list[str] | None = None) -> int:
         "eval",
     }:
         try:
+            from .sessions import SessionStore
             from .features import (
                 create_repository_map,
                 list_local_sessions,
@@ -949,6 +1045,16 @@ def main(argv: list[str] | None = None) -> int:
                 return list_local_sessions(args.limit)
             if args.command == "session-show":
                 return show_local_session(args.session_id)
+            if args.command == "session-fork":
+                session = SessionStore().fork(args.session_id, name=args.name)
+                print(session.id)
+                return 0
+            if args.command == "session-rename":
+                print(SessionStore().rename(args.session_id, args.name).id)
+                return 0
+            if args.command == "session-archive":
+                print(SessionStore().archive(args.session_id, not args.restore).id)
+                return 0
             if args.command == "repo-map":
                 return create_repository_map(args.local_workspace)
             if args.command == "undo":
