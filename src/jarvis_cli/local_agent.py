@@ -697,7 +697,23 @@ class LocalTools:
         )
         if applied.returncode:
             raise APIError(f"Patch application failed: {applied.stderr.strip()}")
-        return "Patch applied. Inspect with git_diff and run relevant tests."
+        metadata = subprocess.run(
+            ["git", "rev-parse", "--git-path", "jarvis-last.patch"],
+            cwd=self.root,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if metadata.returncode == 0:
+            undo_path = Path(metadata.stdout.strip())
+            if not undo_path.is_absolute():
+                undo_path = self.root / undo_path
+            undo_path.write_text(patch, encoding="utf-8")
+        return (
+            "Patch applied transactionally. Inspect with git_diff and run relevant "
+            "tests. Use 'jarvis undo' before further edits to reverse this patch."
+        )
 
 
 def _instructions(root: Path) -> str:
@@ -1030,6 +1046,52 @@ def run_local_agent(
         f"{implementer.summary}\n\nVerification:\n{verification}\n\n"
         f"Token usage: {json.dumps(ledger.to_dict()['totals'])}"
     )
+
+
+def undo_last_patch(workspace: str | Path) -> str:
+    root = Path(workspace).expanduser().resolve()
+    metadata = subprocess.run(
+        ["git", "rev-parse", "--git-path", "jarvis-last.patch"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if metadata.returncode:
+        raise APIError("Workspace is not a Git repository.")
+    patch_path = Path(metadata.stdout.strip())
+    if not patch_path.is_absolute():
+        patch_path = root / patch_path
+    if not patch_path.is_file():
+        raise APIError("No Jarvis patch is available to undo.")
+    patch = patch_path.read_text(encoding="utf-8")
+    check = subprocess.run(
+        ["git", "apply", "--reverse", "--check", "-"],
+        cwd=root,
+        input=patch,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if check.returncode:
+        raise APIError(
+            "The workspace changed after the Jarvis patch; automatic undo is unsafe."
+        )
+    applied = subprocess.run(
+        ["git", "apply", "--reverse", "-"],
+        cwd=root,
+        input=patch,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    if applied.returncode:
+        raise APIError(f"Undo failed: {applied.stderr.strip()}")
+    patch_path.unlink(missing_ok=True)
+    return "The most recent Jarvis patch was reversed."
 
 
 def interactive_approval(description: str) -> bool:
