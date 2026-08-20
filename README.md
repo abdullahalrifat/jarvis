@@ -37,9 +37,6 @@ pipx install .
 jarvis --version
 ```
 
-During the naming migration, `aistack` remains a compatibility alias. New
-documentation and automation should use `jarvis`.
-
 ## Connect to an open model
 
 ### OpenAI-compatible remote endpoint
@@ -119,8 +116,8 @@ inside Jarvis on the user's machine.
 Server mode is intentionally explicit:
 
 ```bash
-export AISTACK_URL=https://agent.example.com
-export AISTACK_API_KEY=your-server-key
+export JARVIS_SERVER_URL=https://agent.example.com
+export JARVIS_SERVER_API_KEY=your-server-key
 
 jarvis doctor
 jarvis run "analyze the uploaded portfolio" --detach
@@ -166,7 +163,7 @@ python -m build
 ```
 
 The CLI and server share the versioned protocol contract at
-[`contracts/aistack-protocol-v1.json`](https://github.com/abdullahalrifat/ai-stack/blob/main/contracts/aistack-protocol-v1.json).
+[`contracts/jarvis-protocol-v1.json`](https://github.com/abdullahalrifat/ai-stack/blob/main/contracts/jarvis-protocol-v1.json).
 Keeping both packages in one repository currently makes protocol changes
 atomic. Split Jarvis into its own repository only after the protocol artifact
 is published/versioned independently and cross-repository compatibility tests
