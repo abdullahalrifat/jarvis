@@ -33,7 +33,7 @@ def sandbox_command(argv: list[str], workspace: str | Path) -> list[str]:
     if system == "darwin" and shutil.which("sandbox-exec"):
         profile = (
             "(version 1) (deny default) (allow process*) (allow file-read*) "
-            f'(allow file-write* (subpath "{root}")) (allow network*)'
+            f'(allow file-write* (subpath "{root}"))'
         )
         return ["sandbox-exec", "-p", profile, *argv]
     if mode == "required":
