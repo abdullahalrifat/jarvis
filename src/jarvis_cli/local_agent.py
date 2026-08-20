@@ -527,7 +527,6 @@ VERDICT_TOOL_SCHEMA = {
 }
 
 
-
 class ResilientModelProvider:
     """Ordered model provider pool with health scoring and circuit breakers."""
 
