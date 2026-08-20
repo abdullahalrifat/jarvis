@@ -31,7 +31,9 @@ class MCPClient:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise APIError(f"MCP server failed: {exc}") from exc
         if result.returncode:
-            raise APIError(f"MCP server exited {result.returncode}: {result.stderr[:1000]}")
+            raise APIError(
+                f"MCP server exited {result.returncode}: {result.stderr[:1000]}"
+            )
         responses = []
         for line in result.stdout.splitlines():
             try:
