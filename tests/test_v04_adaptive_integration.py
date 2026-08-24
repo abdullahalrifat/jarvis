@@ -17,7 +17,9 @@ class AdaptiveFakeProvider:
                 '"failed_checks":[],"retry_instruction":null}'
             )
         else:
-            answer = "Inspected the repository evidence and completed the assigned role."
+            answer = (
+                "Inspected the repository evidence and completed the assigned role."
+            )
         return answer, [], {"role": "assistant", "content": answer}
 
 
