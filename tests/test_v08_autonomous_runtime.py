@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -86,6 +87,37 @@ def test_fenced_worker_applies_raw_model_override(tmp_path):
     assert local.config.model == "better-model"
     assert local.config.provider == "openai"
     assert local.config.base_url == "http://localhost:4000"
+
+
+def test_profile_switch_does_not_reuse_other_provider_key(tmp_path, monkeypatch):
+    from jarvis_cli.local_agent import LocalConfig
+
+    config = LocalConfig(
+        provider="openai",
+        model="base-model",
+        api_key="openai-secret",
+        base_url="https://api.openai.com/v1",
+        workspace=tmp_path,
+    )
+    worker = FencedCloudWorker(
+        "https://server.example",
+        "secret",
+        "worker-1",
+        LocalJarvis(config),
+    )
+    profile = SimpleNamespace(
+        name="reviewer",
+        provider="anthropic",
+        model="claude-test",
+        base_url="https://api.anthropic.com",
+        capabilities=SimpleNamespace(max_output_tokens=2048),
+    )
+    monkeypatch.setattr("jarvis_cli.autonomous_sdk.profile_api_key_env", lambda _name: None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-secret")
+    local = worker._profile_local(profile)
+    assert local.config.provider == "anthropic"
+    assert local.config.api_key == "anthropic-secret"
+    assert local.config.api_key != config.api_key
 
 
 def test_cloud_cancel_uses_platform_cancel_endpoint():
