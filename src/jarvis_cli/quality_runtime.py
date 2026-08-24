@@ -148,7 +148,9 @@ class IncrementalRepositoryIndex:
         return resolved.suffix.lower() in _SOURCE_EXTENSIONS
 
     def update(self, paths: list[Path] | None = None) -> dict[str, int]:
-        candidates = paths or [item for item in self.workspace.rglob("*") if item.is_file()]
+        candidates = paths or [
+            item for item in self.workspace.rglob("*") if item.is_file()
+        ]
         changed = removed = skipped = 0
         seen: set[str] = set()
         for path in candidates:
@@ -257,7 +259,9 @@ class JsonCache:
     def put(self, namespace: str, value: Any, result: Any) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
         path = self._path(namespace, value)
-        payload = json.dumps({"version": 2, "result": result}, sort_keys=True, default=str)
+        payload = json.dumps(
+            {"version": 2, "result": result}, sort_keys=True, default=str
+        )
         with tempfile.NamedTemporaryFile(
             "w", encoding="utf-8", dir=self.root, delete=False
         ) as stream:
@@ -379,7 +383,9 @@ class LSPClient:
                 "error": "timeout",
             }
         messages = self._parse_messages(stdout)
-        symbols = next((item.get("result") for item in messages if item.get("id") == 2), [])
+        symbols = next(
+            (item.get("result") for item in messages if item.get("id") == 2), []
+        )
         diagnostics = [
             item.get("params", {})
             for item in messages
