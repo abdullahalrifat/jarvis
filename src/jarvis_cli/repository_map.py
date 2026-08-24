@@ -1,78 +1,77 @@
-"""Incremental, dependency-free repository symbol map."""
+"""Incremental repository intelligence used by the local agent."""
 
 from __future__ import annotations
 
-import ast
-import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-_TEXT_SUFFIXES = {
-    ".c",
-    ".cc",
-    ".cpp",
-    ".go",
-    ".java",
-    ".js",
-    ".jsx",
-    ".kt",
-    ".py",
-    ".rb",
-    ".rs",
-    ".scala",
-    ".ts",
-    ".tsx",
-}
-_SKIP = {".git", ".jarvis", ".mypy_cache", ".pytest_cache", ".venv", "node_modules"}
+from .quality_runtime import IncrementalRepositoryIndex, JsonCache, LSPClient
 
 
-def _python_symbols(text: str) -> list[dict[str, Any]]:
+def _lsp_limit() -> int:
     try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return []
-    return [
-        {
-            "name": node.name,
-            "kind": "class" if isinstance(node, ast.ClassDef) else "function",
-            "line": node.lineno,
-        }
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-    ][:500]
+        return max(0, min(25, int(os.getenv("JARVIS_LSP_MAX_FILES", "6"))))
+    except ValueError:
+        return 6
 
 
 def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[str, Any]:
+    """Build a bounded, cached structural map and enrich a few files with LSP data."""
     workspace = Path(root).resolve()
+    index = IncrementalRepositoryIndex(workspace)
+    summary = index.update()
+    selected = sorted(index.files.items())[:max_files]
+    cache = JsonCache(workspace / ".jarvis/cache/repository-map")
+    cache_identity = {
+        "version": 3,
+        "files": [(path, record.get("digest")) for path, record in selected],
+        "lsp": os.getenv("JARVIS_LSP_ANALYSIS", "true").lower(),
+        "lsp_limit": _lsp_limit(),
+    }
+    cached = cache.get("repository-map", cache_identity)
+    if isinstance(cached, dict):
+        cached["index"] = {**summary, "cache_hit": True}
+        return cached
+
+    lsp_enabled = os.getenv("JARVIS_LSP_ANALYSIS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    lsp = LSPClient()
+    lsp_remaining = _lsp_limit() if lsp_enabled else 0
     files: list[dict[str, Any]] = []
-    for path in sorted(workspace.rglob("*")):
-        if len(files) >= max_files:
-            break
-        if not path.is_file() or path.suffix.lower() not in _TEXT_SUFFIXES:
-            continue
-        if any(part in _SKIP for part in path.parts):
-            continue
-        try:
-            raw = path.read_bytes()
-        except OSError:
-            continue
-        if len(raw) > 1_000_000:
-            continue
-        text = raw.decode("utf-8", errors="replace")
-        files.append(
-            {
-                "path": str(path.relative_to(workspace)),
-                "sha256": hashlib.sha256(raw).hexdigest(),
-                "language": path.suffix.lower().lstrip("."),
-                "symbols": _python_symbols(text) if path.suffix == ".py" else [],
-            }
-        )
-    return {
+    for relative, record in selected:
+        item = {
+            "path": relative,
+            "sha256": record.get("digest"),
+            "language": Path(relative).suffix.lower().lstrip("."),
+            "symbols": record.get("symbols", []),
+            "size": record.get("size", 0),
+        }
+        if lsp_remaining > 0:
+            source = workspace / relative
+            if lsp.command_for(source):
+                analysis = lsp.analyze(source)
+                item["lsp"] = {
+                    "server": analysis.get("server"),
+                    "symbols": analysis.get("symbols", []),
+                    "diagnostics": analysis.get("diagnostics", []),
+                    "error": analysis.get("error"),
+                }
+                lsp_remaining -= 1
+        files.append(item)
+
+    result = {
         "workspace": str(workspace),
         "files": files,
-        "truncated": len(files) >= max_files,
+        "truncated": len(index.files) > max_files,
+        "index": {**summary, "cache_hit": False},
     }
+    cache.put("repository-map", cache_identity, result)
+    return result
 
 
 def write_repository_map(root: str | Path) -> Path:
