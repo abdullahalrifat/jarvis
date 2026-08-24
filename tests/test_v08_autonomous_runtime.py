@@ -11,7 +11,7 @@ from jarvis_cli.proof_runtime import (
     _compact_value,
     proof_path,
 )
-from jarvis_cli.sdk import LocalJarvis
+from jarvis_cli.sdk import CloudWorker, LocalJarvis, RemoteJarvis
 
 
 def test_local_cron_uses_standard_dom_dow_or_and_sunday_seven():
@@ -80,6 +80,11 @@ def test_proof_metadata_redacts_secrets_and_omits_large_patch_content():
     assert "abcdefghijklmnop" not in str(compacted)
     assert compacted["patch"]["content_omitted"] is True
     assert "secret patch body" not in str(compacted["patch"])
+
+
+def test_public_sdk_cloud_types_use_autonomous_v08_implementations():
+    assert RemoteJarvis is AutonomousRemoteJarvis
+    assert CloudWorker is FencedCloudWorker
 
 
 def test_autonomous_cloud_submission_sends_idempotency_key():
