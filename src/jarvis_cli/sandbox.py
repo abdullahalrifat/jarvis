@@ -35,79 +35,158 @@ class SandboxPolicy:
         network = sandbox.get("network", {}) if isinstance(sandbox, dict) else {}
         filesystem = sandbox.get("filesystem", {}) if isinstance(sandbox, dict) else {}
         mode = os.getenv("JARVIS_SANDBOX", str(sandbox.get("mode", "auto"))).lower()
-        network_mode = os.getenv("JARVIS_NETWORK", str(network.get("mode", "deny"))).lower()
+        network_mode = os.getenv(
+            "JARVIS_NETWORK", str(network.get("mode", "deny"))
+        ).lower()
         hosts = network.get("allow", [])
+        if mode not in {"auto", "required", "off", "permissive", "false", "0"}:
+            raise ValueError("sandbox mode must be auto, required, permissive, or off")
+        if network_mode not in {"deny", "allow", "allowlist"}:
+            raise ValueError("sandbox network mode must be deny, allow, or allowlist")
         return cls(
             mode=mode,
             network=network_mode,
-            allowed_hosts=tuple(str(host).casefold() for host in hosts if str(host).strip()),
-            readonly_paths=tuple(str(path) for path in filesystem.get("readonly", [])),
-            writable_paths=tuple(str(path) for path in filesystem.get("writable", [])),
+            allowed_hosts=tuple(
+                str(host).casefold() for host in hosts if str(host).strip()
+            ),
+            readonly_paths=tuple(
+                str(item) for item in filesystem.get("readonly", [])
+            ),
+            writable_paths=tuple(
+                str(item) for item in filesystem.get("writable", [])
+            ),
         )
 
     def validate_network_args(self, argv: list[str]) -> None:
+        """Reject obvious forbidden URLs in addition to OS-level isolation."""
         hosts: set[str] = set()
         for value in argv:
             for match in re.findall(r"https?://[^\s'\"]+", value):
                 host = urlparse(match).hostname
                 if host:
                     hosts.add(host.casefold())
-        if not hosts:
-            return
-        if self.network == "allow":
+        if not hosts or self.network == "allow":
             return
         if self.network == "deny":
             raise PermissionError("Network access is denied by Jarvis sandbox policy")
-        if self.network == "allowlist":
-            denied = [host for host in hosts if host not in self.allowed_hosts and not any(host.endswith("." + allowed) for allowed in self.allowed_hosts)]
-            if denied:
-                raise PermissionError("Network host is not allowlisted: " + ", ".join(sorted(denied)))
+        denied = [
+            host
+            for host in hosts
+            if host not in self.allowed_hosts
+            and not any(host.endswith("." + allowed) for allowed in self.allowed_hosts)
+        ]
+        if denied:
+            raise PermissionError(
+                "Network host is not allowlisted: " + ", ".join(sorted(denied))
+            )
 
 
-def sandbox_command(argv: list[str], workspace: str | Path, *, purpose: str = "command") -> list[str]:
+def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+    if not shutil.which("bwrap"):
+        return None
+    command = [
+        "bwrap",
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-ipc",
+        "--unshare-uts",
+    ]
+    if policy.network in {"deny", "allowlist"}:
+        # bubblewrap cannot express hostname allowlists by itself. A configured
+        # allowlist is therefore enforced by argv validation plus a fully
+        # isolated network namespace unless a future proxy transport is used.
+        command.append("--unshare-net")
+    command.extend(
+        [
+            "--ro-bind",
+            "/",
+            "/",
+            "--bind",
+            root,
+            root,
+            "--chdir",
+            root,
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+        ]
+    )
+    for item in policy.readonly_paths:
+        resolved = str(
+            (
+                Path(item).expanduser()
+                if Path(item).is_absolute()
+                else Path(root) / item
+            ).resolve()
+        )
+        if Path(resolved).exists():
+            command.extend(["--ro-bind", resolved, resolved])
+    for item in policy.writable_paths:
+        resolved = str(
+            (
+                Path(item).expanduser()
+                if Path(item).is_absolute()
+                else Path(root) / item
+            ).resolve()
+        )
+        if Path(resolved).exists():
+            command.extend(["--bind", resolved, resolved])
+    return [*command, *argv]
+
+
+def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+    if not shutil.which("sandbox-exec"):
+        return None
+    # sandbox-exec does not provide a safe hostname allowlist primitive. Treat
+    # allowlist as deny at the kernel boundary; explicit unrestricted networking
+    # requires network.mode=allow.
+    network_rule = (
+        "(allow network*)" if policy.network == "allow" else "(deny network*)"
+    )
+    escaped_root = root.replace('"', '\\"')
+    profile = (
+        "(version 1) (deny default) (allow process*) (allow file-read*) "
+        f'{network_rule} (allow file-write* (subpath "{escaped_root}"))'
+    )
+    return ["sandbox-exec", "-p", profile, *argv]
+
+
+def sandbox_command(
+    argv: list[str], workspace: str | Path, *, purpose: str = "command"
+) -> list[str]:
+    """Return an OS-isolated command or fail closed for unenforceable policy.
+
+    `mode=off`/`permissive` is an explicit unsafe escape hatch. In the default
+    `auto` mode, a deny/allowlist network policy is never represented as secure
+    when no native sandbox can enforce it.
+    """
     policy = SandboxPolicy.load(workspace)
-    if policy.mode in {"off", "false", "0"}:
-        policy.validate_network_args(argv)
-        return argv
     policy.validate_network_args(argv)
+    if policy.mode in {"off", "false", "0", "permissive"}:
+        return argv
+
     root = str(Path(workspace).resolve())
     system = platform.system().lower()
-    if system == "linux" and shutil.which("bwrap"):
-        command = [
-            "bwrap",
-            "--die-with-parent",
-            "--new-session",
-            "--unshare-user",
-            "--unshare-pid",
-            "--unshare-ipc",
-            "--unshare-uts",
-        ]
-        if policy.network == "deny":
-            command.append("--unshare-net")
-        command.extend(["--ro-bind", "/", "/", "--bind", root, root, "--chdir", root, "--proc", "/proc", "--dev", "/dev"])
-        for path in policy.readonly_paths:
-            resolved = str((Path(path).expanduser() if Path(path).is_absolute() else Path(root) / path).resolve())
-            if Path(resolved).exists():
-                command.extend(["--ro-bind", resolved, resolved])
-        for path in policy.writable_paths:
-            resolved = str((Path(path).expanduser() if Path(path).is_absolute() else Path(root) / path).resolve())
-            if Path(resolved).exists():
-                command.extend(["--bind", resolved, resolved])
-        command.extend(argv)
-        return command
-    if system == "darwin" and shutil.which("sandbox-exec"):
-        network_rule = "(deny network*)" if policy.network == "deny" else "(allow network*)"
-        profile = (
-            "(version 1) (deny default) (allow process*) (allow file-read*) "
-            f'{network_rule} (allow file-write* (subpath "{root}"))'
+    sandboxed: list[str] | None = None
+    if system == "linux":
+        sandboxed = _linux_bwrap(policy, root, argv)
+    elif system == "darwin":
+        sandboxed = _macos_sandbox(policy, root, argv)
+    elif system == "windows":
+        sandboxed = None
+
+    if sandboxed is not None:
+        return sandboxed
+
+    if policy.mode == "required" or policy.network in {"deny", "allowlist"}:
+        platform_name = platform.system() or "this platform"
+        raise RuntimeError(
+            f"Jarvis cannot enforce the configured sandbox/network policy on {platform_name}. "
+            "Install bubblewrap on Linux, use a supported macOS sandbox, or explicitly set "
+            "JARVIS_SANDBOX=permissive/off only if unrestricted process networking is acceptable."
         )
-        return ["sandbox-exec", "-p", profile, *argv]
-    if system == "windows":
-        # Python cannot create an AppContainer portably without additional native bindings.
-        # Required mode therefore fails closed instead of pretending to isolate the process.
-        if policy.mode == "required":
-            raise RuntimeError("Required Windows AppContainer sandbox is unavailable in this build")
-        return argv
-    if policy.mode == "required":
-        raise RuntimeError("No supported platform sandbox is installed (bubblewrap or sandbox-exec)")
+    # network=allow with auto mode does not claim isolation when none exists.
     return argv
