@@ -2,7 +2,7 @@ import json
 
 from jarvis_cli import browser_agent
 from jarvis_cli.plugin_commands import list_plugin_commands
-from jarvis_cli.sdk import CloudWorker, SDKResult
+from jarvis_cli.sdk import LegacyCloudWorker, SDKResult
 from jarvis_cli.v061_main import main
 
 
@@ -106,7 +106,7 @@ def test_plugin_command_cli_returns_nonzero_for_unknown(tmp_path, monkeypatch):
     )
 
 
-def test_cloud_worker_executes_claim_and_reports_completion(tmp_path):
+def test_legacy_cloud_worker_executes_claim_and_reports_completion(tmp_path):
     class Local:
         def run(self, task, *, workspace=None, allow_write=None):
             assert task == "fix bug"
@@ -122,7 +122,7 @@ def test_cloud_worker_executes_claim_and_reports_completion(tmp_path):
             self.calls.append((method, path, payload))
             return {"ok": True}
 
-    worker = CloudWorker("https://unused.invalid", "token", "worker-1", Local())
+    worker = LegacyCloudWorker("https://unused.invalid", "token", "worker-1", Local())
     client = Client()
     worker.client = client
     result = worker.execute_claimed(
