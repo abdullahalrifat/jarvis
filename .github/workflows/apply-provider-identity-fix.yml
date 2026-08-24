@@ -1,0 +1,39 @@
+name: Apply provider identity fix
+
+on:
+  push:
+    branches: [feature/v0.4-quality-routing]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply surgical runtime fix and regression test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          runtime = Path("src/jarvis_cli/local_agent.py")
+          source = runtime.read_text()
+          old = """        if role_config.model != self.config.model or role_config.provider != self.config.provider:\n            role_provider = ModelProvider(role_config)\n"""
+          new = """        if (\n            role_config.provider != self.config.provider\n            or role_config.model != self.config.model\n            or role_config.base_url != self.config.base_url\n            or role_config.api_key != self.config.api_key\n        ):\n            role_provider = ModelProvider(role_config)\n"""
+          if old in source:
+              runtime.write_text(source.replace(old, new, 1))
+
+          test = Path("tests/test_provider_routing_identity.py")
+          test.write_text('''from dataclasses import replace\n\nimport jarvis_cli.local_agent as local_agent\nfrom jarvis_core import MemoryArtifactStore, TokenBudget, TokenLedger\nfrom jarvis_cli.local_agent import LocalConfig, LocalTools, _LocalAgentBackend\n\n\ndef test_role_provider_rebuilt_when_endpoint_identity_changes(tmp_path, monkeypatch):\n    base = LocalConfig(\n        provider="openai",\n        model="same-model",\n        api_key="base-key",\n        base_url="https://base.invalid/v1",\n        workspace=tmp_path,\n        multi_agent=True,\n    )\n    injected_provider = object()\n    backend = _LocalAgentBackend(\n        base,\n        injected_provider,\n        LocalTools(base),\n        TokenLedger(\n            TokenBudget(\n                max_run_input=20_000,\n                max_run_output=4_000,\n                max_turn_input=10_000,\n                max_turn_output=2_000,\n                max_agent_input=10_000,\n                max_agent_output=2_000,\n            )\n        ),\n        MemoryArtifactStore(),\n    )\n    routed = replace(\n        base,\n        base_url="https://role.invalid/v1",\n        api_key="role-key",\n        multi_agent=False,\n    )\n    monkeypatch.setattr(backend, "_route_config", lambda _role, _config: routed)\n\n    captured = {}\n\n    class FakeProvider:\n        def __init__(self, config):\n            self.config = config\n\n    monkeypatch.setattr(local_agent, "ModelProvider", FakeProvider)\n\n    def fake_run(*_args, provider=None, **_kwargs):\n        captured["provider"] = provider\n        return "done"\n\n    monkeypatch.setattr(local_agent, "_run_single_agent", fake_run)\n\n    backend.run(\n        role="implementer",\n        task="Use the role endpoint",\n        context={},\n        max_output_tokens=1_000,\n    )\n\n    assert captured["provider"] is not injected_provider\n    assert captured["provider"].config.base_url == "https://role.invalid/v1"\n    assert captured["provider"].config.api_key == "role-key"\n''')
+          PY
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/jarvis_cli/local_agent.py tests/test_provider_routing_identity.py
+          git commit -m "Fix role provider transport identity"
+          git push origin HEAD:feature/v0.4-quality-routing
