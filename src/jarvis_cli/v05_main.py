@@ -14,8 +14,9 @@ from .skills import SkillRegistry
 from .tui import TUITask, TUIState, TerminalUI
 
 
-def _local_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("task", nargs="+")
+def _provider_options(parser: argparse.ArgumentParser, *, task: bool = True) -> None:
+    if task:
+        parser.add_argument("task", nargs="+")
     parser.add_argument("--provider", choices=("openai", "anthropic"))
     parser.add_argument("--base-url")
     parser.add_argument("--model")
@@ -34,9 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis-v05", add_help=False)
     subs = parser.add_subparsers(dest="command")
     plan = subs.add_parser("plan", help="Create an enforced read-only implementation plan")
-    _local_options(plan)
+    _provider_options(plan)
     tui = subs.add_parser("tui", help="Run a local task with the rich terminal status UI")
-    _local_options(tui)
+    _provider_options(tui)
     skills = subs.add_parser("skills", help="List or inspect lazy Jarvis skills")
     skills.add_argument("name", nargs="?")
     skills.add_argument("--workspace", default=".")
@@ -48,7 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     bench = subs.add_parser("bench", help="Run measured JSON/JSONL benchmark corpus")
     bench.add_argument("file")
     bench.add_argument("--report")
-    _local_options(bench)
+    _provider_options(bench, task=False)
     return parser
 
 
@@ -61,7 +62,10 @@ def _workspace_from_args(argv: list[str]) -> Path:
 
 def _task_words(argv: list[str]) -> list[str]:
     values: list[str] = []
-    options_with_value = {"--provider", "--base-url", "--model", "--api-key-env", "--workspace", "--timeout", "--max-steps"}
+    options_with_value = {
+        "--provider", "--base-url", "--model", "--api-key-env", "--workspace",
+        "--timeout", "--max-steps", "--file",
+    }
     skip = False
     for value in argv:
         if skip:
@@ -77,7 +81,7 @@ def _task_words(argv: list[str]) -> list[str]:
 
 
 def _prepare_local_task(argv: list[str]) -> list[str]:
-    """Run prompt hooks and lazily load only skills relevant to a normal local task."""
+    """Run prompt hooks and lazily append only skills relevant to a normal local task."""
     if not argv or argv[0] != "local":
         return argv
     rest = argv[1:]
@@ -92,21 +96,8 @@ def _prepare_local_task(argv: list[str]) -> list[str]:
     additions = "\n\n".join(part for part in (context, skill_context) if part)
     if not additions:
         return argv
-    # Preserve options but replace positional task words with one augmented task.
-    rebuilt = ["local"]
-    options_with_value = {"--provider", "--base-url", "--model", "--api-key-env", "--workspace", "--timeout", "--max-steps"}
-    index = 0
-    while index < len(rest):
-        value = rest[index]
-        if value in options_with_value and index + 1 < len(rest):
-            rebuilt.extend([value, rest[index + 1]])
-            index += 2
-            continue
-        if value.startswith("--"):
-            rebuilt.append(value)
-        index += 1
-    rebuilt.append(task + "\n\nJarvis runtime context:\n" + additions)
-    return rebuilt
+    # Appending one final positional preserves every legacy flag, attachment and option.
+    return [*argv, "Jarvis runtime context:\n" + additions]
 
 
 def _run_plan(args: argparse.Namespace) -> int:
@@ -127,6 +118,7 @@ def _run_plan(args: argparse.Namespace) -> int:
         task += "\n\nRelevant project skills:\n" + skill_context
     plan = generate_plan(task, config, tools=LocalTools(config))
     hooks.enforce("TaskComplete", {"mode": "plan", "plan": plan.to_dict()})
+    hooks.enforce("SessionEnd", {"mode": "plan", "status": "completed"})
     print(json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
@@ -141,7 +133,12 @@ def _run_tui(args: argparse.Namespace) -> int:
     skill_context = SkillRegistry(config.workspace).selected_prompt(task)
     if hook_context or skill_context:
         task += "\n\nJarvis runtime context:\n" + "\n\n".join(p for p in (hook_context, skill_context) if p)
-    state = TUIState(task=task, model=config.model, mode="MULTI" if config.multi_agent else "AUTO", tasks=[TUITask("Inspect repository", "running"), TUITask("Implement", "pending"), TUITask("Verify", "pending")])
+    state = TUIState(
+        task=task,
+        model=config.model,
+        mode="MULTI" if config.multi_agent else "AUTO",
+        tasks=[TUITask("Inspect repository", "running"), TUITask("Implement", "pending"), TUITask("Verify", "pending")],
+    )
     ui = TerminalUI()
     ui.render(state)
     try:
@@ -149,12 +146,14 @@ def _run_tui(args: argparse.Namespace) -> int:
     except Exception:
         state.tasks[0].status = "failed"
         ui.render(state)
+        hooks.enforce("SessionEnd", {"mode": "tui", "status": "failed"})
         raise
     state.tasks[0].status = "done"
     state.tasks[1].status = "done"
     state.tasks[2].status = "done" if "Verification (verified):" in result or not config.multi_agent else "blocked"
     ui.render(state)
     hooks.enforce("TaskComplete", {"mode": "tui", "result": result})
+    hooks.enforce("SessionEnd", {"mode": "tui", "status": "completed"})
     print(result)
     return 0
 
@@ -162,8 +161,7 @@ def _run_tui(args: argparse.Namespace) -> int:
 def _run_skills(args: argparse.Namespace) -> int:
     registry = SkillRegistry(args.workspace)
     if args.name:
-        skill = registry.get(args.name)
-        print(skill.body)
+        print(registry.get(args.name).body)
         return 0
     for item in registry.list():
         print(f"{item.name:24} risk={item.risk:8} tools={','.join(item.tools) or '-'}  {item.description}")
@@ -185,6 +183,7 @@ def _run_hooks(args: argparse.Namespace) -> int:
 def _run_bench(args: argparse.Namespace) -> int:
     from .local_agent import LocalTools, resolve_local_config, run_local_agent
 
+    args.task = []
     config = resolve_local_config(args)
     cases = load_benchmark(args.file)
     tools = LocalTools(config)
