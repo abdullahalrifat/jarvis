@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from .lsp_full import FullLSPPool
@@ -15,12 +16,15 @@ from .repository_graph import RepositoryGraph
 from .skills import SkillRegistry
 
 _LSP_POOLS: dict[str, FullLSPPool] = {}
+_LSP_POOLS_LOCK = RLock()
 
 
 def _close_lsp_pools() -> None:
-    for pool in list(_LSP_POOLS.values()):
+    with _LSP_POOLS_LOCK:
+        pools = list(_LSP_POOLS.values())
+        _LSP_POOLS.clear()
+    for pool in pools:
         pool.close()
-    _LSP_POOLS.clear()
 
 
 atexit.register(_close_lsp_pools)
@@ -28,11 +32,12 @@ atexit.register(_close_lsp_pools)
 
 def _pool_for(workspace: Path) -> FullLSPPool:
     key = str(workspace)
-    pool = _LSP_POOLS.get(key)
-    if pool is None:
-        pool = FullLSPPool(workspace)
-        _LSP_POOLS[key] = pool
-    return pool
+    with _LSP_POOLS_LOCK:
+        pool = _LSP_POOLS.get(key)
+        if pool is None:
+            pool = FullLSPPool(workspace)
+            _LSP_POOLS[key] = pool
+        return pool
 
 
 def _lsp_limit() -> int:
@@ -42,10 +47,21 @@ def _lsp_limit() -> int:
         return 8
 
 
-def _recent_git_changes(workspace: Path, *, limit: int = 200) -> dict[str, int]:
+def _recent_git_changes(
+    workspace: Path, *, limit: int = 200
+) -> dict[str, int]:
     try:
         result = subprocess.run(
-            ["git", "-C", str(workspace), "log", "--format=", "--name-only", "-n", "50"],
+            [
+                "git",
+                "-C",
+                str(workspace),
+                "log",
+                "--format=",
+                "--name-only",
+                "-n",
+                "50",
+            ],
             text=True,
             capture_output=True,
             timeout=5,
@@ -60,10 +76,14 @@ def _recent_git_changes(workspace: Path, *, limit: int = 200) -> dict[str, int]:
         path = line.strip()
         if path:
             counts[path] = counts.get(path, 0) + 1
-    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit])
+    return dict(
+        sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    )
 
 
-def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[str, Any]:
+def build_repository_map(
+    root: str | Path, *, max_files: int = 2_000
+) -> dict[str, Any]:
     """Build a persistent graph snapshot plus bounded live LSP enrichment."""
 
     workspace = Path(root).resolve()
@@ -94,10 +114,18 @@ def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[st
     }
     cached = cache.get("repository-map", cache_identity)
     if isinstance(cached, dict):
-        cached["index"] = {**update, "cache_hit": True, "persistent_graph": True}
+        cached["index"] = {
+            **update,
+            "cache_hit": True,
+            "persistent_graph": True,
+        }
         return cached
 
-    lsp_enabled = os.getenv("JARVIS_LSP_ANALYSIS", "true").lower() in {"1", "true", "yes"}
+    lsp_enabled = os.getenv("JARVIS_LSP_ANALYSIS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     pool = _pool_for(workspace)
     remaining = _lsp_limit() if lsp_enabled else 0
     for item in snapshot["files"]:
@@ -126,7 +154,11 @@ def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[st
             "recent_git_changes": recent,
         },
         "skills": skill_meta,
-        "index": {**update, "cache_hit": False, "persistent_graph": True},
+        "index": {
+            **update,
+            "cache_hit": False,
+            "persistent_graph": True,
+        },
     }
     cache.put("repository-map", cache_identity, result)
     return result
@@ -136,5 +168,8 @@ def write_repository_map(root: str | Path) -> Path:
     workspace = Path(root).resolve()
     target = workspace / ".jarvis/repository-map.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(build_repository_map(workspace), indent=2, ensure_ascii=False), encoding="utf-8")
+    target.write_text(
+        json.dumps(build_repository_map(workspace), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return target
