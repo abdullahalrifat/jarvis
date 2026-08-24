@@ -1,10 +1,11 @@
-"""v0.6 runtime composition for hooks, browser tools, telemetry, and calibration."""
+"""Runtime composition for hooks, browser, efficiency, telemetry, and calibration."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from .browser_agent import install_browser_tools
+from .efficiency_runtime import install_efficiency_runtime
 from .observability import Telemetry, install_calibrated_routing
 from .runtime_hooks import install_runtime_hooks
 
@@ -18,6 +19,9 @@ def install_platform_runtime() -> None:
     install_calibrated_routing()
     install_runtime_hooks()
     install_browser_tools()
+    # Efficiency wraps the fully composed tool/agent runtime; telemetry then wraps
+    # that result so speculative/escalated/retry paths are all observable.
+    install_efficiency_runtime()
 
     from . import local_agent
 
@@ -44,8 +48,7 @@ def install_platform_runtime() -> None:
                 message_count=len(messages),
                 tool_count=len(tools),
             ):
-                result = super().complete(messages, tools)
-            return result
+                return super().complete(messages, tools)
 
     local_agent.LocalTools = TelemetryTools
     local_agent.ModelProvider = TelemetryProvider
