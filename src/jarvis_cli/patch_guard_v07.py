@@ -11,11 +11,13 @@ import subprocess
 from typing import Any
 
 from .efficiency_runtime import _category, compile_task_context
-from .repository_graph import RepositoryGraph
+from .impact_v07 import change_impact
 
 _INSTALLED = False
 _PLAN: ContextVar["PatchPlan | None"] = ContextVar("jarvis_patch_plan", default=None)
-_DISCOVERED: ContextVar[set[str] | None] = ContextVar("jarvis_discovered_paths", default=None)
+_DISCOVERED: ContextVar[set[str] | None] = ContextVar(
+    "jarvis_discovered_paths", default=None
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,8 @@ class PatchPlan:
     category: str
     targets: tuple[PatchTarget, ...]
     allow_new_files: bool
+    config_impact: tuple[str, ...] = ()
+    deployment_impact: tuple[str, ...] = ()
 
     @property
     def paths(self) -> set[str]:
@@ -42,6 +46,8 @@ class PatchPlan:
             "goal": self.goal,
             "category": self.category,
             "allow_new_files": self.allow_new_files,
+            "config_impact": list(self.config_impact),
+            "deployment_impact": list(self.deployment_impact),
             "targets": [
                 {
                     "path": target.path,
@@ -74,38 +80,48 @@ def build_patch_plan(task: str, workspace: Path) -> PatchPlan:
         payload = json.loads(compile_task_context(task, workspace))
     except (ValueError, TypeError):
         payload = {}
-    try:
-        graph = RepositoryGraph(workspace)
-        graph.update()
-    except Exception:
-        graph = None
-    targets = []
+    raw_targets = []
     seen: set[str] = set()
     for item in payload.get("relevant_structure", [])[:20]:
         path = str(item.get("path") or "")
         if not path or path in seen:
             continue
         seen.add(path)
-        tests = tuple(str(value) for value in item.get("tests", [])[:16])
-        impact: list[str] = []
-        if graph is not None:
-            stem = Path(path).stem
-            try:
-                impact.extend(graph.importers(stem, 25))
-            except Exception:
-                pass
+        raw_targets.append(item)
+    try:
+        blast = change_impact(workspace, [str(item.get("path")) for item in raw_targets])
+    except Exception:
+        blast = {"importers": [], "tests": [], "config": [], "deployment": []}
+
+    targets = []
+    global_importers = tuple(str(value) for value in blast.get("importers", [])[:40])
+    global_tests = tuple(str(value) for value in blast.get("tests", [])[:40])
+    for item in raw_targets:
+        tests = tuple(
+            dict.fromkeys(
+                [str(value) for value in item.get("tests", [])[:16]]
+                + list(global_tests)
+            )
+        )[:40]
         targets.append(
             PatchTarget(
-                path=path,
+                path=str(item.get("path")),
                 symbols=tuple(str(value) for value in item.get("symbols", [])[:30]),
                 tests=tests,
-                impact=tuple(dict.fromkeys(impact))[:25],
+                impact=global_importers,
             )
         )
     allow_new = bool(
         re.search(r"\b(add|create|implement|introduce|new)\b", task, re.I)
     )
-    return PatchPlan(task[:600], _category(task), tuple(targets), allow_new)
+    return PatchPlan(
+        task[:600],
+        _category(task),
+        tuple(targets),
+        allow_new,
+        tuple(str(value) for value in blast.get("config", [])[:40]),
+        tuple(str(value) for value in blast.get("deployment", [])[:40]),
+    )
 
 
 def _patch_paths(patch: str) -> set[str]:
@@ -130,7 +146,12 @@ def _argument_path(arguments: dict[str, Any]) -> str | None:
     return None
 
 
-def _allowed(path: str, plan: PatchPlan, discovered: set[str], workspace: Path) -> bool:
+def _allowed(
+    path: str,
+    plan: PatchPlan,
+    discovered: set[str],
+    workspace: Path,
+) -> bool:
     normalized = path.lstrip("./")
     if normalized in plan.paths or normalized in discovered:
         return True
@@ -139,12 +160,11 @@ def _allowed(path: str, plan: PatchPlan, discovered: set[str], workspace: Path) 
         return False
     if not plan.allow_new_files:
         return False
-    # New files are permitted only within directories already represented by the
-    # plan or conventional source/test directories. This prevents scope drift.
     parents = {str(Path(item).parent).replace("\\", "/") for item in plan.paths}
     parent = str(Path(normalized).parent).replace("\\", "/")
     return parent in parents or any(
-        part in {"src", "tests", "test", "docs"} for part in Path(normalized).parts
+        part in {"src", "tests", "test", "docs"}
+        for part in Path(normalized).parts
     )
 
 
@@ -178,9 +198,15 @@ def install_patch_guard() -> None:
                 path = _argument_path(arguments)
                 if path:
                     discovered.add(path.lstrip("./"))
-            if plan is not None and name in {"apply_patch", "write_file", "edit_file"}:
+            if plan is not None and name in {
+                "apply_patch",
+                "write_file",
+                "edit_file",
+            }:
                 paths = (
-                    _patch_paths(str(arguments.get("patch") or arguments.get("diff") or ""))
+                    _patch_paths(
+                        str(arguments.get("patch") or arguments.get("diff") or "")
+                    )
                     if name == "apply_patch"
                     else {_argument_path(arguments) or ""}
                 )
@@ -210,8 +236,12 @@ def install_patch_guard() -> None:
                 task = (
                     task
                     + "\n\n[Structured mutation plan]\n"
-                    + json.dumps(plan.to_dict(), ensure_ascii=False, separators=(",", ":"))
-                    + "\nDo not edit outside this plan unless you first inspect the exact path and the evidence justifies expanding scope."
+                    + json.dumps(
+                        plan.to_dict(),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                    + "\nDo not edit outside this plan unless you first inspect the exact path and the evidence justifies expanding scope. Use listed tests/config/deployment impact to choose targeted verification."
                 )
             result = base_run(task, config, **kwargs)
             after = set(_git(workspace, "diff", "--name-only").splitlines())
