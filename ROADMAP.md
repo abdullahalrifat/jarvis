@@ -38,6 +38,16 @@ Jarvis targets dependable, open-model-first coding outcomes comparable with matu
 | Automatic empirical route calibration | INTEGRATED |
 | Python SDK + reviewed remote Runs | INTEGRATED |
 | Lease-based cloud workers | INTEGRATED |
+| Adaptive structural context compiler | INTEGRATED |
+| Speculative explorers + cooperative cancellation | INTEGRATED |
+| Failure-driven dynamic escalation | INTEGRATED |
+| Independent verifier isolation | INTEGRATED |
+| Evidence-derived confidence | INTEGRATED |
+| Structured failure memory + retry taxonomy | INTEGRATED |
+| Impact-aware test/blast-radius selection | INTEGRATED |
+| Semantic patch-scope guard + minimization | INTEGRATED |
+| Run-scoped tool-result deduplication | INTEGRATED |
+| Adversarial reliability benchmark corpus | FOUNDATION |
 | TypeScript SDK | NOT STARTED |
 | Native Windows AppContainer sandbox | NOT STARTED |
 
@@ -51,31 +61,37 @@ v0.5 added the measured evaluation harness, persistent repository graph and full
 
 ## v0.6 — agent platform
 
-v0.6 turns the CLI/runtime into a distributed developer-agent platform:
+v0.6 turned the CLI/runtime into a distributed developer-agent platform: agent teams, Playwright browser verification, capability-scoped plugins, durable jobs/schedules, OpenTelemetry/calibration, Python SDK, reviewed remote Runs and reclaimable cloud-worker leases.
 
-1. **Agent teams** — persistent dependency task boards, resumable state, parallel isolated worktrees and per-worker branches.
-2. **Browser agent** — native Playwright tools for navigation, snapshots, interaction, console/network capture and screenshots, with localhost-only networking by default and explicit allowlists.
-3. **Plugin packaging** — checksum-verified bundles for Skills, Hooks, commands and MCP definitions; explicit permission approval; sandboxed `jarvis plugin run` execution.
-4. **Background work** — durable SQLite jobs, detached workers, cancellation, logs, interval and cron schedules.
-5. **Observability and calibration** — JSONL traces everywhere, optional OTLP export, benchmark-derived local routing calibration and durable Server route observations from effective routed models.
-6. **SDK and remote/cloud execution** — embeddable Python local/remote SDK, reviewed Server Runs, durable cloud-task queues, leases, heartbeats and reclaimable external workers.
+## v0.7 — efficiency and reliability
+
+v0.7 optimizes quality per token and reduces false completion:
+
+1. Compile bounded task context from symbols/imports/tests/Git rather than dumping repository text.
+2. Speculate only on uncertain/complex read-only exploration and cancel losing workers cooperatively.
+3. Start cheap and escalate to independent multi-agent repair/verification only when task risk or measured failures justify it.
+4. Isolate the verifier from implementer narrative and derive confidence from execution evidence, not self-rating.
+5. Persist structured failure signatures and use deterministic retry/stop/escalation policies.
+6. Select impact-linked tests and include build/config/deployment blast radius before broad verification.
+7. Enforce semantic patch scope, require regression verification for bug fixes, minimize suspiciously broad diffs, and deduplicate repeated tool output by digest.
+8. Add adversarial eval cases for fabricated files/APIs/tests, repository prompt injection, stale/conflicting evidence, retry loops and context waste.
 
 ## Next P0 — production proof
 
-1. Restore executable CI and run the complete Python/package/Postgres/browser matrix.
-2. Run the seeded benchmark corpus across Ollama plus at least one configured remote provider and retain baseline reports.
-3. Add chaos/restart tests for team workers, cloud leases, scheduler ownership and OTLP exporter failure.
-4. Add real Playwright Chromium integration tests in CI, including localhost E2E verification and denied external-host cases.
-5. Version and release the shared v0.6 Core artifact, then pin consumers to the immutable release wheel and checksum.
+1. Run the complete Python/package/Postgres/browser matrix for v0.7.
+2. Run the core and adversarial benchmark corpora across Ollama plus at least one configured remote provider and retain comparable baselines.
+3. Measure success, false-completion rate, latency and tokens/task with speculation/escalation on and off.
+4. Run chaos/restart tests for team workers, cloud leases, scheduler ownership and OTLP exporter failure.
+5. Release immutable Core artifacts in dependency order and pin consumers only to released wheels/checksums.
 
 ## P1 — remaining world-class gaps
 
 - TypeScript SDK parity with Python;
 - native Windows AppContainer sandboxing;
-- richer TUI agent-team/browser panes and interactive job attachment;
+- richer TUI team/browser/job panes and interactive job attachment;
 - signed plugin publisher trust roots beyond checksum integrity;
 - multi-node queue backpressure/autoscaling policies;
-- dashboard presets for OpenTelemetry traces, route quality, cost and latency.
+- dashboard presets for traces, route quality, cost, confidence and escalation rate.
 
 ## Completion gates
 
