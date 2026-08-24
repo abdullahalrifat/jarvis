@@ -6,7 +6,11 @@ import pytest
 
 from jarvis_cli.autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 from jarvis_cli.jobs import JobStore, _cron_matches
-from jarvis_cli.proof_runtime import PermissionPolicy, proof_path
+from jarvis_cli.proof_runtime import (
+    PermissionPolicy,
+    _compact_value,
+    proof_path,
+)
 from jarvis_cli.sdk import LocalJarvis
 
 
@@ -26,7 +30,7 @@ def test_permission_policy_defaults_to_ask_for_mutation_and_plan_denies(tmp_path
     assert policy.action("apply_patch", mutation=True, plan_mode=True) == "deny"
 
 
-def test_permission_policy_loads_explicit_boundaries(tmp_path):
+def test_repository_permission_policy_cannot_broaden_privileges(tmp_path):
     config = tmp_path / ".jarvis" / "permissions.toml"
     config.parent.mkdir()
     config.write_text(
@@ -34,8 +38,24 @@ def test_permission_policy_loads_explicit_boundaries(tmp_path):
         encoding="utf-8",
     )
     policy = PermissionPolicy(tmp_path)
-    assert policy.action("apply_patch", mutation=True, plan_mode=False) == "allow"
+    assert policy.action("apply_patch", mutation=True, plan_mode=False) == "ask"
+    assert "apply_patch" in policy.ignored_project_allow
     assert policy.action("run_command", mutation=True, plan_mode=False) == "deny"
+
+
+def test_trusted_user_permission_policy_can_preapprove(tmp_path, monkeypatch):
+    config_home = tmp_path / "config"
+    trusted = config_home / "jarvis" / "permissions.toml"
+    trusted.parent.mkdir(parents=True)
+    trusted.write_text(
+        '[permissions]\nallow=["apply_patch"]\n',
+        encoding="utf-8",
+    )
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    policy = PermissionPolicy(workspace)
+    assert policy.action("apply_patch", mutation=True, plan_mode=False) == "allow"
 
 
 def test_proof_storage_is_outside_workspace(tmp_path, monkeypatch):
@@ -46,6 +66,20 @@ def test_proof_storage_is_outside_workspace(tmp_path, monkeypatch):
     target = proof_path(workspace)
     assert state_home in target.parents
     assert workspace not in target.parents
+
+
+def test_proof_metadata_redacts_secrets_and_omits_large_patch_content():
+    compacted = _compact_value(
+        {
+            "api_key": "sk-super-secret-1234567890",
+            "argv": ["curl", "Authorization: Bearer abcdefghijklmnop"],
+            "patch": "secret patch body" * 1000,
+        }
+    )
+    assert compacted["api_key"] == "[REDACTED]"
+    assert "abcdefghijklmnop" not in str(compacted)
+    assert compacted["patch"]["content_omitted"] is True
+    assert "secret patch body" not in str(compacted["patch"])
 
 
 def test_autonomous_cloud_submission_sends_idempotency_key():
@@ -112,7 +146,10 @@ def test_profile_switch_does_not_reuse_other_provider_key(tmp_path, monkeypatch)
         base_url="https://api.anthropic.com",
         capabilities=SimpleNamespace(max_output_tokens=2048),
     )
-    monkeypatch.setattr("jarvis_cli.autonomous_sdk.profile_api_key_env", lambda _name: None)
+    monkeypatch.setattr(
+        "jarvis_cli.autonomous_sdk.profile_api_key_env",
+        lambda _name: None,
+    )
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-secret")
     local = worker._profile_local(profile)
     assert local.config.provider == "anthropic"
