@@ -1,78 +1,170 @@
-"""Incremental, dependency-free repository symbol map."""
+"""Incremental repository intelligence used by the local agent."""
 
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
-_TEXT_SUFFIXES = {
-    ".c",
-    ".cc",
-    ".cpp",
-    ".go",
-    ".java",
-    ".js",
-    ".jsx",
-    ".kt",
-    ".py",
-    ".rb",
-    ".rs",
-    ".scala",
-    ".ts",
-    ".tsx",
-}
-_SKIP = {".git", ".jarvis", ".mypy_cache", ".pytest_cache", ".venv", "node_modules"}
+from .quality_runtime import IncrementalRepositoryIndex, JsonCache, LSPClient
 
 
-def _python_symbols(text: str) -> list[dict[str, Any]]:
+def _lsp_limit() -> int:
     try:
-        tree = ast.parse(text)
-    except SyntaxError:
+        return max(0, min(25, int(os.getenv("JARVIS_LSP_MAX_FILES", "6"))))
+    except ValueError:
+        return 6
+
+
+def _python_imports(path: Path, workspace: Path) -> list[str]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, SyntaxError):
         return []
-    return [
-        {
-            "name": node.name,
-            "kind": "class" if isinstance(node, ast.ClassDef) else "function",
-            "line": node.lineno,
-        }
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-    ][:500]
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            prefix = "." * node.level
+            imports.add(prefix + node.module)
+    return sorted(imports)[:100]
+
+
+def _test_links(relative_paths: list[str]) -> dict[str, list[str]]:
+    """Build conservative source→test links from common naming conventions."""
+    tests = [
+        path
+        for path in relative_paths
+        if Path(path).name.startswith("test_") or "/tests/" in f"/{path}"
+    ]
+    links: dict[str, list[str]] = {}
+    for source in relative_paths:
+        source_path = Path(source)
+        if source in tests:
+            continue
+        stem = source_path.stem.casefold()
+        matches = [
+            test for test in tests if stem and stem in Path(test).stem.casefold()
+        ][:20]
+        if matches:
+            links[source] = matches
+    return links
+
+
+def _recent_git_changes(workspace: Path, *, limit: int = 200) -> dict[str, int]:
+    """Return bounded file touch counts from recent Git history."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(workspace),
+                "log",
+                "--format=",
+                "--name-only",
+                "-n",
+                "40",
+            ],
+            text=True,
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if result.returncode:
+        return {}
+    counts: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        path = line.strip()
+        if not path:
+            continue
+        counts[path] = counts.get(path, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit])
 
 
 def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[str, Any]:
+    """Build a bounded structural graph used by normal repository_map tool calls.
+
+    Structural signals are preferred before semantic retrieval: content hashes,
+    symbols, imports, source→test links, optional LSP data, and recent Git touches.
+    """
     workspace = Path(root).resolve()
+    index = IncrementalRepositoryIndex(workspace)
+    summary = index.update()
+    selected = sorted(index.files.items())[:max_files]
+    relative_paths = [path for path, _record in selected]
+    recent_changes = _recent_git_changes(workspace)
+    test_links = _test_links(relative_paths)
+
+    cache = JsonCache(workspace / ".jarvis/cache/repository-map")
+    cache_identity = {
+        "version": 4,
+        "files": [(path, record.get("digest")) for path, record in selected],
+        "lsp": os.getenv("JARVIS_LSP_ANALYSIS", "true").lower(),
+        "lsp_limit": _lsp_limit(),
+        "recent_git": recent_changes,
+    }
+    cached = cache.get("repository-map", cache_identity)
+    if isinstance(cached, dict):
+        cached["index"] = {**summary, "cache_hit": True}
+        return cached
+
+    lsp_enabled = os.getenv("JARVIS_LSP_ANALYSIS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    lsp = LSPClient()
+    lsp_remaining = _lsp_limit() if lsp_enabled else 0
     files: list[dict[str, Any]] = []
-    for path in sorted(workspace.rglob("*")):
-        if len(files) >= max_files:
-            break
-        if not path.is_file() or path.suffix.lower() not in _TEXT_SUFFIXES:
-            continue
-        if any(part in _SKIP for part in path.parts):
-            continue
-        try:
-            raw = path.read_bytes()
-        except OSError:
-            continue
-        if len(raw) > 1_000_000:
-            continue
-        text = raw.decode("utf-8", errors="replace")
-        files.append(
-            {
-                "path": str(path.relative_to(workspace)),
-                "sha256": hashlib.sha256(raw).hexdigest(),
-                "language": path.suffix.lower().lstrip("."),
-                "symbols": _python_symbols(text) if path.suffix == ".py" else [],
-            }
+    import_edges: list[dict[str, str]] = []
+
+    for relative, record in selected:
+        source = workspace / relative
+        imports = (
+            _python_imports(source, workspace) if source.suffix.lower() == ".py" else []
         )
-    return {
+        for imported in imports:
+            import_edges.append({"from": relative, "to": imported})
+        item = {
+            "path": relative,
+            "sha256": record.get("digest"),
+            "language": source.suffix.lower().lstrip("."),
+            "symbols": record.get("symbols", []),
+            "imports": imports,
+            "tests": test_links.get(relative, []),
+            "recent_git_touches": recent_changes.get(relative, 0),
+            "size": record.get("size", 0),
+        }
+        if lsp_remaining > 0 and lsp.command_for(source):
+            analysis = lsp.analyze(source)
+            item["lsp"] = {
+                "server": analysis.get("server"),
+                "symbols": analysis.get("symbols", []),
+                "diagnostics": analysis.get("diagnostics", []),
+                "error": analysis.get("error"),
+            }
+            lsp_remaining -= 1
+        files.append(item)
+
+    result = {
         "workspace": str(workspace),
         "files": files,
-        "truncated": len(files) >= max_files,
+        "graph": {
+            "imports": import_edges[:5_000],
+            "test_links": test_links,
+            "recent_git_changes": recent_changes,
+        },
+        "truncated": len(index.files) > max_files,
+        "index": {**summary, "cache_hit": False},
     }
+    cache.put("repository-map", cache_identity, result)
+    return result
 
 
 def write_repository_map(root: str | Path) -> Path:

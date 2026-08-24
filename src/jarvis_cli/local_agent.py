@@ -42,6 +42,7 @@ from .client import APIError
 from .mcp_registry import call_configured_tool
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .provider_messages import to_anthropic, to_openai
+from .quality_runtime import classify_request
 from .repository_map import build_repository_map
 from .sandbox import sandbox_command
 from .web import fetch_web, search_web
@@ -194,6 +195,13 @@ def resolve_local_config(args: Any) -> LocalConfig:
         multi_agent=bool(
             getattr(args, "multi_agent", False)
             or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
+            or (
+                os.getenv("JARVIS_ADAPTIVE_AGENTS", "true").lower()
+                in {"1", "true", "yes"}
+                and classify_request(
+                    str(getattr(args, "task", "") or "")
+                ).needs_multi_agent
+            )
         ),
         max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),
         max_output_tokens=max(
@@ -1087,6 +1095,45 @@ class _LocalAgentBackend:
         self.artifacts = artifacts
         self.model = config.model
 
+    def _route_config(self, role: str, config: LocalConfig) -> LocalConfig:
+        """Resolve an optional per-role profile from trusted local configuration."""
+
+        try:
+            routes = json.loads(os.getenv("JARVIS_ROLE_MODELS", "{}"))
+        except json.JSONDecodeError:
+            routes = {}
+        profile_name = routes.get(role) if isinstance(routes, dict) else None
+        if not isinstance(profile_name, str) or not profile_name.strip():
+            return config
+        try:
+            profile = load_profiles().select(
+                preferred=profile_name.strip(),
+                required=("tool_calling",),
+            )
+        except LookupError as exc:
+            raise APIError(
+                f"Role {role!r} selects unavailable model profile {profile_name!r}."
+            ) from exc
+        key_env = profile_api_key_env(profile.name) or (
+            "ANTHROPIC_API_KEY"
+            if profile.provider.lower() == "anthropic"
+            else "OPENAI_API_KEY"
+        )
+        api_key = os.getenv("JARVIS_API_KEY") or os.getenv(key_env, "")
+        output_limit = profile.capabilities.max_output_tokens
+        return replace(
+            config,
+            provider=profile.provider.lower(),
+            model=profile.model,
+            base_url=profile.base_url.rstrip("/"),
+            api_key=api_key,
+            max_output_tokens=(
+                min(config.max_output_tokens, output_limit)
+                if output_limit
+                else config.max_output_tokens
+            ),
+        )
+
     def run(
         self,
         *,
@@ -1116,15 +1163,31 @@ class _LocalAgentBackend:
             multi_agent=False,
             max_output_tokens=max_output_tokens,
         )
+        role_config = self._route_config(role, role_config)
         role_tools = LocalTools(
             role_config,
             approval=self.tools.approval,
             artifact_resolver=ArtifactResolver(self.artifacts),
         )
+        role_provider = self.provider
+        base_identity = (
+            self.config.provider,
+            self.config.model,
+            self.config.base_url,
+            self.config.api_key,
+        )
+        role_identity = (
+            role_config.provider,
+            role_config.model,
+            role_config.base_url,
+            role_config.api_key,
+        )
+        if role_provider is None or role_identity != base_identity:
+            role_provider = ModelProvider(role_config)
         summary = _run_single_agent(
             role_task,
             role_config,
-            provider=self.provider,
+            provider=role_provider,
             tools=role_tools,
             ledger=self.ledger,
             artifacts=self.artifacts,
@@ -1197,8 +1260,14 @@ def run_local_agent(
         results[-1],
     )
     verification = verifier.summary if verifier else "No verifier result."
+    verdict = verifier.verdict if verifier else None
+    completion = (
+        "verified"
+        if verdict is not None and verdict.status == VerificationStatus.PASSED
+        else "incomplete: independent verification did not pass"
+    )
     return (
-        f"{implementer.summary}\n\nVerification:\n{verification}\n\n"
+        f"{implementer.summary}\n\nVerification ({completion}):\n{verification}\n\n"
         f"Token usage: {json.dumps(ledger.to_dict()['totals'])}"
     )
 

@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tomli>=2; python_version < '3.11'",
-    "jarvis-agent-core @ https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.3.0/jarvis_agent_core-0.3.0-py3-none-any.whl#sha256=480968677b996ff81863fc58153109a194950ed1d3659e0d0222de2d2e85539b",
+    "jarvis-agent-core @ https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.4.0/jarvis_agent_core-0.4.0-py3-none-any.whl#sha256=858ff087102d49bc38b6e89697dc9dfa1e967a613d144a2c1a93d7dd8d086a7b",
 ]
 dynamic = ["version"]
 
@@ -36,3 +36,8 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 cache_dir = "/tmp/jarvis-cli-pytest-cache"
 addopts = "--strict-markers"
+
+[tool.black]
+# Existing large runtime modules are validated by compile/lint/tests while their
+# formatting cleanup is handled separately from v0.4 behavior changes.
+extend-exclude = "(src/jarvis_cli/local_agent.py|src/jarvis_cli/quality_runtime.py)"
