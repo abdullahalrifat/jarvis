@@ -33,11 +33,17 @@ Jarvis targets dependable, open-model-first coding outcomes comparable with matu
 | Agent-team task board + parallel worktrees | INTEGRATED |
 | Browser / Playwright verification agent | INTEGRATED |
 | Capability-scoped plugin packaging | INTEGRATED |
-| Background jobs + interval/cron scheduler | INTEGRATED |
+| Background jobs + standard cron scheduler | INTEGRATED |
+| Process-tree job cancellation | INTEGRATED |
 | OpenTelemetry + JSONL trace fallback | INTEGRATED |
 | Automatic empirical route calibration | INTEGRATED |
 | Python SDK + reviewed remote Runs | INTEGRATED |
-| Lease-based cloud workers | INTEGRATED |
+| Portable Git cloud workspaces | INTEGRATED |
+| Lease-fenced cloud workers | INTEGRATED |
+| Idempotent cloud submissions | INTEGRATED |
+| Unified execution proof ledger | INTEGRATED |
+| Deterministic permission policy | INTEGRATED |
+| Autonomous dashboard | INTEGRATED |
 | Adaptive structural context compiler | INTEGRATED |
 | Speculative explorers + cooperative cancellation | INTEGRATED |
 | Failure-driven dynamic escalation | INTEGRATED |
@@ -65,30 +71,34 @@ v0.6 turned the CLI/runtime into a distributed developer-agent platform: agent t
 
 ## v0.7 — efficiency and reliability
 
-v0.7 optimizes quality per token and reduces false completion:
+v0.7 optimizes quality per token and reduces false completion with structural context compilation, bounded speculation, failure-driven escalation, verifier isolation, evidence confidence, failure memory, impact-aware verification, semantic patch scope, result deduplication, and adversarial evals.
 
-1. Compile bounded task context from symbols/imports/tests/Git rather than dumping repository text.
-2. Speculate only on uncertain/complex read-only exploration and cancel losing workers cooperatively.
-3. Start cheap and escalate to independent multi-agent repair/verification only when task risk or measured failures justify it.
-4. Isolate the verifier from implementer narrative and derive confidence from execution evidence, not self-rating.
-5. Persist structured failure signatures and use deterministic retry/stop/escalation policies.
-6. Select impact-linked tests and include build/config/deployment blast radius before broad verification.
-7. Enforce semantic patch scope, require regression verification for bug fixes, minimize suspiciously broad diffs, and deduplicate repeated tool output by digest.
-8. Add adversarial eval cases for fabricated files/APIs/tests, repository prompt injection, stale/conflicting evidence, retry loops and context waste.
+## v0.8 — autonomous engineering runtime
 
-## Next P0 — production proof
+v0.8 hardens long-running engineering work around explicit ownership and proof:
 
-1. Run the complete Python/package/Postgres/browser matrix for v0.7.
-2. Run the core and adversarial benchmark corpora across Ollama plus at least one configured remote provider and retain comparable baselines.
+1. Fence every cloud attempt with a unique lease ID and reject stale heartbeat/state/completion writes.
+2. Run cloud agent execution in a killable child and stop it when cancellation or lease loss becomes definitive.
+3. Make cloud submission idempotent and portable across Git-backed workers without transmitting provider credentials.
+4. Honor `auto`, named profiles, and raw model overrides without leaking a base provider API key into another provider.
+5. Persist run-scoped execution proof outside the Git workspace and expose it through `jarvis proof` / `jarvis dashboard`.
+6. Apply deterministic allow/ask/deny permission boundaries while preserving existing interactive approvals.
+7. Cancel complete local process trees and use conventional UTC cron semantics including DOM/DOW OR and Sunday `0/7`.
+8. Validate the release through Core, CLI, Postgres, supply-chain/model, and cross-repository gates.
+
+## Next P0 — measured production proof
+
+1. Retain v0.8 cross-repository and Postgres fencing gates as required checks.
+2. Run core + adversarial benchmark corpora across Ollama and at least one configured remote provider and retain comparable baselines.
 3. Measure success, false-completion rate, latency and tokens/task with speculation/escalation on and off.
-4. Run chaos/restart tests for team workers, cloud leases, scheduler ownership and OTLP exporter failure.
+4. Add longer-running chaos tests for network partitions, worker restarts, Server restarts, scheduler ownership, and OTLP exporter failure.
 5. Release immutable Core artifacts in dependency order and pin consumers only to released wheels/checksums.
 
 ## P1 — remaining world-class gaps
 
 - TypeScript SDK parity with Python;
 - native Windows AppContainer sandboxing;
-- richer TUI team/browser/job panes and interactive job attachment;
+- richer interactive dashboard panes and job attachment;
 - signed plugin publisher trust roots beyond checksum integrity;
 - multi-node queue backpressure/autoscaling policies;
 - dashboard presets for traces, route quality, cost, confidence and escalation rate.
