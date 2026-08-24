@@ -1,105 +1,120 @@
 # Jarvis roadmap
 
-The target is a dependable, open-model-first terminal agent with comparable
-outcomes to mature commercial coding agents. Jarvis must remain useful without
-Server and without a paid model subscription.
+Jarvis targets dependable, open-model-first coding outcomes comparable with mature
+commercial terminal agents while remaining useful without Server or a paid model.
 
-## Shipped foundation
+## Capability maturity
 
-- standalone local planning/tool loop with guarded file, Git, patch, and command
-  tools;
-- OpenAI-compatible remote/local inference plus optional Anthropic compatibility;
-- endpoint diagnostics and capability-aware named model profiles;
-- token budgets, usage accounting, context compaction, artifact retrieval, and
-  selective Explorer → Implementer → Verifier orchestration from
-  `jarvis-agent-core`;
-- web search/fetch with citations, bounded content, SSRF controls, and an
-  explicit untrusted-evidence boundary;
-- SQLite run records, redacted JSONL traces, repository maps, explicit text
-  attachments, last-patch undo, MCP stdio foundations, and JSON evaluations;
-- explicit Server mode for durable runs, event replay, remote sandboxes, and
-  approval/discard.
+Features are tracked with four maturity levels instead of a binary done/not-done
+checkbox:
 
-“Shipped” means the bounded foundation exists and is tested. It does not mean
-the richer lifecycle below is complete.
+- **FOUNDATION** — bounded implementation exists with focused tests.
+- **INTEGRATED** — exercised through the real agent/runtime path.
+- **PRODUCTION-READY** — failure, recovery, permission and compatibility gates pass.
+- **MEASURED** — replay/benchmark data proves quality, latency and token behavior.
 
-## P0 — dependable daily continuity
+| Capability | Current maturity |
+| --- | --- |
+| Standalone local tool loop | INTEGRATED |
+| Resumable sessions and checkpoints | INTEGRATED |
+| Provider profiles, fallback and health | INTEGRATED |
+| Evidence and independent verification | INTEGRATED |
+| Per-hunk review and reversible changes | INTEGRATED |
+| Attachments / image / PDF context | INTEGRATED |
+| Hierarchical instructions and memory | INTEGRATED |
+| MCP lifecycle and tool policy | INTEGRATED |
+| Adaptive multi-agent execution | INTEGRATED |
+| Heterogeneous role/model routing | INTEGRATED |
+| Incremental repository/symbol index | FOUNDATION |
+| Real stdio LSP source analysis | FOUNDATION |
+| Isolated task worktrees | FOUNDATION |
+| Benchmark-calibrated routing | FOUNDATION |
+| OpenTelemetry / end-to-end cost traces | NOT STARTED |
+| Rich terminal TUI | NOT STARTED |
 
-1. **True resumable local conversations**
-   - persist complete compacted transcripts and tool protocol groups;
-   - resume, rename, fork, archive, search, and guarded delete;
-   - restore pending approval and interrupted-run state;
-   - expose stable JSON/JSONL events for every local run.
+## v0.4 — adaptive quality hardening
 
-2. **Provider resilience**
-   - health scores, circuit breakers, bounded fallback chains, and retry budgets;
-   - distinguish endpoint, model, capacity, tool-call, and context failures;
-   - prevent duplicate tools or writes when retrying;
-   - show the selected route and fallback reason in traces.
+The v0.4 line establishes:
 
-3. **Evidence quality**
-   - domain/source-quality policy and primary-source preference;
-   - cross-source claim verification, contradiction reporting, and freshness;
-   - PDF/document extraction and citation spans;
-   - confidence derived from evidence coverage, not model self-report.
+- deterministic complexity/risk analysis with cheap single-agent defaults;
+- selective explorer/implementer/verifier/risk escalation;
+- role-specific model profiles with independent-model diversity;
+- execution-backed completion evidence;
+- incremental source indexing with bounded file selection;
+- atomic local result caching;
+- optional real stdio LSP document-symbol/diagnostic analysis;
+- unique branch-per-task worktrees with ownership metadata;
+- quality, latency, token and tool-failure measurement contracts.
 
-4. **Review and recovery**
-   - syntax-highlighted pageable diffs;
-   - per-file and per-hunk approve/reject;
-   - test evidence beside changes;
-   - transactional patch/command ledger with explicit rollback boundaries.
+A helper is not considered integrated until an end-to-end agent test proves it is
+used by normal execution.
 
-## P1 — richer agent experience
+## P0 — measured intelligence
+
+1. **End-to-end evaluation gates**
+   - representative coding, research, tool-use, recovery and safety tasks;
+   - task success, test-pass, incorrect-completion, latency and tokens/task metrics;
+   - model/prompt A/B replay and regression thresholds;
+   - failure clustering and prompt/model/version attribution.
+
+2. **Repository intelligence graph**
+   - combine source index, Tree-sitter/LSP, imports, definitions/references and Git history;
+   - map symbols to tests, dependencies and recent changes;
+   - prefer structural retrieval before embeddings;
+   - incremental invalidation after mutations.
+
+3. **Evidence-backed completion**
+   - immutable mutation records with before/after digests;
+   - verification records with command, exit code and output digest;
+   - completion claims blocked when required proof is missing;
+   - independent verifier used for risky/complex work, not every request.
+
+4. **Adaptive escalation**
+   - trivial requests use the fastest qualified single model;
+   - normal work uses one strong implementer;
+   - complex/risky work selectively adds exploration, risk and verification roles;
+   - routing calibration comes from benchmark observations, never model self-report.
+
+## P1 — agent experience and operations
 
 5. **Terminal UX**
-   - native multiline editor, bracketed paste, reverse search, and external editor;
-   - attachment preview, `@path` completion, images/PDFs, clipboard images, and
-     context-budget visibility;
-   - plan-only/default/managed permission modes and layered configuration.
+   - multiline editor, bracketed paste, reverse search and external editor;
+   - live tool stream, pageable diff review and attachment previews;
+   - plan-only/default/managed permission modes;
+   - visible context and token budget.
 
-6. **Instructions and memory**
-   - user, workspace-private, repository, and hierarchical instruction files;
-   - visible precedence, imports, size/cycle protection, and active-source list;
-   - separate durable preferences from transcripts and retrieved evidence;
-   - memory inspection, correction, expiration, and deletion.
-
-7. **MCP, hooks, and skills**
-   - declarative server configuration, persistent lifecycle, HTTP/OAuth
-     transports, health checks, and per-tool policy;
+6. **Hooks, skills and connectors**
    - typed pre/post hooks with timeouts and secret boundaries;
-   - versioned, signed skill/plugin manifests with explicit capabilities.
+   - versioned signed skill manifests with explicit capabilities;
+   - connector-based GitHub/GitLab actions with no embedded credentials.
 
-8. **Git workflows**
-   - branch/worktree creation, before/after summaries, and optional approved
-     commits;
-   - evidence-backed commit and PR drafting;
-   - connector-based GitHub/GitLab actions with no embedded credentials;
-   - explicit policy for push, rebase, force-push, and destructive operations.
+7. **Git/worktree orchestration**
+   - safe parallel implementation owners in isolated worktrees;
+   - before/after summaries, approved commits and evidence-backed PR drafting;
+   - deterministic cleanup/recovery for abandoned worktrees;
+   - explicit push/rebase/force-push policy.
 
-## P2 — quality, distribution, and platform
+8. **Observability and optimization**
+   - OpenTelemetry traces across routing, inference, tools and verification;
+   - per-run latency/token/cost attribution;
+   - dashboards for fallback, tool failures and incorrect completion;
+   - route tuning driven by measured outcomes.
 
-9. **Benchmark-driven optimization**
-   - coding, research, tool-use, safety, latency, and token-efficiency suites;
-   - model/prompt A/B runs, regression gates, and route calibration;
-   - trace replay that can replace only the model or prompt layer;
-   - failure clustering and prompt/version attribution.
+## P2 — distribution and platform
 
-10. **Isolation and supply chain**
-    - OS sandbox profiles for commands and untrusted parsers;
-    - keyring/API-key helpers, proxy/custom CA support, and strict diagnostics;
-    - signed binaries for major platforms, secure updates, SBOM/provenance, and
-      reproducible release tests.
+9. **Isolation and supply chain**
+   - OS sandbox profiles for commands and untrusted parsers;
+   - keyring/API-key helpers, proxy/custom-CA support and diagnostics;
+   - signed binaries, secure updates, SBOM/provenance and reproducible releases.
 
-11. **Server/channel parity**
-    - keep shared contracts in `jarvis-agent-core` while preserving separate
-      execution policies;
-    - expose compatible evidence, routing, tracing, and evaluation semantics;
-    - implement thin authenticated web, Telegram, WhatsApp, and mobile adapters
-      on Server, never by duplicating the agent loop in clients.
+10. **Server/channel parity**
+    - shared contracts remain in `jarvis-agent-core` while execution policy stays separate;
+    - compatible evidence, routing, tracing and evaluation semantics;
+    - authenticated web/Telegram/WhatsApp/mobile adapters remain thin clients over Runs.
 
 ## Completion gates
 
-A feature is complete only when happy path, cancellation, timeout, malformed
-input, permission denial, prompt injection, compatibility, and recovery are
-tested and documented. “World-class” requires measured reliability and quality,
-not only a long capability list.
+A capability advances to PRODUCTION-READY only when happy path, cancellation,
+timeout, malformed input, permission denial, prompt injection, compatibility and
+recovery are tested and documented. “World-class” is a measured reliability and
+quality target, not a feature-count claim.
