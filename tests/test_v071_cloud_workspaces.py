@@ -69,6 +69,13 @@ def test_remote_cloud_submission_requires_one_workspace_source():
         )
 
 
+def test_worker_rejects_unsafe_lease_identity_without_trusting_server():
+    for value in ("", ".", "..", "../escape", "a/b", "a\\b"):
+        with pytest.raises(PermissionError, match="task id"):
+            CloudWorker._safe_task_id(value)
+    assert CloudWorker._safe_task_id("task-01_a.b") == "task-01_a.b"
+
+
 def test_worker_rejects_unsafe_ref_and_commit_without_trusting_server():
     with pytest.raises(PermissionError, match="unsafe git_ref"):
         CloudWorker._safe_git_ref("--upload-pack=evil")
@@ -135,3 +142,25 @@ def test_cloud_workspace_result_contains_tracked_and_untracked_patch(tmp_path):
     assert "new.txt" in result["diff"]
     assert "new file mode" in result["diff"]
     assert result["diff_truncated"] is False
+
+
+def test_cloud_workspace_marks_omitted_large_untracked_file_as_truncated(tmp_path):
+    root = _repo(tmp_path)
+    (root / "large.bin").write_bytes(b"x" * 1_000_001)
+    base = _git(root, "rev-parse", "HEAD")
+
+    result = CloudWorker._workspace_result(
+        _PreparedWorkspace(
+            root,
+            False,
+            {
+                "kind": "git",
+                "repository_url": "https://github.com/example/repo.git",
+                "base_commit": base,
+            },
+        )
+    )
+
+    assert "large.bin" in result["status"]
+    assert "large.bin" not in result["diff"]
+    assert result["diff_truncated"] is True
