@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from concurrent.futures import Future, ThreadPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
@@ -53,9 +53,19 @@ class PersistentTaskBoard:
         if self.path.is_file():
             self._load()
         for spec in specs or []:
-            if spec.id in self.tasks:
-                raise ValueError(f"duplicate task id: {spec.id}")
-            self.tasks[spec.id] = TeamTaskState(spec=spec)
+            existing = self.tasks.get(spec.id)
+            if existing is None:
+                self.tasks[spec.id] = TeamTaskState(spec=spec)
+                continue
+            if existing.spec != spec:
+                raise ValueError(f"task definition changed for existing task id: {spec.id}")
+            # Interrupted processes leave a task marked running even though no
+            # worker can still own this local board. Make it retryable while
+            # retaining its branch/worktree metadata for inspection.
+            if existing.status == "running":
+                existing.status = "ready"
+                existing.owner = None
+                existing.error = "recovered after interrupted team process"
         self.refresh()
         self.save()
 
@@ -75,7 +85,9 @@ class PersistentTaskBoard:
             for item in rows
         ]
         known = {item.id for item in specs}
-        missing = sorted({dep for item in specs for dep in item.dependencies if dep not in known})
+        missing = sorted(
+            {dep for item in specs for dep in item.dependencies if dep not in known}
+        )
         if missing:
             raise ValueError("unknown task dependencies: " + ", ".join(missing))
         return cls(state_path, specs)
@@ -110,7 +122,10 @@ class PersistentTaskBoard:
                 if state.status not in {"pending", "ready", "blocked"}:
                     continue
                 dependencies = [self.tasks[dep].status for dep in state.spec.dependencies]
-                if any(status in {"failed", "cancelled", "blocked"} for status in dependencies):
+                if any(
+                    status in {"failed", "cancelled", "blocked"}
+                    for status in dependencies
+                ):
                     state.status = "blocked"
                 elif all(status == "completed" for status in dependencies):
                     state.status = "ready"
@@ -124,9 +139,14 @@ class PersistentTaskBoard:
     def save(self) -> None:
         with self._lock:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            payload = {"version": 1, "tasks": [item.to_dict() for item in self.tasks.values()]}
+            payload = {
+                "version": 1,
+                "tasks": [item.to_dict() for item in self.tasks.values()],
+            }
             temporary = self.path.with_suffix(self.path.suffix + ".tmp")
-            temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            temporary.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             temporary.replace(self.path)
 
     def summary(self) -> dict[str, Any]:
@@ -134,7 +154,10 @@ class PersistentTaskBoard:
         counts: dict[str, int] = {}
         for task in self.tasks.values():
             counts[task.status] = counts.get(task.status, 0) + 1
-        return {"counts": counts, "tasks": [item.to_dict() for item in self.tasks.values()]}
+        return {
+            "counts": counts,
+            "tasks": [item.to_dict() for item in self.tasks.values()],
+        }
 
 
 class TeamCoordinator:
@@ -153,17 +176,35 @@ class TeamCoordinator:
         self.board = board
         self.runner = runner
         self.workers = max(1, min(workers, 8))
-        self.worktree_root = Path(worktree_root or self.repository / ".jarvis/worktrees/team").resolve()
+        default_root = (
+            self.repository.parent
+            / ".jarvis-worktrees"
+            / self.repository.name
+            / "team"
+        )
+        self.worktree_root = Path(worktree_root or default_root).resolve()
+        try:
+            self.worktree_root.relative_to(self.repository)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("team worktree root must be outside the repository")
         self.manager = WorktreeManager(self.repository, self.worktree_root)
 
     def _run_one(self, state: TeamTaskState, worker: str) -> str:
+        # A recovered task can retain an old worktree. Never mutate it again;
+        # create a fresh isolated branch for each retry.
         target = self.manager.create(state.spec.id)
-        metadata = json.loads((target / ".jarvis-worktree.json").read_text(encoding="utf-8"))
+        metadata = json.loads(
+            (target / ".jarvis-worktree.json").read_text(encoding="utf-8")
+        )
         state.owner = worker
         state.worktree = str(target)
         state.branch = metadata.get("branch")
         state.status = "running"
         state.started_at = time()
+        state.finished_at = None
+        state.error = None
         self.board.save()
         try:
             result = self.runner(state.spec, target)
@@ -182,7 +223,9 @@ class TeamCoordinator:
     def run(self) -> dict[str, Any]:
         futures: dict[Future[str], str] = {}
         worker_index = 0
-        with ThreadPoolExecutor(max_workers=self.workers, thread_name_prefix="jarvis-team") as pool:
+        with ThreadPoolExecutor(
+            max_workers=self.workers, thread_name_prefix="jarvis-team"
+        ) as pool:
             while True:
                 self.board.refresh()
                 active_ids = set(futures.values())
@@ -190,13 +233,20 @@ class TeamCoordinator:
                     if state.spec.id in active_ids or len(futures) >= self.workers:
                         continue
                     worker_index += 1
-                    future = pool.submit(self._run_one, state, f"worker-{worker_index}")
+                    future = pool.submit(
+                        self._run_one, state, f"worker-{worker_index}"
+                    )
                     futures[future] = state.spec.id
                 if not futures:
-                    if all(item.status in TERMINAL for item in self.board.tasks.values()):
+                    if all(
+                        item.status in TERMINAL for item in self.board.tasks.values()
+                    ):
                         break
-                    # No runnable work means unresolved dependency cycle.
-                    pending = [item for item in self.board.tasks.values() if item.status not in TERMINAL]
+                    pending = [
+                        item
+                        for item in self.board.tasks.values()
+                        if item.status not in TERMINAL
+                    ]
                     for item in pending:
                         item.status = "blocked"
                         item.error = "dependency cycle or unsatisfied dependency"
@@ -204,7 +254,7 @@ class TeamCoordinator:
                     break
                 done, _ = wait(futures, return_when=FIRST_COMPLETED)
                 for future in done:
-                    task_id = futures.pop(future)
+                    futures.pop(future)
                     try:
                         future.result()
                     except BaseException:
