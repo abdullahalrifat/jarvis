@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
+import time
 
 from .browser_agent import BrowserSession
 from .client import APIError
@@ -30,6 +32,14 @@ def _provider_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--accept-edits", action="store_true")
     parser.add_argument("--accept-commands", action="store_true")
     parser.set_defaults(write=True)
+
+
+def _remote_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--server",
+        default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000"),
+    )
+    parser.add_argument("--server-api-key-env", default="JARVIS_SERVER_API_KEY")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -83,6 +93,25 @@ def _parser() -> argparse.ArgumentParser:
     jobs_schedule.add_argument("argv", nargs=argparse.REMAINDER)
     jobs_sub.add_parser("schedules")
 
+    cloud = subs.add_parser("cloud")
+    cloud_sub = cloud.add_subparsers(dest="action", required=True)
+    cloud_submit = cloud_sub.add_parser("submit")
+    cloud_submit.add_argument("task", nargs="+")
+    cloud_submit.add_argument("--workspace", required=True)
+    cloud_submit.add_argument("--write", action="store_true")
+    cloud_submit.add_argument("--model", default="auto")
+    cloud_submit.add_argument("--project-id")
+    _remote_options(cloud_submit)
+    cloud_status = cloud_sub.add_parser("status")
+    cloud_status.add_argument("task_id")
+    _remote_options(cloud_status)
+    cloud_worker = cloud_sub.add_parser("worker")
+    cloud_worker.add_argument("--worker-id", required=True)
+    cloud_worker.add_argument("--once", action="store_true")
+    cloud_worker.add_argument("--lease-seconds", type=int, default=60)
+    _remote_options(cloud_worker)
+    _provider_options(cloud_worker)
+
     calibrate = subs.add_parser("calibrate")
     calibrate.add_argument("--category", default="code")
 
@@ -116,12 +145,28 @@ def _run_team(args: argparse.Namespace) -> int:
             allow_edits=bool(spec.write and config.allow_edits),
             multi_agent=False,
         )
-        task = f"Team role: {spec.role}.\nTask: {spec.task}\nWork only in this isolated task worktree. Verify your work before finishing."
-        return run_local_agent(task, task_config, tools=LocalTools(task_config))
+        task = (
+            f"Team role: {spec.role}.\nTask: {spec.task}\n"
+            "Work only in this isolated task worktree. Verify your work before finishing."
+        )
+        return run_local_agent(
+            task,
+            task_config,
+            tools=LocalTools(task_config),
+        )
 
-    coordinator = TeamCoordinator(config.workspace, board, runner, workers=args.workers)
+    coordinator = TeamCoordinator(
+        config.workspace,
+        board,
+        runner,
+        workers=args.workers,
+    )
     print(json.dumps(coordinator.run(), indent=2, ensure_ascii=False))
-    return 0 if all(item.status == "completed" for item in board.tasks.values()) else 2
+    return (
+        0
+        if all(item.status == "completed" for item in board.tasks.values())
+        else 2
+    )
 
 
 def _run_browser(args: argparse.Namespace) -> int:
@@ -140,7 +185,16 @@ def _run_plugin(args: argparse.Namespace) -> int:
         print(build_plugin(args.source, args.output))
         return 0
     if args.action == "install":
-        print(json.dumps(registry.install(args.archive, approve_permissions=args.approve_permissions).__dict__, indent=2, default=list))
+        print(
+            json.dumps(
+                registry.install(
+                    args.archive,
+                    approve_permissions=args.approve_permissions,
+                ).__dict__,
+                indent=2,
+                default=list,
+            )
+        )
         return 0
     if args.action == "remove":
         registry.uninstall(args.name)
@@ -153,11 +207,20 @@ def _run_jobs(args: argparse.Namespace) -> int:
     store = JobStore()
     if args.action == "submit":
         argv = _strip_separator(list(args.argv))
-        job_id = store.submit(argv, scheduled_at=None if not args.delay else __import__("time").time() + args.delay)
+        if not argv:
+            raise ValueError("job command is required after --")
+        job_id = store.submit(
+            argv,
+            scheduled_at=None if not args.delay else time.time() + args.delay,
+        )
         print(job_id)
         return 0
     if args.action == "list":
-        print(json.dumps([job.__dict__ for job in store.list()], indent=2, default=list))
+        print(
+            json.dumps(
+                [job.__dict__ for job in store.list()], indent=2, default=list
+            )
+        )
         return 0
     if args.action == "show":
         print(json.dumps(store.get(args.job_id).__dict__, indent=2, default=list))
@@ -172,9 +235,72 @@ def _run_jobs(args: argparse.Namespace) -> int:
         return 0
     if args.action == "schedule":
         argv = _strip_separator(list(args.argv))
-        print(store.add_schedule(args.name, argv, interval_seconds=args.interval, cron=args.cron))
+        if not argv:
+            raise ValueError("scheduled command is required after --")
+        print(
+            store.add_schedule(
+                args.name,
+                argv,
+                interval_seconds=args.interval,
+                cron=args.cron,
+            )
+        )
         return 0
     print(json.dumps(store.schedules(), indent=2))
+    return 0
+
+
+def _server_key(args: argparse.Namespace) -> str:
+    value = os.getenv(args.server_api_key_env, "")
+    if not value:
+        raise APIError(
+            f"No Server API key configured in {args.server_api_key_env}."
+        )
+    return value
+
+
+def _run_cloud(args: argparse.Namespace) -> int:
+    from .sdk import CloudWorker, LocalJarvis, RemoteJarvis
+
+    remote = RemoteJarvis(args.server, _server_key(args))
+    if args.action == "submit":
+        task = remote.submit_cloud(
+            " ".join(args.task),
+            workspace=args.workspace,
+            allow_write=args.write,
+            model=args.model,
+            project_id=args.project_id,
+        )
+        print(json.dumps(task, indent=2, ensure_ascii=False, default=str))
+        return 0
+    if args.action == "status":
+        print(
+            json.dumps(
+                remote.cloud_task(args.task_id),
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        )
+        return 0
+
+    from .local_agent import resolve_local_config
+
+    args.task = []
+    config = resolve_local_config(args)
+    worker = CloudWorker(
+        args.server,
+        _server_key(args),
+        args.worker_id,
+        LocalJarvis(config),
+        lease_seconds=args.lease_seconds,
+    )
+    if args.once:
+        result = worker.run_once()
+        if result is not None:
+            print(json.dumps(result.__dict__, indent=2, default=str))
+        return 0
+    worker.serve_forever()
     return 0
 
 
@@ -190,11 +316,24 @@ def _record_benchmark_calibration(args: argparse.Namespace) -> int:
         args.local_workspace = str(create_core_fixture(args.seed_fixture))
     config = resolve_local_config(args)
     cases = load_benchmark(args.file)
-    report = run_benchmark(cases, lambda case: run_local_agent(case.task, config, tools=LocalTools(config)))
+    report = run_benchmark(
+        cases,
+        lambda case: run_local_agent(case.task, config, tools=LocalTools(config)),
+    )
     profiles = load_profiles().list()
-    route = next((p.name for p in profiles if p.model == config.model and p.provider == config.provider and p.base_url.rstrip("/") == config.base_url.rstrip("/")), config.model)
+    route = next(
+        (
+            profile.name
+            for profile in profiles
+            if profile.model == config.model
+            and profile.provider == config.provider
+            and profile.base_url.rstrip("/") == config.base_url.rstrip("/")
+        ),
+        config.model,
+    )
     store = CalibrationStore()
-    for result in report.get("results", []):
+    results = report.get("results", [])
+    for result in results:
         store.record(
             RouteObservation(
                 route=route,
@@ -202,7 +341,24 @@ def _record_benchmark_calibration(args: argparse.Namespace) -> int:
                 success=bool(result.get("passed")),
                 score=float(result.get("score", 0)),
                 latency_ms=float(result.get("latency_seconds", 0)) * 1000,
-                incorrect_completion=(not bool(result.get("passed")) and not str(result.get("output", "")).startswith("ERROR:")),
+                incorrect_completion=(
+                    not bool(result.get("passed"))
+                    and not str(result.get("output", "")).startswith("ERROR:")
+                ),
+            )
+        )
+    if results:
+        store.record(
+            RouteObservation(
+                route=route,
+                category="general",
+                success=bool(report.get("passed") == report.get("total")),
+                score=float(report.get("score", 0)),
+                latency_ms=float(report.get("median_latency_seconds", 0)) * 1000,
+                incorrect_completion=float(
+                    report.get("incorrect_completion_rate", 0)
+                )
+                > 0,
             )
         )
     report["calibration_route"] = route
@@ -215,7 +371,15 @@ def _record_benchmark_calibration(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     install_plugin_runtime()
-    if argv and argv[0] in {"team", "browser", "plugin", "jobs", "calibrate"}:
+    platform_commands = {
+        "team",
+        "browser",
+        "plugin",
+        "jobs",
+        "cloud",
+        "calibrate",
+    }
+    if argv and argv[0] in platform_commands:
         args = _parser().parse_args(argv)
         try:
             if args.command == "team":
@@ -226,24 +390,49 @@ def main(argv: list[str] | None = None) -> int:
                 return _run_plugin(args)
             if args.command == "jobs":
                 return _run_jobs(args)
+            if args.command == "cloud":
+                return _run_cloud(args)
             if args.command == "calibrate":
-                print(json.dumps(CalibrationStore().leaderboard(args.category), indent=2))
+                print(
+                    json.dumps(
+                        CalibrationStore().leaderboard(args.category), indent=2
+                    )
+                )
                 return 0
-        except (APIError, KeyError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            APIError,
+            KeyError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-    # Intercept v0.5 benchmark execution only to add measured routing observations.
     if argv and argv[0] == "bench":
         from . import v05_main
+
         args = v05_main._parser().parse_args(argv)
         try:
             return _record_benchmark_calibration(args)
-        except (APIError, KeyError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            APIError,
+            KeyError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
     if argv and argv[0] in {"local", "plan", "tui"}:
         install_platform_runtime()
     from .v05_main import main as v05_main
+
     return v05_main(argv)
