@@ -77,7 +77,7 @@ def test_role_provider_reuse_requires_full_inference_identity(monkeypatch, tmp_p
                 max_run_input=20_000,
                 max_run_output=4_000,
                 max_turn_input=10_000,
-                max_turn_output=2_000,
+                max_turn_output=4_000,
                 max_agent_input=10_000,
                 max_agent_output=2_000,
             )
