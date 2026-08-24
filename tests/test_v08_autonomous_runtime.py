@@ -1,13 +1,11 @@
-from argparse import Namespace
 from datetime import datetime, timezone
-import json
-from pathlib import Path
+import os
 
 import pytest
 
 from jarvis_cli.autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
-from jarvis_cli.jobs import _cron_matches
-from jarvis_cli.proof_runtime import PermissionPolicy
+from jarvis_cli.jobs import JobStore, _cron_matches
+from jarvis_cli.proof_runtime import PermissionPolicy, proof_path
 from jarvis_cli.sdk import LocalJarvis
 
 
@@ -37,6 +35,16 @@ def test_permission_policy_loads_explicit_boundaries(tmp_path):
     policy = PermissionPolicy(tmp_path)
     assert policy.action("apply_patch", mutation=True, plan_mode=False) == "allow"
     assert policy.action("run_command", mutation=True, plan_mode=False) == "deny"
+
+
+def test_proof_storage_is_outside_workspace(tmp_path, monkeypatch):
+    state_home = tmp_path / "state"
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    target = proof_path(workspace)
+    assert state_home in target.parents
+    assert workspace not in target.parents
 
 
 def test_autonomous_cloud_submission_sends_idempotency_key():
@@ -90,4 +98,24 @@ def test_cloud_cancel_uses_platform_cancel_endpoint():
 
     remote.client.request = request
     assert remote.cancel_cloud("task-1") == {"ok": True}
-    assert captured == {"method": "POST", "path": "/platform/cloud/tasks/task-1/cancel"}
+    assert captured == {
+        "method": "POST",
+        "path": "/platform/cloud/tasks/task-1/cancel",
+    }
+
+
+def test_job_cancel_dispatches_process_tree_termination(tmp_path, monkeypatch):
+    store = JobStore(tmp_path / "jobs.sqlite3")
+    job_id = store.submit(["local", "noop"])
+    claimed = store.claim_due("worker-test")
+    assert claimed is not None and claimed.id == job_id
+    assert store.set_pid(job_id, os.getpid(), "worker-test")
+
+    terminated = []
+    monkeypatch.setattr(
+        "jarvis_cli.jobs._terminate_process_tree",
+        lambda pid, **_kwargs: terminated.append(pid),
+    )
+    store.cancel(job_id)
+    assert terminated == [os.getpid()]
+    assert store.get(job_id).status == "cancelled"
