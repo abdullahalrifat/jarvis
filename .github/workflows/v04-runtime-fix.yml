@@ -1,0 +1,67 @@
+name: Apply v0.4 runtime fix
+
+on:
+  push:
+    branches: [feature/v0.4-quality-routing]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply v0.4 runtime formatting and provider identity fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v0.4-quality-routing
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install black==26.5.1
+      - name: Patch effective provider identity and remove temporary Black exclusions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          runtime = Path('src/jarvis_cli/local_agent.py')
+          text = runtime.read_text()
+          old = '''        role_provider = self.provider
+        if role_config.model != self.config.model or role_config.provider != self.config.provider:
+            role_provider = ModelProvider(role_config)
+'''
+          new = '''        role_provider = self.provider
+        if (
+            role_config.provider != self.config.provider
+            or role_config.model != self.config.model
+            or role_config.base_url != self.config.base_url
+            or role_config.api_key != self.config.api_key
+            or role_config.timeout != self.config.timeout
+        ):
+            role_provider = ModelProvider(role_config)
+'''
+          if old not in text:
+              raise SystemExit('expected provider reuse block not found')
+          runtime.write_text(text.replace(old, new, 1))
+
+          project = Path('pyproject.toml')
+          pyproject = project.read_text()
+          temporary = '''\n[tool.black]\n# Existing large runtime modules are validated by compile/lint/tests while their\n# formatting cleanup is handled separately from v0.4 behavior changes.\nextend-exclude = "(src/jarvis_cli/local_agent.py|src/jarvis_cli/quality_runtime.py)"\n'''
+          if temporary not in pyproject:
+              raise SystemExit('temporary Black exclusion block not found')
+          project.write_text(pyproject.replace(temporary, '\n', 1))
+          PY
+          black src/jarvis_cli/local_agent.py src/jarvis_cli/quality_runtime.py src/jarvis_cli/repository_map.py tests/test_quality_runtime.py
+      - name: Commit narrow runtime fix
+        shell: bash
+        run: |
+          git config user.name 'jarvis-ci'
+          git config user.email 'jarvis-ci@users.noreply.github.com'
+          git add pyproject.toml src/jarvis_cli/local_agent.py src/jarvis_cli/quality_runtime.py src/jarvis_cli/repository_map.py tests/test_quality_runtime.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Apply v0.4 runtime formatting and provider identity fix'
+          git push origin HEAD:feature/v0.4-quality-routing
