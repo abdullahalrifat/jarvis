@@ -1,3 +1,3 @@
-from .v05_main import main
+from .v06_main import main
 
 raise SystemExit(main())
