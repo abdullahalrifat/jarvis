@@ -1,0 +1,40 @@
+name: Patch timeout identity
+
+on:
+  push:
+    branches: [feature/v0.4-quality-routing]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v0.4-quality-routing
+      - name: Patch source only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/jarvis_cli/local_agent.py')
+          s = p.read_text()
+          s = s.replace(
+              '            self.config.api_key,\n        )\n        role_identity = (',
+              '            self.config.api_key,\n            self.config.timeout,\n        )\n        role_identity = (',
+              1,
+          )
+          s = s.replace(
+              '            role_config.api_key,\n        )\n        if role_provider is None or role_identity != base_identity:',
+              '            role_config.api_key,\n            role_config.timeout,\n        )\n        if role_provider is None or role_identity != base_identity:',
+              1,
+          )
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/jarvis_cli/local_agent.py
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: include timeout in provider inference identity'
+          git push origin HEAD:feature/v0.4-quality-routing
