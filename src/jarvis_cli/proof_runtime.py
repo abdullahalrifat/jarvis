@@ -47,7 +47,9 @@ def _digest(payload: Any) -> str:
 
 
 def _redact_text(value: str) -> str:
-    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
+    value = _SECRET_ASSIGNMENT.sub(
+        lambda match: f"{match.group(1)}=[REDACTED]", value
+    )
     value = _BEARER.sub("Bearer [REDACTED]", value)
     return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
 
@@ -86,7 +88,9 @@ def _compact_detail(value: str) -> str:
     if len(redacted) <= 4000:
         return redacted
     digest = hashlib.sha256(value.encode(errors="replace")).hexdigest()
-    return redacted[:3000] + f"\n...[truncated sha256={digest} length={len(value)}]"
+    return redacted[:3000] + (
+        f"\n...[truncated sha256={digest} length={len(value)}]"
+    )
 
 
 def proof_root(workspace: str | Path) -> Path:
@@ -105,6 +109,28 @@ def proof_root(workspace: str | Path) -> Path:
 
 def proof_path(workspace: str | Path, run_id: str | None = None) -> Path:
     return proof_root(workspace) / (f"{run_id}.json" if run_id else "latest.json")
+
+
+def trusted_permissions_path() -> Path:
+    configured = os.getenv("JARVIS_PERMISSIONS_FILE")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    config_root = Path(
+        os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    ).expanduser()
+    return config_root / "jarvis" / "permissions.toml"
+
+
+def _permission_rules(path: Path) -> tuple[set[str], set[str], set[str]]:
+    if not path.is_file():
+        return set(), set(), set()
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    section = data.get("permissions", {}) if isinstance(data, dict) else {}
+    return (
+        {str(item) for item in section.get("allow", [])},
+        {str(item) for item in section.get("ask", [])},
+        {str(item) for item in section.get("deny", [])},
+    )
 
 
 def _write_proof(state: dict[str, Any]) -> Path:
@@ -170,28 +196,39 @@ def _is_mutating(name: str, arguments: dict[str, Any]) -> bool:
 
 
 class PermissionPolicy:
+    """Combine trusted user policy with restrict-only repository policy.
+
+    A repository is untrusted input. Its `.jarvis/permissions.toml` may require
+    an ask/deny decision, but an `allow` entry can never broaden permissions.
+    Only the user-level policy file or explicit CLI pre-approval can do that.
+    """
+
     def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
-        self.allow: set[str] = set()
-        self.ask: set[str] = set()
-        self.deny: set[str] = set()
-        path = workspace / ".jarvis" / "permissions.toml"
-        if path.is_file():
-            data = tomllib.loads(path.read_text(encoding="utf-8"))
-            section = data.get("permissions", {}) if isinstance(data, dict) else {}
-            self.allow = {str(item) for item in section.get("allow", [])}
-            self.ask = {str(item) for item in section.get("ask", [])}
-            self.deny = {str(item) for item in section.get("deny", [])}
+        trusted_allow, trusted_ask, trusted_deny = _permission_rules(
+            trusted_permissions_path()
+        )
+        project_allow, project_ask, project_deny = _permission_rules(
+            workspace / ".jarvis" / "permissions.toml"
+        )
+        self.allow = trusted_allow
+        self.ask = trusted_ask | project_ask
+        self.deny = trusted_deny | project_deny
+        self.ignored_project_allow = project_allow
+
+    @staticmethod
+    def _matches(capability: str, values: set[str]) -> bool:
+        return capability in values or "*" in values
 
     def action(self, capability: str, *, mutation: bool, plan_mode: bool) -> str:
         if plan_mode and mutation:
             return "deny"
-        if capability in self.deny or "*" in self.deny:
+        if self._matches(capability, self.deny):
             return "deny"
-        if capability in self.allow:
-            return "allow"
-        if capability in self.ask or "*" in self.ask:
+        if self._matches(capability, self.ask):
             return "ask"
+        if self._matches(capability, self.allow):
+            return "allow"
         return "ask" if mutation else "allow"
 
 
@@ -233,18 +270,31 @@ def install_proof_runtime() -> None:
                     ),
                 )
             elif action == "ask" and mutation:
-
-                def recording_approval(description: str) -> bool:
-                    allowed = bool(original_approval(description))
+                preapproved = (
+                    original_config.accept_commands
+                    if name == "run_command"
+                    else original_config.accept_edits
+                )
+                if preapproved:
                     _record(
                         "approval",
                         name,
-                        "approved" if allowed else "denied",
-                        description,
+                        "preapproved",
+                        "explicit CLI pre-approval",
                     )
-                    return allowed
+                else:
 
-                self.approval = recording_approval
+                    def recording_approval(description: str) -> bool:
+                        allowed = bool(original_approval(description))
+                        _record(
+                            "approval",
+                            name,
+                            "approved" if allowed else "denied",
+                            description,
+                        )
+                        return allowed
+
+                    self.approval = recording_approval
 
             started = time.monotonic()
             try:
