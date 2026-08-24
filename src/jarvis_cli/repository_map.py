@@ -9,11 +9,12 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .lsp_full import FullLSPPool
 from .quality_runtime import JsonCache
-from .repository_graph import LSPPool, RepositoryGraph
+from .repository_graph import RepositoryGraph
 from .skills import SkillRegistry
 
-_LSP_POOLS: dict[str, LSPPool] = {}
+_LSP_POOLS: dict[str, FullLSPPool] = {}
 
 
 def _close_lsp_pools() -> None:
@@ -25,11 +26,11 @@ def _close_lsp_pools() -> None:
 atexit.register(_close_lsp_pools)
 
 
-def _pool_for(workspace: Path) -> LSPPool:
+def _pool_for(workspace: Path) -> FullLSPPool:
     key = str(workspace)
     pool = _LSP_POOLS.get(key)
     if pool is None:
-        pool = LSPPool(workspace)
+        pool = FullLSPPool(workspace)
         _LSP_POOLS[key] = pool
     return pool
 
@@ -111,6 +112,7 @@ def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[st
             item["lsp"] = {
                 "persistent": True,
                 "document_symbols": client.document_symbols(source) or [],
+                "diagnostics": client.diagnostics(source),
             }
         except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
             item["lsp"] = {"persistent": True, "error": str(exc)[:500]}
