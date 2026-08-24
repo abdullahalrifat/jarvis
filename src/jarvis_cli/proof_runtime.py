@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import time
 from typing import Any
 import uuid
@@ -23,11 +24,69 @@ _INSTALLED = False
 _RUN: ContextVar[dict[str, Any] | None] = ContextVar("jarvis_v08_proof", default=None)
 _MUTATING_TOOLS = {"apply_patch", "write_file", "edit_file", "browser_type"}
 _READONLY_GIT = {"status", "diff", "log", "show", "branch", "rev-parse", "ls-files"}
+_SECRET_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+}
+_CONTENT_KEYS = {"body", "content", "patch", "text"}
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)\b(api[_-]?key|token|password|secret|authorization)\b\s*[:=]\s*([^\s,;]+)"
+)
+_BEARER = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}")
+_PROVIDER_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b")
 
 
 def _digest(payload: Any) -> str:
     raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _redact_text(value: str) -> str:
+    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
+    value = _BEARER.sub("Bearer [REDACTED]", value)
+    return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
+
+
+def _compact_value(value: Any, *, key: str = "") -> Any:
+    lowered = key.casefold()
+    if lowered in _SECRET_KEYS:
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {
+            str(item_key): _compact_value(item, key=str(item_key))
+            for item_key, item in list(value.items())[:100]
+        }
+    if isinstance(value, (list, tuple)):
+        rows = [_compact_value(item) for item in list(value)[:100]]
+        if len(value) > 100:
+            rows.append({"omitted_items": len(value) - 100})
+        return rows
+    if isinstance(value, str):
+        redacted = _redact_text(value)
+        digest = hashlib.sha256(value.encode(errors="replace")).hexdigest()
+        if lowered in _CONTENT_KEYS:
+            return {"sha256": digest, "length": len(value), "content_omitted": True}
+        if len(redacted) > 2000:
+            return {
+                "sha256": digest,
+                "length": len(value),
+                "preview": redacted[:800] + "...[truncated]",
+            }
+        return redacted
+    return value
+
+
+def _compact_detail(value: str) -> str:
+    redacted = _redact_text(value)
+    if len(redacted) <= 4000:
+        return redacted
+    digest = hashlib.sha256(value.encode(errors="replace")).hexdigest()
+    return redacted[:3000] + f"\n...[truncated sha256={digest} length={len(value)}]"
 
 
 def proof_root(workspace: str | Path) -> Path:
@@ -76,8 +135,8 @@ def _record(
         "kind": kind,
         "subject": subject,
         "status": status,
-        "detail": detail[:8000],
-        "metadata": metadata,
+        "detail": _compact_detail(detail),
+        "metadata": _compact_value(metadata),
         "timestamp": time.time(),
     }
     item["digest"] = _digest(item)
@@ -174,6 +233,7 @@ def install_proof_runtime() -> None:
                     ),
                 )
             elif action == "ask" and mutation:
+
                 def recording_approval(description: str) -> bool:
                     allowed = bool(original_approval(description))
                     _record(
@@ -232,10 +292,11 @@ def install_proof_runtime() -> None:
                 self.approval = original_approval
 
     def run(task: str, config, **kwargs):
+        task_digest = hashlib.sha256(task.encode(errors="replace")).hexdigest()
         state = {
             "version": 1,
             "run_id": uuid.uuid4().hex,
-            "task": task,
+            "task": {"sha256": task_digest, "length": len(task)},
             "workspace": str(config.workspace),
             "provider": config.provider,
             "model": config.model,
@@ -254,7 +315,7 @@ def install_proof_runtime() -> None:
         except BaseException as exc:
             _record("completion", "agent", "failed", str(exc))
             state["status"] = "failed"
-            state["error"] = str(exc)[:8000]
+            state["error"] = _compact_detail(str(exc))
             raise
         finally:
             state["finished_at"] = time.time()
