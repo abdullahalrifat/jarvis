@@ -20,7 +20,10 @@ def _cloud_git_parser() -> argparse.ArgumentParser:
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--model", default="auto")
     parser.add_argument("--project-id")
-    parser.add_argument("--server", default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000"))
+    parser.add_argument(
+        "--server",
+        default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000"),
+    )
     parser.add_argument("--server-api-key-env", default="JARVIS_SERVER_API_KEY")
     return parser
 
@@ -46,10 +49,21 @@ def _run_cloud_git(argv: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if len(argv) >= 2 and argv[:2] == ["cloud", "submit"] and "--repository-url" in argv:
+    if (
+        len(argv) >= 2
+        and argv[:2] == ["cloud", "submit"]
+        and "--repository-url" in argv
+    ):
         try:
             return _run_cloud_git(argv[2:])
-        except (APIError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
+        except (
+            APIError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
     from .v07_main import main as previous
