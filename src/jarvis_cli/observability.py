@@ -42,7 +42,6 @@ class CalibrationStore:
     def record(self, observation: RouteObservation) -> None:
         rows = self.load()
         rows.append(observation)
-        # Bound history while retaining enough samples for trend calibration.
         rows = rows[-5000:]
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix(".tmp")
@@ -62,6 +61,15 @@ class CalibrationStore:
         if len(rows) < 3:
             utility -= (3 - len(rows)) * 4
         return utility, len(rows)
+
+    def leaderboard(self, category: str) -> list[dict[str, Any]]:
+        routes = sorted({row.route for row in self.load()})
+        values: list[dict[str, Any]] = []
+        for route in routes:
+            scored = self.utility(route, category)
+            if scored:
+                values.append({"route": route, "utility": scored[0], "samples": scored[1]})
+        return sorted(values, key=lambda item: (item["utility"], item["samples"]), reverse=True)
 
 
 class Telemetry:
@@ -115,3 +123,34 @@ class Telemetry:
                 handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
             if cm:
                 cm.__exit__(None, None, None)
+
+
+def install_calibrated_routing() -> None:
+    """Make auto profile selection prefer routes with measured benchmark outcomes."""
+    from . import profiles
+
+    if getattr(profiles, "_V06_CALIBRATION_INSTALLED", False):
+        return
+    original = profiles.select_calibrated
+
+    def select_calibrated(registry, *, task: str, required: tuple[str, ...] = ()):
+        candidates = [
+            item
+            for item in registry.list()
+            if item.enabled and item.capabilities.supports(required)
+        ]
+        if not candidates:
+            return original(registry, task=task, required=required)
+        store = CalibrationStore()
+        measured = []
+        for profile in candidates:
+            scored = store.utility(profile.name, task) or store.utility(profile.model, task)
+            if scored:
+                measured.append((scored[0], scored[1], profile.priority, profile.name, profile))
+        if measured:
+            measured.sort(reverse=True, key=lambda row: row[:4])
+            return measured[0][-1]
+        return original(registry, task=task, required=required)
+
+    profiles.select_calibrated = select_calibrated
+    profiles._V06_CALIBRATION_INSTALLED = True
