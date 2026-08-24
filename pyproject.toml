@@ -38,4 +38,4 @@ cache_dir = "/tmp/jarvis-cli-pytest-cache"
 addopts = "--strict-markers"
 
 [tool.black]
-line-length = 100
+extend-exclude = "src/jarvis_cli/local_agent.py"
