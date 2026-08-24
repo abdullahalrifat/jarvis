@@ -81,14 +81,27 @@ class FencedCloudWorker(CloudWorker):
     def _profile_local(self, matched) -> LocalJarvis:
         config = self.local.config
         key_env = profile_api_key_env(matched.name)
-        api_key = os.getenv(key_env or "", "") if key_env else config.api_key
+        default_env = (
+            "ANTHROPIC_API_KEY"
+            if matched.provider == "anthropic"
+            else "OPENAI_API_KEY"
+        )
+        if key_env:
+            api_key = os.getenv(key_env, "")
+        elif (
+            matched.provider == config.provider
+            and matched.base_url.rstrip("/") == config.base_url.rstrip("/")
+        ):
+            api_key = config.api_key
+        else:
+            api_key = os.getenv(default_env, "")
         return LocalJarvis(
             replace(
                 config,
                 provider=matched.provider,
                 model=matched.model,
                 base_url=matched.base_url,
-                api_key=api_key or config.api_key,
+                api_key=api_key,
                 max_output_tokens=(
                     matched.capabilities.max_output_tokens or config.max_output_tokens
                 ),
@@ -307,6 +320,9 @@ class FencedCloudWorker(CloudWorker):
                 child_result = result_queue.get(timeout=2)
             except queue.Empty as exc:
                 raise APIError("cloud worker child exited without a result") from exc
+            finally:
+                result_queue.close()
+                result_queue.join_thread()
             if child_result.get("error"):
                 raise APIError(str(child_result["error"]))
             result = SDKResult(
