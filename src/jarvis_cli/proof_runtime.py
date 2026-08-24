@@ -35,9 +35,12 @@ def proof_root(workspace: str | Path) -> Path:
     base = (
         Path(configured).expanduser()
         if configured
-        else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local/state")) / "jarvis/proofs"
+        else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local/state"))
+        / "jarvis/proofs"
     )
-    identity = hashlib.sha256(str(Path(workspace).expanduser().resolve()).encode()).hexdigest()[:20]
+    identity = hashlib.sha256(
+        str(Path(workspace).expanduser().resolve()).encode()
+    ).hexdigest()[:20]
     return base / identity
 
 
@@ -59,7 +62,13 @@ def _write_proof(state: dict[str, Any]) -> Path:
     return target
 
 
-def _record(kind: str, subject: str, status: str, detail: str = "", **metadata: Any) -> None:
+def _record(
+    kind: str,
+    subject: str,
+    status: str,
+    detail: str = "",
+    **metadata: Any,
+) -> None:
     state = _RUN.get()
     if state is None:
         return
@@ -142,38 +151,61 @@ def install_proof_runtime() -> None:
             plan_mode = not bool(self.config.allow_edits)
             policy = PermissionPolicy(self.root)
             action = policy.action(name, mutation=mutation, plan_mode=plan_mode)
-            _record("permission", name, action, mutation=mutation, plan_mode=plan_mode)
+            _record(
+                "permission",
+                name,
+                action,
+                mutation=mutation,
+                plan_mode=plan_mode,
+            )
             if action == "deny":
                 raise APIError(f"Permission policy denied {name}")
-            original = self.config
+
+            original_config = self.config
+            original_approval = self.approval
             if action == "allow" and mutation:
                 self.config = replace(
-                    original,
-                    accept_edits=(original.accept_edits or name != "run_command"),
-                    accept_commands=(original.accept_commands or name == "run_command"),
+                    original_config,
+                    accept_edits=(
+                        original_config.accept_edits or name != "run_command"
+                    ),
+                    accept_commands=(
+                        original_config.accept_commands or name == "run_command"
+                    ),
                 )
             elif action == "ask" and mutation:
-                description = f"Allow mutating capability {name}?"
-                if not self.approval(description):
-                    _record("approval", name, "denied", description)
-                    raise APIError(f"Approval denied for {name}")
-                _record("approval", name, "approved", description)
-                self.config = replace(
-                    original,
-                    accept_edits=(original.accept_edits or name != "run_command"),
-                    accept_commands=(original.accept_commands or name == "run_command"),
-                )
+                def recording_approval(description: str) -> bool:
+                    allowed = bool(original_approval(description))
+                    _record(
+                        "approval",
+                        name,
+                        "approved" if allowed else "denied",
+                        description,
+                    )
+                    return allowed
+
+                self.approval = recording_approval
+
             started = time.monotonic()
             try:
                 result = super().execute(name, arguments)
                 status = "passed"
-                if name == "run_command" and "[exit " in result and "[exit 0]" not in result:
+                if (
+                    name == "run_command"
+                    and "[exit " in result
+                    and "[exit 0]" not in result
+                ):
                     status = "failed"
-                joined = " ".join(str(x).casefold() for x in arguments.get("argv", []))
+                joined = " ".join(
+                    str(x).casefold() for x in arguments.get("argv", [])
+                )
                 kind = (
                     "test"
                     if name == "run_command"
-                    and any(marker in joined for marker in ("pytest", " test", "unittest"))
+                    and any(
+                        marker in joined
+                        for marker in ("pytest", " test", "unittest")
+                    )
                     else "tool"
                 )
                 _record(
@@ -196,7 +228,8 @@ def install_proof_runtime() -> None:
                 )
                 raise
             finally:
-                self.config = original
+                self.config = original_config
+                self.approval = original_approval
 
     def run(task: str, config, **kwargs):
         state = {
