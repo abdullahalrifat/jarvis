@@ -29,6 +29,7 @@ TERMINAL_STATUSES = {
     "failed",
 }
 _GIT_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
+_TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 @dataclass(frozen=True)
@@ -260,6 +261,13 @@ class CloudWorker:
         }
 
     @staticmethod
+    def _safe_task_id(value: Any) -> str:
+        task_id = str(value or "").strip()
+        if task_id in {"", ".", ".."} or not _TASK_ID.fullmatch(task_id):
+            raise PermissionError("cloud task id is unsafe for a worker workspace path")
+        return task_id
+
+    @staticmethod
     def _safe_git_ref(value: Any) -> str:
         ref = str(value or "").strip()
         if not ref:
@@ -313,7 +321,6 @@ class CloudWorker:
     ) -> _PreparedWorkspace:
         spec = payload.get("workspace_spec")
         if not isinstance(spec, dict):
-            # Backward-compatible v0.6 payload.
             path = Path(str(payload["workspace"])).expanduser().resolve()
             if not path.is_dir():
                 raise APIError(f"cloud workspace does not exist on worker: {path}")
@@ -328,6 +335,7 @@ class CloudWorker:
         if kind != "git":
             raise APIError(f"unsupported cloud workspace kind: {kind}")
 
+        safe_task_id = self._safe_task_id(task_id)
         repository_url = str(spec.get("repository_url") or "").strip()
         parsed = urlparse(repository_url)
         host = (parsed.hostname or "").casefold()
@@ -353,7 +361,9 @@ class CloudWorker:
             )
         ).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
-        target = (root / task_id).resolve()
+        target = (root / safe_task_id).resolve()
+        if target == root:
+            raise PermissionError("cloud task id resolved to the workspace root")
         target.relative_to(root)
         if target.exists():
             shutil.rmtree(target)
@@ -393,19 +403,28 @@ class CloudWorker:
         )
 
     @staticmethod
-    def _untracked_patch(root: Path, budget: int) -> str:
+    def _untracked_patch(root: Path, budget: int) -> tuple[str, bool]:
         if budget <= 0:
-            return ""
+            return "", True
         listed = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "-z"],
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
             capture_output=True,
             check=False,
             timeout=30,
         )
         if listed.returncode:
-            return ""
+            return "", True
         chunks: list[str] = []
         used = 0
+        truncated = False
         for raw in listed.stdout.split(b"\0"):
             if not raw:
                 continue
@@ -414,8 +433,10 @@ class CloudWorker:
             try:
                 target.relative_to(root)
             except ValueError:
+                truncated = True
                 continue
             if not target.is_file() or target.stat().st_size > 1_000_000:
+                truncated = True
                 continue
             completed = subprocess.run(
                 [
@@ -435,16 +456,19 @@ class CloudWorker:
                 check=False,
             )
             if completed.returncode not in {0, 1}:
+                truncated = True
                 continue
             chunk = completed.stdout
             remaining = budget - used
             if remaining <= 0:
+                truncated = True
                 break
             chunks.append(chunk[:remaining])
             used += min(len(chunk), remaining)
             if len(chunk) > remaining:
+                truncated = True
                 break
-        return "".join(chunks)
+        return "".join(chunks), truncated
 
     @staticmethod
     def _workspace_result(prepared: _PreparedWorkspace) -> dict[str, Any]:
@@ -453,20 +477,25 @@ class CloudWorker:
         status = CloudWorker._git(prepared.path, "status", "--short")
         tracked_diff = CloudWorker._git(prepared.path, "diff", "--binary")
         limit = 500_000
+        tracked_truncated = len(tracked_diff) > limit
         diff = tracked_diff[:limit]
+        untracked_truncated = False
         if len(diff) < limit:
-            diff += CloudWorker._untracked_patch(prepared.path, limit - len(diff))
+            untracked, untracked_truncated = CloudWorker._untracked_patch(
+                prepared.path, limit - len(diff)
+            )
+            diff += untracked
         head = CloudWorker._git(prepared.path, "rev-parse", "HEAD")
         return {
             **prepared.source,
             "head_commit": head,
             "status": status[:20_000],
             "diff": diff,
-            "diff_truncated": len(tracked_diff) > limit or len(diff) >= limit,
+            "diff_truncated": tracked_truncated or untracked_truncated,
         }
 
     def execute_claimed(self, task: dict[str, Any]) -> SDKResult:
-        task_id = str(task["id"])
+        task_id = self._safe_task_id(task.get("id"))
         payload = dict(task.get("payload") or {})
         stop = threading.Event()
         heartbeat = threading.Thread(
