@@ -29,7 +29,7 @@ all = [
 ]
 
 [project.scripts]
-jarvis = "jarvis_cli.v071_main:main"
+jarvis = "jarvis_cli.v08_main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -42,8 +42,3 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 cache_dir = "/tmp/jarvis-cli-pytest-cache"
 addopts = "--strict-markers"
-
-[tool.black]
-# Legacy large runtime formatting is handled separately from behavior hotfixes;
-# all new v0.5+ modules remain under strict Black validation.
-extend-exclude = "(src/jarvis_cli/local_agent.py|src/jarvis_cli/quality_runtime.py)"
