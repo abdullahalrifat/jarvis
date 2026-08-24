@@ -50,6 +50,11 @@ def _parser() -> argparse.ArgumentParser:
     bench = subs.add_parser("bench", help="Run measured JSON/JSONL benchmark corpus")
     bench.add_argument("file")
     bench.add_argument("--report")
+    bench.add_argument(
+        "--seed-fixture",
+        metavar="DIR",
+        help="Create and benchmark against a deterministic fixture repository",
+    )
     _provider_options(bench, task=False)
     return parser
 
@@ -134,12 +139,18 @@ def _run_tui(args: argparse.Namespace) -> int:
     hook_context = hooks.enforce("SessionStart", {"mode": "tui", "task": task})
     skill_context = SkillRegistry(config.workspace).selected_prompt(task)
     if hook_context or skill_context:
-        task += "\n\nJarvis runtime context:\n" + "\n\n".join(p for p in (hook_context, skill_context) if p)
+        task += "\n\nJarvis runtime context:\n" + "\n\n".join(
+            part for part in (hook_context, skill_context) if part
+        )
     state = TUIState(
         task=task,
         model=config.model,
         mode="MULTI" if config.multi_agent else "AUTO",
-        tasks=[TUITask("Inspect repository", "running"), TUITask("Implement", "pending"), TUITask("Verify", "pending")],
+        tasks=[
+            TUITask("Inspect repository", "running"),
+            TUITask("Implement", "pending"),
+            TUITask("Verify", "pending"),
+        ],
     )
     ui = TerminalUI()
     ui.render(state)
@@ -152,7 +163,11 @@ def _run_tui(args: argparse.Namespace) -> int:
         raise
     state.tasks[0].status = "done"
     state.tasks[1].status = "done"
-    state.tasks[2].status = "done" if "Verification (verified):" in result or not config.multi_agent else "blocked"
+    state.tasks[2].status = (
+        "done"
+        if "Verification (verified):" in result or not config.multi_agent
+        else "blocked"
+    )
     ui.render(state)
     hooks.enforce("TaskComplete", {"mode": "tui", "result": result})
     hooks.enforce("SessionEnd", {"mode": "tui", "status": "completed"})
@@ -166,7 +181,10 @@ def _run_skills(args: argparse.Namespace) -> int:
         print(registry.get(args.name).body)
         return 0
     for item in registry.list():
-        print(f"{item.name:24} risk={item.risk:8} tools={','.join(item.tools) or '-'}  {item.description}")
+        print(
+            f"{item.name:24} risk={item.risk:8} "
+            f"tools={','.join(item.tools) or '-'}  {item.description}"
+        )
     return 0
 
 
@@ -174,23 +192,38 @@ def _run_hooks(args: argparse.Namespace) -> int:
     registry = HookRegistry(args.workspace)
     if not args.event:
         for hook in registry.hooks:
-            print(f"{hook.event:24} timeout={hook.timeout:g}s required={hook.required}  {' '.join(hook.command)}")
+            print(
+                f"{hook.event:24} timeout={hook.timeout:g}s required={hook.required}  "
+                f"{' '.join(hook.command)}"
+            )
         return 0
     payload = json.loads(args.payload)
     results = registry.run(args.event, payload, tool=args.tool)
-    print(json.dumps([result.__dict__ for result in results], indent=2, ensure_ascii=False))
+    print(
+        json.dumps(
+            [result.__dict__ for result in results], indent=2, ensure_ascii=False
+        )
+    )
     return 0 if all(result.allowed for result in results) else 2
 
 
 def _run_bench(args: argparse.Namespace) -> int:
     install_runtime_hooks()
+    from .benchmark_fixtures import create_core_fixture
     from .local_agent import LocalTools, resolve_local_config, run_local_agent
 
     args.task = []
+    if args.seed_fixture:
+        args.local_workspace = str(create_core_fixture(args.seed_fixture))
     config = resolve_local_config(args)
     cases = load_benchmark(args.file)
     tools = LocalTools(config)
-    report = run_benchmark(cases, lambda case: run_local_agent(case.task, config, tools=tools))
+    report = run_benchmark(
+        cases,
+        lambda case: run_local_agent(case.task, config, tools=tools),
+    )
+    report["workspace"] = str(config.workspace)
+    report["seeded_fixture"] = bool(args.seed_fixture)
     if args.report:
         write_report(report, args.report)
     print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -216,7 +249,16 @@ def main(argv: list[str] | None = None) -> int:
                 return _run_hooks(args)
             if args.command == "bench":
                 return _run_bench(args)
-        except (APIError, KeyError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            APIError,
+            KeyError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
     try:
