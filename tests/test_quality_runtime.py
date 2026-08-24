@@ -9,6 +9,7 @@ from jarvis_cli.quality_runtime import (
     classify_request,
     should_use_multi_agent,
 )
+from jarvis_cli.repository_map import build_repository_map
 
 
 def test_complex_request_selects_multi_agent():
@@ -52,6 +53,25 @@ def test_lsp_frame_parser_round_trip():
     message = {"jsonrpc": "2.0", "id": 2, "result": [{"name": "run"}]}
     framed = LSPClient._frame(message)
     assert LSPClient._parse_messages(framed) == [message]
+
+
+def test_repository_map_integrates_symbols_imports_tests_and_cache(tmp_path, monkeypatch):
+    monkeypatch.setenv("JARVIS_LSP_ANALYSIS", "false")
+    (tmp_path / "service.py").write_text("import json\n\ndef run():\n    return json.dumps({})\n")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_service.py").write_text("from service import run\n\ndef test_run():\n    assert run()\n")
+
+    first = build_repository_map(tmp_path)
+    service = next(item for item in first["files"] if item["path"] == "service.py")
+    assert any(symbol["name"] == "run" for symbol in service["symbols"])
+    assert "json" in service["imports"]
+    assert "tests/test_service.py" in service["tests"]
+    assert first["graph"]["imports"]
+    assert first["index"]["cache_hit"] is False
+
+    second = build_repository_map(tmp_path)
+    assert second["index"]["cache_hit"] is True
 
 
 def test_cache_and_evidence_gate(tmp_path):
