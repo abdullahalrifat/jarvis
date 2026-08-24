@@ -2,6 +2,7 @@ import json
 
 from jarvis_cli import browser_agent
 from jarvis_cli.plugin_commands import list_plugin_commands
+from jarvis_cli.sdk import CloudWorker, SDKResult
 from jarvis_cli.v061_main import main
 
 
@@ -59,3 +60,37 @@ def test_plugin_command_cli_returns_nonzero_for_unknown(tmp_path, monkeypatch):
         main(["plugin", "run", "missing", "noop", "--workspace", str(tmp_path)])
         == 1
     )
+
+
+def test_cloud_worker_executes_claim_and_reports_completion(tmp_path):
+    class Local:
+        def run(self, task, *, workspace=None, allow_write=None):
+            assert task == "fix bug"
+            assert workspace == str(tmp_path)
+            assert allow_write is True
+            return SDKResult(status="completed", result="done")
+
+    class Client:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, path, payload=None):
+            self.calls.append((method, path, payload))
+            return {"ok": True}
+
+    worker = CloudWorker("https://unused.invalid", "token", "worker-1", Local())
+    client = Client()
+    worker.client = client
+    result = worker.execute_claimed(
+        {
+            "id": "cloud-1",
+            "payload": {
+                "task": "fix bug",
+                "workspace": str(tmp_path),
+                "allow_write": True,
+            },
+        }
+    )
+    assert result.result == "done"
+    assert client.calls[-1][1] == "/platform/cloud/tasks/cloud-1/complete"
+    assert client.calls[-1][2]["worker_id"] == "worker-1"
