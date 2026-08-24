@@ -19,11 +19,11 @@ def test_browser_allowlist_allows_subdomains(monkeypatch):
     assert browser_agent._url_allowed("https://api.example.com/path")
 
 
-def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsys):
+def _install_demo_plugin(tmp_path, monkeypatch):
     plugin_home = tmp_path / "plugins"
     monkeypatch.setenv("JARVIS_PLUGIN_HOME", str(plugin_home))
     root = plugin_home / "demo" / "1.0.0"
-    (root / "commands").mkdir(parents=True)
+    root.mkdir(parents=True)
     (root.parent / "current.json").write_text(json.dumps({"version": "1.0.0"}))
     (root / "jarvis-plugin.json").write_text(
         json.dumps(
@@ -36,6 +36,12 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
             }
         )
     )
+    return root
+
+
+def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsys):
+    root = _install_demo_plugin(tmp_path, monkeypatch)
+    (root / "commands").mkdir()
     (root / "commands" / "echo.json").write_text(
         json.dumps(
             {
@@ -52,6 +58,44 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
         == 0
     )
     assert "plugin-ok" in capsys.readouterr().out
+
+
+def test_plugin_runtime_discovers_installed_skill(tmp_path, monkeypatch):
+    from jarvis_cli import hooks, mcp, mcp_registry, plugin_runtime, runtime_hooks, skills, v05_main
+
+    root = _install_demo_plugin(tmp_path, monkeypatch)
+    skill_root = root / "skills" / "review"
+    skill_root.mkdir(parents=True)
+    (skill_root / "SKILL.md").write_text(
+        "---\nname: review\ndescription: Review code safely\n---\nReview carefully.\n"
+    )
+
+    originals = (
+        skills.SkillRegistry,
+        hooks.HookRegistry,
+        mcp.load_mcp_config,
+        mcp_registry.load_mcp_config,
+        runtime_hooks.HookRegistry,
+        v05_main.HookRegistry,
+        v05_main.SkillRegistry,
+        plugin_runtime._INSTALLED,
+    )
+    try:
+        plugin_runtime._INSTALLED = False
+        plugin_runtime.install_plugin_runtime()
+        names = {item.name for item in skills.SkillRegistry(tmp_path).list()}
+        assert "review" in names
+    finally:
+        (
+            skills.SkillRegistry,
+            hooks.HookRegistry,
+            mcp.load_mcp_config,
+            mcp_registry.load_mcp_config,
+            runtime_hooks.HookRegistry,
+            v05_main.HookRegistry,
+            v05_main.SkillRegistry,
+            plugin_runtime._INSTALLED,
+        ) = originals
 
 
 def test_plugin_command_cli_returns_nonzero_for_unknown(tmp_path, monkeypatch):
