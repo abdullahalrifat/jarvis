@@ -30,6 +30,35 @@ def _digest(payload: Any) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+def proof_root(workspace: str | Path) -> Path:
+    configured = os.getenv("JARVIS_PROOF_DIR")
+    base = (
+        Path(configured).expanduser()
+        if configured
+        else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local/state")) / "jarvis/proofs"
+    )
+    identity = hashlib.sha256(str(Path(workspace).expanduser().resolve()).encode()).hexdigest()[:20]
+    return base / identity
+
+
+def proof_path(workspace: str | Path, run_id: str | None = None) -> Path:
+    return proof_root(workspace) / (f"{run_id}.json" if run_id else "latest.json")
+
+
+def _write_proof(state: dict[str, Any]) -> Path:
+    target = proof_path(state["workspace"], state["run_id"])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(state, indent=2, ensure_ascii=False, default=str)
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    tmp.replace(target)
+    latest = proof_path(state["workspace"])
+    latest_tmp = latest.with_suffix(".tmp")
+    latest_tmp.write_text(payload, encoding="utf-8")
+    latest_tmp.replace(latest)
+    return target
+
+
 def _record(kind: str, subject: str, status: str, detail: str = "", **metadata: Any) -> None:
     state = _RUN.get()
     if state is None:
@@ -45,6 +74,10 @@ def _record(kind: str, subject: str, status: str, detail: str = "", **metadata: 
     item["digest"] = _digest(item)
     if not any(row.get("digest") == item["digest"] for row in state["records"]):
         state["records"].append(item)
+        try:
+            _write_proof(state)
+        except OSError:
+            pass
 
 
 def current_proof() -> dict[str, Any] | None:
@@ -94,20 +127,6 @@ class PermissionPolicy:
         return "ask" if mutation else "allow"
 
 
-def _write_proof(state: dict[str, Any]) -> Path:
-    root = Path(state["workspace"])
-    target = root / ".jarvis" / "proofs" / f"{state['run_id']}.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
-    tmp.replace(target)
-    latest = target.parent / "latest.json"
-    latest_tmp = latest.with_suffix(".tmp")
-    latest_tmp.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
-    latest_tmp.replace(latest)
-    return target
-
-
 def install_proof_runtime() -> None:
     global _INSTALLED
     if _INSTALLED:
@@ -150,10 +169,13 @@ def install_proof_runtime() -> None:
                 status = "passed"
                 if name == "run_command" and "[exit " in result and "[exit 0]" not in result:
                     status = "failed"
-                kind = "test" if name == "run_command" and any(
-                    marker in " ".join(str(x).casefold() for x in arguments.get("argv", []))
-                    for marker in ("pytest", " test", "unittest")
-                ) else "tool"
+                joined = " ".join(str(x).casefold() for x in arguments.get("argv", []))
+                kind = (
+                    "test"
+                    if name == "run_command"
+                    and any(marker in joined for marker in ("pytest", " test", "unittest"))
+                    else "tool"
+                )
                 _record(
                     kind,
                     name,
@@ -185,9 +207,11 @@ def install_proof_runtime() -> None:
             "provider": config.provider,
             "model": config.model,
             "started_at": time.time(),
+            "status": "running",
             "records": [],
         }
         token = _RUN.set(state)
+        _write_proof(state)
         _record("route", config.model, "selected", provider=config.provider)
         try:
             result = base_run(task, config, **kwargs)
