@@ -55,7 +55,13 @@ def install_runtime_hooks() -> None:
             }
             context = self._hooks.enforce("PreModel", payload)
             if context:
-                messages = [*messages, {"role": "system", "content": "Hook-provided trusted runtime context:\n" + context}]
+                copied = [dict(message) for message in messages]
+                injected = "Hook-provided trusted runtime context:\n" + context
+                if copied and copied[0].get("role") == "system" and isinstance(copied[0].get("content"), str):
+                    copied[0]["content"] = str(copied[0]["content"]) + "\n\n" + injected
+                else:
+                    copied.insert(0, {"role": "system", "content": injected})
+                messages = copied
             result = super().complete(messages, tools)
             self._hooks.enforce("PostModel", {**payload, "usage": self.last_usage})
             return result
