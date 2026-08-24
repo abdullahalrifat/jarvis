@@ -9,6 +9,7 @@ from .efficiency_runtime import install_efficiency_runtime
 from .observability import Telemetry, install_calibrated_routing
 from .routing_v07 import install_v07_routing
 from .runtime_hooks import install_runtime_hooks
+from .speculation_v07 import install_safe_speculation
 
 _INSTALLED = False
 
@@ -22,6 +23,7 @@ def install_platform_runtime() -> None:
     install_runtime_hooks()
     install_browser_tools()
     install_efficiency_runtime()
+    install_safe_speculation()
 
     from . import local_agent
 
