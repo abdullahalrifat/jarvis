@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import threading
@@ -27,6 +28,7 @@ TERMINAL_STATUSES = {
     "discarded",
     "failed",
 }
+_GIT_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
 
 
 @dataclass(frozen=True)
@@ -258,6 +260,35 @@ class CloudWorker:
         }
 
     @staticmethod
+    def _safe_git_ref(value: Any) -> str:
+        ref = str(value or "").strip()
+        if not ref:
+            return ""
+        if (
+            not _GIT_REF.fullmatch(ref)
+            or ".." in ref
+            or "@{" in ref
+            or "//" in ref
+            or ref.endswith(("/", "."))
+            or ref.startswith("-")
+            or any(part in {".", ".."} for part in ref.split("/"))
+        ):
+            raise PermissionError("cloud Git workspace received an unsafe git_ref")
+        return ref
+
+    @staticmethod
+    def _safe_git_commit(value: Any) -> str:
+        commit = str(value or "").strip().lower()
+        if not commit:
+            return ""
+        if not (
+            7 <= len(commit) <= 64
+            and all(character in "0123456789abcdef" for character in commit)
+        ):
+            raise PermissionError("cloud Git workspace received an invalid git_commit")
+        return commit
+
+    @staticmethod
     def _git(root: Path | None, *args: str) -> str:
         command = ["git"]
         if root is not None:
@@ -297,11 +328,15 @@ class CloudWorker:
         if kind != "git":
             raise APIError(f"unsupported cloud workspace kind: {kind}")
 
-        repository_url = str(spec.get("repository_url") or "")
+        repository_url = str(spec.get("repository_url") or "").strip()
         parsed = urlparse(repository_url)
         host = (parsed.hostname or "").casefold()
         if parsed.scheme != "https" or not host:
             raise PermissionError("cloud Git workspace requires an https repository URL")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise PermissionError(
+                "cloud Git repository URL must not embed credentials, query, or fragment data"
+            )
         allowed = self._git_hosts()
         if host not in allowed and not any(
             host.endswith("." + value) for value in allowed
@@ -323,8 +358,8 @@ class CloudWorker:
         if target.exists():
             shutil.rmtree(target)
         self._git(None, "clone", "--no-checkout", "--", repository_url, str(target))
-        requested_ref = str(spec.get("git_ref") or "").strip()
-        requested_commit = str(spec.get("git_commit") or "").strip().lower()
+        requested_ref = self._safe_git_ref(spec.get("git_ref"))
+        requested_commit = self._safe_git_commit(spec.get("git_commit"))
         if requested_commit:
             self._git(target, "checkout", "--detach", requested_commit)
         elif requested_ref:
@@ -358,18 +393,76 @@ class CloudWorker:
         )
 
     @staticmethod
+    def _untracked_patch(root: Path, budget: int) -> str:
+        if budget <= 0:
+            return ""
+        listed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "-z"],
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        if listed.returncode:
+            return ""
+        chunks: list[str] = []
+        used = 0
+        for raw in listed.stdout.split(b"\0"):
+            if not raw:
+                continue
+            relative = raw.decode("utf-8", errors="surrogateescape")
+            target = (root / relative).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError:
+                continue
+            if not target.is_file() or target.stat().st_size > 1_000_000:
+                continue
+            completed = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(root),
+                    "diff",
+                    "--binary",
+                    "--no-index",
+                    "--",
+                    "/dev/null",
+                    relative,
+                ],
+                text=True,
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            if completed.returncode not in {0, 1}:
+                continue
+            chunk = completed.stdout
+            remaining = budget - used
+            if remaining <= 0:
+                break
+            chunks.append(chunk[:remaining])
+            used += min(len(chunk), remaining)
+            if len(chunk) > remaining:
+                break
+        return "".join(chunks)
+
+    @staticmethod
     def _workspace_result(prepared: _PreparedWorkspace) -> dict[str, Any]:
         if prepared.source.get("kind") != "git":
             return dict(prepared.source)
         status = CloudWorker._git(prepared.path, "status", "--short")
-        diff = CloudWorker._git(prepared.path, "diff", "--binary")
+        tracked_diff = CloudWorker._git(prepared.path, "diff", "--binary")
+        limit = 500_000
+        diff = tracked_diff[:limit]
+        if len(diff) < limit:
+            diff += CloudWorker._untracked_patch(prepared.path, limit - len(diff))
         head = CloudWorker._git(prepared.path, "rev-parse", "HEAD")
         return {
             **prepared.source,
             "head_commit": head,
-            "status": status[:20000],
-            "diff": diff[:500000],
-            "diff_truncated": len(diff) > 500000,
+            "status": status[:20_000],
+            "diff": diff,
+            "diff_truncated": len(tracked_diff) > limit or len(diff) >= limit,
         }
 
     def execute_claimed(self, task: dict[str, Any]) -> SDKResult:
