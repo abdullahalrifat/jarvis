@@ -48,9 +48,7 @@ def _test_links(relative_paths: list[str]) -> dict[str, list[str]]:
             continue
         stem = source_path.stem.casefold()
         matches = [
-            test
-            for test in tests
-            if stem and stem in Path(test).stem.casefold()
+            test for test in tests if stem and stem in Path(test).stem.casefold()
         ][:20]
         if matches:
             links[source] = matches
@@ -86,14 +84,10 @@ def _recent_git_changes(workspace: Path, *, limit: int = 200) -> dict[str, int]:
         if not path:
             continue
         counts[path] = counts.get(path, 0) + 1
-    return dict(
-        sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
-    )
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit])
 
 
-def build_repository_map(
-    root: str | Path, *, max_files: int = 2_000
-) -> dict[str, Any]:
+def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[str, Any]:
     """Build a bounded structural graph used by normal repository_map tool calls.
 
     Structural signals are preferred before semantic retrieval: content hashes,
@@ -133,9 +127,7 @@ def build_repository_map(
     for relative, record in selected:
         source = workspace / relative
         imports = (
-            _python_imports(source, workspace)
-            if source.suffix.lower() == ".py"
-            else []
+            _python_imports(source, workspace) if source.suffix.lower() == ".py" else []
         )
         for imported in imports:
             import_edges.append({"from": relative, "to": imported})
