@@ -6,11 +6,10 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import shlex
-from typing import Any
 
-from jarvis_core import EvalCase, TraceRecorder, run_evals
+from jarvis_core import TraceRecorder
 
-from .client import APIError
+from .evals import BenchmarkCase, load_benchmark, run_benchmark
 from .mcp import MCPClient
 from .profiles import load_profiles
 from .repository_map import write_repository_map
@@ -75,30 +74,13 @@ def mcp_tools(command: str) -> int:
     return 0
 
 
-def load_eval_cases(path: str) -> list[EvalCase]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    items = payload if isinstance(payload, list) else payload.get("cases", [])
-    return [
-        EvalCase(
-            name=str(item["name"]),
-            task=str(item["task"]),
-            expected_contains=tuple(item.get("expected_contains", [])),
-            forbidden_contains=tuple(item.get("forbidden_contains", [])),
-            metadata=dict(item.get("metadata") or {}),
-        )
-        for item in items
-    ]
+def load_eval_cases(path: str) -> list[BenchmarkCase]:
+    """Compatibility alias for the richer v0.5 benchmark loader."""
+    return load_benchmark(path)
 
 
 def run_eval_file(path: str, invoke) -> int:
-    results = run_evals(load_eval_cases(path), invoke)
-    summary: dict[str, Any] = {
-        "passed": sum(result.passed for result in results),
-        "total": len(results),
-        "score": (
-            sum(result.score for result in results) / len(results) if results else 0.0
-        ),
-        "results": [result.to_dict() for result in results],
-    }
-    print(json.dumps(summary, indent=2, ensure_ascii=False))
-    return 0 if summary["passed"] == summary["total"] else 2
+    """Run the measured harness behind the existing `jarvis eval` command."""
+    report = run_benchmark(load_benchmark(path), invoke)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    return 0 if report["passed"] == report["total"] else 2
