@@ -12,6 +12,46 @@ from time import perf_counter, time
 from typing import Any, Iterator
 import uuid
 
+_OTEL_CONFIGURED = False
+
+
+def configure_otel(service: str = "jarvis-cli") -> None:
+    """Configure an SDK/OTLP exporter only when the user supplied an endpoint."""
+    global _OTEL_CONFIGURED
+    if _OTEL_CONFIGURED:
+        return
+    endpoint = os.getenv("JARVIS_OTEL_ENDPOINT") or os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT"
+    )
+    if not endpoint:
+        _OTEL_CONFIGURED = True
+        return
+    try:
+        from opentelemetry import trace  # type: ignore
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # type: ignore
+            OTLPSpanExporter,
+        )
+        from opentelemetry.sdk.resources import Resource  # type: ignore
+        from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
+
+        current = trace.get_tracer_provider()
+        if current.__class__.__module__.startswith("opentelemetry.sdk"):
+            _OTEL_CONFIGURED = True
+            return
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": service})
+        )
+        provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
+        )
+        trace.set_tracer_provider(provider)
+    except Exception:
+        # JSONL tracing remains available when optional OTel packages or the
+        # exporter configuration are unavailable.
+        pass
+    _OTEL_CONFIGURED = True
+
 
 @dataclass(frozen=True)
 class RouteObservation:
@@ -29,13 +69,20 @@ class RouteObservation:
 class CalibrationStore:
     def __init__(self, path: str | Path | None = None) -> None:
         configured = path or os.getenv("JARVIS_CALIBRATION_FILE")
-        self.path = Path(configured).expanduser() if configured else Path.home() / ".config/jarvis/route-observations.json"
+        self.path = (
+            Path(configured).expanduser()
+            if configured
+            else Path.home() / ".config/jarvis/route-observations.json"
+        )
 
     def load(self) -> list[RouteObservation]:
         if not self.path.is_file():
             return []
         try:
-            return [RouteObservation(**row) for row in json.loads(self.path.read_text(encoding="utf-8"))]
+            return [
+                RouteObservation(**row)
+                for row in json.loads(self.path.read_text(encoding="utf-8"))
+            ]
         except (OSError, ValueError, TypeError):
             return []
 
@@ -45,19 +92,33 @@ class CalibrationStore:
         rows = rows[-5000:]
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(json.dumps([asdict(row) for row in rows], indent=2), encoding="utf-8")
+        temporary.write_text(
+            json.dumps([asdict(row) for row in rows], indent=2), encoding="utf-8"
+        )
         temporary.replace(self.path)
 
     def utility(self, route: str, category: str) -> tuple[float, int] | None:
-        rows = [row for row in self.load() if row.route == route and row.category in {category, "general", "*"}]
+        rows = [
+            row
+            for row in self.load()
+            if row.route == route and row.category in {category, "general", "*"}
+        ]
         if not rows:
             return None
         success = fmean(1.0 if row.success else 0.0 for row in rows)
         quality = fmean(max(0.0, min(1.0, row.score)) for row in rows)
-        incorrect = fmean(1.0 if row.incorrect_completion else 0.0 for row in rows)
+        incorrect = fmean(
+            1.0 if row.incorrect_completion else 0.0 for row in rows
+        )
         latency = fmean(max(0.0, row.latency_ms) for row in rows)
         failures = fmean(max(0, row.tool_failures) for row in rows)
-        utility = success * 55 + quality * 35 - incorrect * 50 - min(latency / 1000, 30) * 0.2 - failures * 2
+        utility = (
+            success * 55
+            + quality * 35
+            - incorrect * 50
+            - min(latency / 1000, 30) * 0.2
+            - failures * 2
+        )
         if len(rows) < 3:
             utility -= (3 - len(rows)) * 4
         return utility, len(rows)
@@ -68,15 +129,26 @@ class CalibrationStore:
         for route in routes:
             scored = self.utility(route, category)
             if scored:
-                values.append({"route": route, "utility": scored[0], "samples": scored[1]})
-        return sorted(values, key=lambda item: (item["utility"], item["samples"]), reverse=True)
+                values.append(
+                    {"route": route, "utility": scored[0], "samples": scored[1]}
+                )
+        return sorted(
+            values,
+            key=lambda item: (item["utility"], item["samples"]),
+            reverse=True,
+        )
 
 
 class Telemetry:
     def __init__(self, service: str = "jarvis-cli") -> None:
         self.service = service
+        configure_otel(service)
         path = os.getenv("JARVIS_OTEL_JSONL")
-        self.path = Path(path).expanduser() if path else Path.home() / ".local/state/jarvis/telemetry.jsonl"
+        self.path = (
+            Path(path).expanduser()
+            if path
+            else Path.home() / ".local/state/jarvis/telemetry.jsonl"
+        )
         self._tracer = None
         try:
             from opentelemetry import trace  # type: ignore
@@ -105,11 +177,13 @@ class Telemetry:
                     native.set_attribute(key, value)
                 except Exception:
                     pass
+        error_info = (None, None, None)
         try:
             yield record
         except BaseException as exc:
             record["status"] = "error"
             record["error"] = str(exc)[:4000]
+            error_info = (type(exc), exc, exc.__traceback__)
             if native is not None:
                 try:
                     native.record_exception(exc)
@@ -120,9 +194,11 @@ class Telemetry:
             record["duration_ms"] = (perf_counter() - started) * 1000
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+                handle.write(
+                    json.dumps(record, ensure_ascii=False, default=str) + "\n"
+                )
             if cm:
-                cm.__exit__(None, None, None)
+                cm.__exit__(*error_info)
 
 
 def install_calibrated_routing() -> None:
@@ -144,9 +220,19 @@ def install_calibrated_routing() -> None:
         store = CalibrationStore()
         measured = []
         for profile in candidates:
-            scored = store.utility(profile.name, task) or store.utility(profile.model, task)
+            scored = store.utility(profile.name, task) or store.utility(
+                profile.model, task
+            )
             if scored:
-                measured.append((scored[0], scored[1], profile.priority, profile.name, profile))
+                measured.append(
+                    (
+                        scored[0],
+                        scored[1],
+                        profile.priority,
+                        profile.name,
+                        profile,
+                    )
+                )
         if measured:
             measured.sort(reverse=True, key=lambda row: row[:4])
             return measured[0][-1]
