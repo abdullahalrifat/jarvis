@@ -5,9 +5,6 @@ commercial terminal agents while remaining useful without Server or a paid model
 
 ## Capability maturity
 
-Features are tracked with four maturity levels instead of a binary done/not-done
-checkbox:
-
 - **FOUNDATION** — bounded implementation exists with focused tests.
 - **INTEGRATED** — exercised through the real agent/runtime path.
 - **PRODUCTION-READY** — failure, recovery, permission and compatibility gates pass.
@@ -25,96 +22,89 @@ checkbox:
 | MCP lifecycle and tool policy | INTEGRATED |
 | Adaptive multi-agent execution | INTEGRATED |
 | Heterogeneous role/model routing | INTEGRATED |
-| Incremental repository/symbol index | FOUNDATION |
-| Real stdio LSP source analysis | FOUNDATION |
+| Persistent repository graph | INTEGRATED |
+| Persistent full stdio LSP surface | INTEGRATED |
 | Isolated task worktrees | FOUNDATION |
+| Measured benchmark harness + corpus | INTEGRATED |
+| Enforced read-only plan mode | INTEGRATED |
+| OS sandbox + network policy | INTEGRATED |
+| Lazy project/user Skills | INTEGRATED |
+| Deterministic lifecycle Hooks | INTEGRATED |
+| Rich dependency-free terminal TUI | INTEGRATED |
 | Benchmark-calibrated routing | FOUNDATION |
 | OpenTelemetry / end-to-end cost traces | NOT STARTED |
-| Rich terminal TUI | NOT STARTED |
 
 ## v0.4 — adaptive quality hardening
 
-The v0.4 line establishes:
+The v0.4 line established deterministic complexity/risk analysis, selective
+multi-agent escalation, heterogeneous model routing, execution-backed completion
+evidence, bounded indexing/caching, initial LSP support, task worktrees and quality
+measurement contracts.
 
-- deterministic complexity/risk analysis with cheap single-agent defaults;
-- selective explorer/implementer/verifier/risk escalation;
-- role-specific model profiles with independent-model diversity;
-- execution-backed completion evidence;
-- incremental source indexing with bounded file selection;
-- atomic local result caching;
-- optional real stdio LSP document-symbol/diagnostic analysis;
-- unique branch-per-task worktrees with ownership metadata;
-- quality, latency, token and tool-failure measurement contracts.
+## v0.5 — developer intelligence and experience
 
-A helper is not considered integrated until an end-to-end agent test proves it is
-used by normal execution.
+The v0.5 line adds the six foundations required for a world-class local CLI:
 
-## P0 — measured intelligence
+1. **Measured evaluation harness**
+   - JSON and JSONL benchmark corpora;
+   - task-success, incorrect-completion, latency and category metrics;
+   - baseline/candidate regression gates;
+   - a representative coding/safety/tool-use corpus under `benchmarks/`;
+   - both `jarvis eval` and the richer `jarvis bench` path use measured evaluation.
 
-1. **End-to-end evaluation gates**
-   - representative coding, research, tool-use, recovery and safety tasks;
-   - task success, test-pass, incorrect-completion, latency and tokens/task metrics;
-   - model/prompt A/B replay and regression thresholds;
-   - failure clustering and prompt/model/version attribution.
+2. **Persistent repository graph and full LSP**
+   - SQLite-backed incremental files/symbols/imports/test relationships;
+   - source hashes and Git-change signals;
+   - workspace-persistent language-server pools instead of per-file process startup;
+   - definitions, references, implementations, type definitions, hover, signatures,
+     diagnostics, document lifecycle, rename, code actions, formatting and workspace symbols.
 
-2. **Repository intelligence graph**
-   - combine source index, Tree-sitter/LSP, imports, definitions/references and Git history;
-   - map symbols to tests, dependencies and recent changes;
-   - prefer structural retrieval before embeddings;
-   - incremental invalidation after mutations.
+3. **Plan mode and sandbox policy**
+   - `jarvis plan ...` and `jarvis local --plan ...` technically disable edits,
+     command approval bypass and multi-agent mutation;
+   - Linux bubblewrap and macOS sandbox-exec isolation;
+   - default-deny network policy with explicit allow/allowlist modes;
+   - `.jarvis/sandbox.toml` filesystem/network configuration.
 
-3. **Evidence-backed completion**
-   - immutable mutation records with before/after digests;
-   - verification records with command, exit code and output digest;
-   - completion claims blocked when required proof is missing;
-   - independent verifier used for risky/complex work, not every request.
+4. **Terminal UI**
+   - `jarvis tui ...` status panel with task stages, agent/model mode and token state;
+   - ANSI rendering with plain-text fallback;
+   - syntax-colored diff renderer;
+   - the existing shell retains history, completion and multiline input.
 
-4. **Adaptive escalation**
-   - trivial requests use the fastest qualified single model;
-   - normal work uses one strong implementer;
-   - complex/risky work selectively adds exploration, risk and verification roles;
-   - routing calibration comes from benchmark observations, never model self-report.
+5. **Skills**
+   - project and user skill discovery from `SKILL.md`;
+   - metadata-only indexing and lazy body loading;
+   - explicit tools/risk/model-invocable metadata;
+   - relevant Skills are injected automatically into normal local runs.
 
-## P1 — agent experience and operations
+6. **Hooks**
+   - typed lifecycle events with bounded subprocess execution;
+   - allow/deny, context injection and approval signals;
+   - runtime wiring for model calls, tools, mutations and failures;
+   - `jarvis hooks` inspection/execution command.
 
-5. **Terminal UX**
-   - multiline editor, bracketed paste, reverse search and external editor;
-   - live tool stream, pageable diff review and attachment previews;
-   - plan-only/default/managed permission modes;
-   - visible context and token budget.
+## Next P0 — prove and optimize
 
-6. **Hooks, skills and connectors**
-   - typed pre/post hooks with timeouts and secret boundaries;
-   - versioned signed skill manifests with explicit capabilities;
-   - connector-based GitHub/GitLab actions with no embedded credentials.
+1. Build seeded fixture repositories for every benchmark case and run the corpus across
+   local Ollama and configured remote providers.
+2. Add Tree-sitter parsers for non-Python symbol/import extraction where LSP is absent.
+3. Feed benchmark outcomes back into automatic model/agent routing calibration.
+4. Add cancellation/restart tests for persistent LSP processes and hook subprocesses.
+5. Promote sandbox support on Windows to a native AppContainer implementation.
 
-7. **Git/worktree orchestration**
-   - safe parallel implementation owners in isolated worktrees;
-   - before/after summaries, approved commits and evidence-backed PR drafting;
-   - deterministic cleanup/recovery for abandoned worktrees;
-   - explicit push/rebase/force-push policy.
+## P1 — remaining world-class gaps
 
-8. **Observability and optimization**
-   - OpenTelemetry traces across routing, inference, tools and verification;
-   - per-run latency/token/cost attribution;
-   - dashboards for fallback, tool failures and incorrect completion;
-   - route tuning driven by measured outcomes.
-
-## P2 — distribution and platform
-
-9. **Isolation and supply chain**
-   - OS sandbox profiles for commands and untrusted parsers;
-   - keyring/API-key helpers, proxy/custom-CA support and diagnostics;
-   - signed binaries, secure updates, SBOM/provenance and reproducible releases.
-
-10. **Server/channel parity**
-    - shared contracts remain in `jarvis-agent-core` while execution policy stays separate;
-    - compatible evidence, routing, tracing and evaluation semantics;
-    - authenticated web/Telegram/WhatsApp/mobile adapters remain thin clients over Runs.
+- agent-team task board and parallel worktree ownership;
+- browser/Playwright execution and screenshot verification;
+- signed plugin packaging combining Skills, Hooks, Agents, MCP and commands;
+- background/resumable local jobs and scheduled automations;
+- OpenTelemetry traces and dashboards;
+- public Python/TypeScript SDK and remote worker execution.
 
 ## Completion gates
 
 A capability advances to PRODUCTION-READY only when happy path, cancellation,
 timeout, malformed input, permission denial, prompt injection, compatibility and
-recovery are tested and documented. “World-class” is a measured reliability and
-quality target, not a feature-count claim.
+recovery are tested and documented. “World-class” remains a measured reliability
+and quality target, not a feature-count claim.
