@@ -20,6 +20,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      - name: Inspect Core 0.4.0 release checksum
+        if: matrix.python-version == '3.12'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf /tmp/core-release
+          mkdir -p /tmp/core-release
+          gh release download v0.4.0 --repo abdullahalrifat/jarvis-core --pattern SHA256SUMS --dir /tmp/core-release
+          cat /tmp/core-release/SHA256SUMS
       - name: Install Jarvis and development dependencies
         run: python -m pip install -e . -r requirements.txt
       - name: Verify coordinated Core
