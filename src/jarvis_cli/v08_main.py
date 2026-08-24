@@ -11,12 +11,14 @@ import sys
 from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
-from .proof_runtime import PermissionPolicy
+from .proof_runtime import PermissionPolicy, proof_path
 from .sdk import LocalJarvis
 
 
 def _remote_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--server", default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000"))
+    parser.add_argument(
+        "--server", default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000")
+    )
     parser.add_argument("--server-api-key-env", default="JARVIS_SERVER_API_KEY")
 
 
@@ -105,7 +107,14 @@ def _cloud(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "status":
-        print(json.dumps(remote.cloud_task(args.task_id), indent=2, ensure_ascii=False, default=str))
+        print(
+            json.dumps(
+                remote.cloud_task(args.task_id),
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        )
         return 0
     if args.action == "cancel":
         print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
@@ -132,9 +141,10 @@ def _cloud(args: argparse.Namespace) -> int:
 
 
 def _proof(args: argparse.Namespace) -> int:
-    root = Path(args.workspace).expanduser().resolve()
-    name = f"{args.run_id}.json" if args.run_id else "latest.json"
-    target = root / ".jarvis" / "proofs" / name
+    target = proof_path(
+        Path(args.workspace).expanduser().resolve(),
+        args.run_id,
+    )
     if not target.is_file():
         raise FileNotFoundError(f"proof not found: {target}")
     print(target.read_text(encoding="utf-8"))
