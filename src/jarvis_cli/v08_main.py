@@ -11,7 +11,7 @@ import sys
 from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
-from .proof_runtime import PermissionPolicy, proof_path
+from .proof_runtime import PermissionPolicy, proof_path, trusted_permissions_path
 from .sdk import LocalJarvis
 
 
@@ -152,14 +152,19 @@ def _proof(args: argparse.Namespace) -> int:
 
 
 def _permissions(args: argparse.Namespace) -> int:
-    policy = PermissionPolicy(Path(args.workspace).expanduser().resolve())
+    workspace = Path(args.workspace).expanduser().resolve()
+    policy = PermissionPolicy(workspace)
     print(
         json.dumps(
             {
+                "trusted_file": str(trusted_permissions_path()),
+                "project_file": str(workspace / ".jarvis" / "permissions.toml"),
                 "allow": sorted(policy.allow),
                 "ask": sorted(policy.ask),
                 "deny": sorted(policy.deny),
+                "ignored_project_allow": sorted(policy.ignored_project_allow),
                 "default": "ask for mutations; allow read-only",
+                "project_policy": "restrict-only; repository allow entries cannot broaden privileges",
                 "plan_mode": "all mutations denied",
             },
             indent=2,
