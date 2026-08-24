@@ -49,7 +49,10 @@ def test_remote_cloud_submission_sends_portable_git_coordinates():
     assert captured["method"] == "POST"
     assert captured["path"] == "/platform/cloud/tasks"
     assert captured["payload"]["workspace"] is None
-    assert captured["payload"]["repository_url"] == "https://github.com/example/repo.git"
+    assert (
+        captured["payload"]["repository_url"]
+        == "https://github.com/example/repo.git"
+    )
     assert captured["payload"]["git_ref"] == "feature/fix"
     assert captured["payload"]["git_commit"] == "abcdef1234567"
     assert captured["payload"]["allow_write"] is True
@@ -76,10 +79,14 @@ def test_worker_rejects_unsafe_ref_and_commit_without_trusting_server():
         CloudWorker._safe_git_commit("not-a-commit")
 
 
-def test_worker_rejects_unallowlisted_git_host_before_clone(monkeypatch, tmp_path):
+def test_worker_rejects_unallowlisted_git_host_before_clone(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("JARVIS_CLOUD_GIT_ALLOW_HOSTS", "github.com")
     monkeypatch.setenv("JARVIS_CLOUD_WORKSPACE_ROOT", str(tmp_path / "cloud"))
-    worker = CloudWorker("https://server.example", "secret", "worker-1", local=None)
+    worker = CloudWorker(
+        "https://server.example", "secret", "worker-1", local=None
+    )
     with pytest.raises(PermissionError, match="not allowlisted"):
         worker._prepare_workspace(
             "task-1",
@@ -92,10 +99,14 @@ def test_worker_rejects_unallowlisted_git_host_before_clone(monkeypatch, tmp_pat
         )
 
 
-def test_worker_rejects_embedded_git_credentials_before_clone(monkeypatch, tmp_path):
+def test_worker_rejects_embedded_git_credentials_before_clone(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("JARVIS_CLOUD_GIT_ALLOW_HOSTS", "github.com")
     monkeypatch.setenv("JARVIS_CLOUD_WORKSPACE_ROOT", str(tmp_path / "cloud"))
-    worker = CloudWorker("https://server.example", "secret", "worker-1", local=None)
+    worker = CloudWorker(
+        "https://server.example", "secret", "worker-1", local=None
+    )
     with pytest.raises(PermissionError, match="must not embed credentials"):
         worker._prepare_workspace(
             "task-1",
