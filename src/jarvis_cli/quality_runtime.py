@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -18,7 +19,6 @@ from jarvis_core import (
     ClaimProof,
     CompletionRequirement,
     EvidenceGate,
-    ProofKind,
     RouteCandidate,
     Scope,
     TaskAnalysis,
@@ -40,10 +40,49 @@ _COMPLEX = re.compile(
     re.I,
 )
 _WEB = re.compile(r"\b(current|latest|today|online|web|search|price|news)\b", re.I)
+_SOURCE_EXTENSIONS = {
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cs",
+    ".go",
+    ".h",
+    ".hpp",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".py",
+    ".rb",
+    ".rs",
+    ".scala",
+    ".sh",
+    ".sql",
+    ".swift",
+    ".ts",
+    ".tsx",
+}
+_IGNORED_DIRS = {
+    ".git",
+    ".jarvis",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor",
+}
+_MAX_INDEX_FILE_BYTES = 2 * 1024 * 1024
 
 
 def classify_request(task: str, paths: tuple[str, ...] = ()) -> TaskAnalysis:
-    """Conservative deterministic fallback for malformed/unavailable model classifiers."""
+    """Conservative deterministic fallback for malformed/unavailable classifiers."""
     complexity = (
         0.2 + (0.35 if _COMPLEX.search(task) else 0) + min(0.3, len(paths) * 0.04)
     )
@@ -57,7 +96,6 @@ def classify_request(task: str, paths: tuple[str, ...] = ()) -> TaskAnalysis:
     elif len(paths) > 1:
         scope = Scope.MULTI_FILE
     checks = ("tests", "static_analysis") if write else ()
-    roles = ("explorer", "implementer", "verifier")
     return TaskAnalysis(
         min(1, complexity),
         min(1, risk),
@@ -65,7 +103,7 @@ def classify_request(task: str, paths: tuple[str, ...] = ()) -> TaskAnalysis:
         write,
         bool(_WEB.search(task)),
         checks,
-        roles,
+        ("explorer", "implementer", "verifier"),
     )
 
 
@@ -82,7 +120,7 @@ class Symbol:
 
 
 class IncrementalRepositoryIndex:
-    """Content-hash index that reparses only changed source files."""
+    """Persistent content-hash index bounded to likely source files."""
 
     def __init__(self, workspace: Path, state_path: Path | None = None) -> None:
         self.workspace = workspace.resolve()
@@ -90,35 +128,50 @@ class IncrementalRepositoryIndex:
         self.files: dict[str, dict[str, Any]] = {}
         if self.state_path.exists():
             try:
-                self.files = json.loads(self.state_path.read_text()).get("files", {})
+                payload = json.loads(self.state_path.read_text())
+                if payload.get("version") == 2:
+                    self.files = payload.get("files", {})
             except (OSError, ValueError, TypeError):
                 self.files = {}
 
+    def _eligible(self, path: Path) -> bool:
+        try:
+            resolved = path.resolve()
+            relative = resolved.relative_to(self.workspace)
+            stat = resolved.stat()
+        except (OSError, ValueError):
+            return False
+        if any(part in _IGNORED_DIRS for part in relative.parts):
+            return False
+        if resolved == self.state_path.resolve() or stat.st_size > _MAX_INDEX_FILE_BYTES:
+            return False
+        return resolved.suffix.lower() in _SOURCE_EXTENSIONS
+
     def update(self, paths: list[Path] | None = None) -> dict[str, int]:
-        candidates = paths or [
-            item
-            for item in self.workspace.rglob("*")
-            if item.is_file()
-            and item.resolve() != self.state_path.resolve()
-            and ".git" not in item.parts
-            and ".jarvis" not in item.parts
-        ]
-        changed = removed = 0
+        candidates = paths or [item for item in self.workspace.rglob("*") if item.is_file()]
+        changed = removed = skipped = 0
         seen: set[str] = set()
         for path in candidates:
+            if not self._eligible(path):
+                skipped += 1
+                continue
             try:
                 resolved = path.resolve()
                 relative = str(resolved.relative_to(self.workspace))
                 raw = resolved.read_bytes()
+                stat = resolved.stat()
             except (OSError, ValueError):
+                skipped += 1
                 continue
             seen.add(relative)
             digest = hashlib.sha256(raw).hexdigest()
-            if self.files.get(relative, {}).get("digest") == digest:
+            current = self.files.get(relative, {})
+            if current.get("digest") == digest:
                 continue
             changed += 1
             self.files[relative] = {
                 "digest": digest,
+                "mtime_ns": stat.st_mtime_ns,
                 "symbols": [asdict(item) for item in self._symbols(relative, raw)],
                 "size": len(raw),
             }
@@ -126,11 +179,23 @@ class IncrementalRepositoryIndex:
             for relative in set(self.files) - seen:
                 removed += 1
                 del self.files[relative]
+        self._write_state()
+        return {
+            "changed": changed,
+            "removed": removed,
+            "skipped": skipped,
+            "total": len(self.files),
+        }
+
+    def _write_state(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(
-            json.dumps({"version": 1, "files": self.files}, sort_keys=True)
-        )
-        return {"changed": changed, "removed": removed, "total": len(self.files)}
+        payload = json.dumps({"version": 2, "files": self.files}, sort_keys=True)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=self.state_path.parent, delete=False
+        ) as stream:
+            stream.write(payload)
+            temporary = Path(stream.name)
+        os.replace(temporary, self.state_path)
 
     def _symbols(self, relative: str, raw: bytes) -> list[Symbol]:
         if relative.endswith(".py"):
@@ -141,16 +206,15 @@ class IncrementalRepositoryIndex:
             return [
                 Symbol(relative, node.name, type(node).__name__.lower(), node.lineno)
                 for node in ast.walk(tree)
-                if isinstance(
-                    node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-                )
+                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
             ]
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:
             return []
         pattern = re.compile(
-            r"^\s*(?:class|def|func|function|interface|type)\s+([A-Za-z_$][\w$]*)", re.M
+            r"^\s*(?:class|def|func|function|interface|type)\s+([A-Za-z_$][\w$]*)",
+            re.M,
         )
         return [
             Symbol(
@@ -172,44 +236,166 @@ class IncrementalRepositoryIndex:
 
 
 class JsonCache:
+    """Process-safe-enough atomic JSON cache with TTL and explicit schema version."""
+
     def __init__(self, root: Path, ttl_seconds: int = 86400) -> None:
         self.root, self.ttl_seconds = root, ttl_seconds
 
+    def _path(self, namespace: str, value: Any) -> Path:
+        return self.root / stable_cache_key(namespace, value, version="2")
+
     def get(self, namespace: str, value: Any) -> Any | None:
-        path = self.root / stable_cache_key(namespace, value)
+        path = self._path(namespace, value)
         try:
             if time.time() - path.stat().st_mtime > self.ttl_seconds:
                 return None
-            return json.loads(path.read_text())
-        except (OSError, ValueError):
+            payload = json.loads(path.read_text())
+            return payload.get("result") if payload.get("version") == 2 else None
+        except (OSError, ValueError, TypeError):
             return None
 
     def put(self, namespace: str, value: Any, result: Any) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        path = self.root / stable_cache_key(namespace, value)
-        path.write_text(json.dumps(result, sort_keys=True, default=str))
+        path = self._path(namespace, value)
+        payload = json.dumps({"version": 2, "result": result}, sort_keys=True, default=str)
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=self.root, delete=False
+        ) as stream:
+            stream.write(payload)
+            temporary = Path(stream.name)
+        os.replace(temporary, path)
 
 
 class LSPClient:
-    """Small capability probe; actual JSON-RPC stays behind an optional server."""
+    """Minimal real stdio LSP client for bounded one-shot source analysis."""
 
     SERVERS = {
         ".py": ("pyright-langserver", "--stdio"),
         ".ts": ("typescript-language-server", "--stdio"),
+        ".tsx": ("typescript-language-server", "--stdio"),
+        ".js": ("typescript-language-server", "--stdio"),
+        ".jsx": ("typescript-language-server", "--stdio"),
         ".go": ("gopls",),
+    }
+    LANGUAGE_IDS = {
+        ".py": "python",
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".go": "go",
     }
 
     def command_for(self, path: Path) -> tuple[str, ...] | None:
-        command = self.SERVERS.get(path.suffix)
+        command = self.SERVERS.get(path.suffix.lower())
         return command if command and shutil.which(command[0]) else None
 
-    def diagnostics(self, path: Path) -> dict[str, Any]:
+    @staticmethod
+    def _frame(message: dict[str, Any]) -> bytes:
+        body = json.dumps(message, separators=(",", ":")).encode()
+        return f"Content-Length: {len(body)}\r\n\r\n".encode() + body
+
+    @staticmethod
+    def _parse_messages(raw: bytes) -> list[dict[str, Any]]:
+        messages: list[dict[str, Any]] = []
+        offset = 0
+        while offset < len(raw):
+            header_end = raw.find(b"\r\n\r\n", offset)
+            if header_end < 0:
+                break
+            headers = raw[offset:header_end].decode(errors="replace").split("\r\n")
+            length = 0
+            for header in headers:
+                if header.lower().startswith("content-length:"):
+                    length = int(header.split(":", 1)[1].strip())
+                    break
+            if length <= 0:
+                break
+            start = header_end + 4
+            end = start + length
+            try:
+                message = json.loads(raw[start:end])
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                break
+            if isinstance(message, dict):
+                messages.append(message)
+            offset = end
+        return messages
+
+    def analyze(self, path: Path, timeout: float = 8.0) -> dict[str, Any]:
         command = self.command_for(path)
+        if not command:
+            return {"available": False, "server": None, "path": str(path)}
+        resolved = path.resolve()
+        text = resolved.read_text(encoding="utf-8")
+        uri = resolved.as_uri()
+        root_uri = resolved.parent.as_uri()
+        language_id = self.LANGUAGE_IDS.get(resolved.suffix.lower(), "plaintext")
+        requests = [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {"processId": None, "rootUri": root_uri, "capabilities": {}},
+            },
+            {"jsonrpc": "2.0", "method": "initialized", "params": {}},
+            {
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": language_id,
+                        "version": 1,
+                        "text": text,
+                    }
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/documentSymbol",
+                "params": {"textDocument": {"uri": uri}},
+            },
+            {"jsonrpc": "2.0", "id": 3, "method": "shutdown", "params": None},
+            {"jsonrpc": "2.0", "method": "exit", "params": None},
+        ]
+        payload = b"".join(self._frame(item) for item in requests)
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            stdout, stderr = process.communicate(payload, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            return {
+                "available": True,
+                "server": command[0],
+                "path": str(path),
+                "error": "timeout",
+            }
+        messages = self._parse_messages(stdout)
+        symbols = next((item.get("result") for item in messages if item.get("id") == 2), [])
+        diagnostics = [
+            item.get("params", {})
+            for item in messages
+            if item.get("method") == "textDocument/publishDiagnostics"
+        ]
         return {
-            "available": bool(command),
-            "server": command[0] if command else None,
+            "available": True,
+            "server": command[0],
             "path": str(path),
+            "symbols": symbols or [],
+            "diagnostics": diagnostics,
+            "stderr": stderr.decode(errors="replace")[-2000:],
         }
+
+    def diagnostics(self, path: Path) -> dict[str, Any]:
+        return self.analyze(path)
 
 
 class WorktreeManager:
@@ -220,7 +406,9 @@ class WorktreeManager:
         safe = re.sub(r"[^a-zA-Z0-9._-]", "-", task_id).strip("-")
         if not safe:
             raise ValueError("invalid task id")
-        target = self.root / safe
+        suffix = hashlib.sha256(f"{safe}:{time.time_ns()}".encode()).hexdigest()[:8]
+        name = f"{safe}-{suffix}"
+        target = self.root / name
         target.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run(
             [
@@ -230,7 +418,7 @@ class WorktreeManager:
                 "worktree",
                 "add",
                 "-b",
-                f"jarvis/{safe}",
+                f"jarvis/{name}",
                 str(target),
                 base,
             ],
@@ -238,15 +426,34 @@ class WorktreeManager:
             capture_output=True,
             text=True,
         )
+        (target / ".jarvis-worktree.json").write_text(
+            json.dumps({"task_id": task_id, "branch": f"jarvis/{name}"})
+        )
         return target
 
-    def remove(self, target: Path) -> None:
+    def remove(self, target: Path, delete_branch: bool = True) -> None:
         resolved = target.resolve()
         resolved.relative_to(self.root)
+        metadata_path = resolved / ".jarvis-worktree.json"
+        branch = None
+        if metadata_path.exists():
+            try:
+                branch = json.loads(metadata_path.read_text()).get("branch")
+            except (OSError, ValueError, TypeError):
+                branch = None
         subprocess.run(
             ["git", "-C", str(self.repository), "worktree", "remove", str(resolved)],
             check=True,
+            capture_output=True,
+            text=True,
         )
+        if delete_branch and branch:
+            subprocess.run(
+                ["git", "-C", str(self.repository), "branch", "-D", branch],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
 
 
 def route_team(roles: tuple[str, ...], candidates: tuple[RouteCandidate, ...]):
