@@ -1170,7 +1170,23 @@ class _LocalAgentBackend:
             artifact_resolver=ArtifactResolver(self.artifacts),
         )
         role_provider = self.provider
-        if role_config.model != self.config.model or role_config.provider != self.config.provider:
+        base_identity = (
+            self.config.provider,
+            self.config.model,
+            self.config.base_url,
+            self.config.api_key,
+            self.config.timeout,
+            self.config.max_output_tokens,
+        )
+        role_identity = (
+            role_config.provider,
+            role_config.model,
+            role_config.base_url,
+            role_config.api_key,
+            role_config.timeout,
+            role_config.max_output_tokens,
+        )
+        if role_provider is None or role_identity != base_identity:
             role_provider = ModelProvider(role_config)
         summary = _run_single_agent(
             role_task,
