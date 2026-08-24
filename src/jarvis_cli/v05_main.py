@@ -10,6 +10,7 @@ from pathlib import Path
 from .client import APIError
 from .evals import load_benchmark, run_benchmark, write_report
 from .hooks import HOOK_EVENTS, HookRegistry
+from .runtime_hooks import install_runtime_hooks
 from .skills import SkillRegistry
 from .tui import TUITask, TUIState, TerminalUI
 
@@ -96,11 +97,11 @@ def _prepare_local_task(argv: list[str]) -> list[str]:
     additions = "\n\n".join(part for part in (context, skill_context) if part)
     if not additions:
         return argv
-    # Appending one final positional preserves every legacy flag, attachment and option.
     return [*argv, "Jarvis runtime context:\n" + additions]
 
 
 def _run_plan(args: argparse.Namespace) -> int:
+    install_runtime_hooks()
     from .local_agent import LocalTools, resolve_local_config
     from .plan import generate_plan
 
@@ -124,6 +125,7 @@ def _run_plan(args: argparse.Namespace) -> int:
 
 
 def _run_tui(args: argparse.Namespace) -> int:
+    install_runtime_hooks()
     from .local_agent import LocalTools, resolve_local_config, run_local_agent
 
     config = resolve_local_config(args)
@@ -181,6 +183,7 @@ def _run_hooks(args: argparse.Namespace) -> int:
 
 
 def _run_bench(args: argparse.Namespace) -> int:
+    install_runtime_hooks()
     from .local_agent import LocalTools, resolve_local_config, run_local_agent
 
     args.task = []
@@ -217,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
     try:
+        if argv and argv[0] == "local":
+            install_runtime_hooks()
         argv = _prepare_local_task(argv)
     except (OSError, PermissionError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
