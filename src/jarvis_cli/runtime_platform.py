@@ -7,6 +7,7 @@ from typing import Any
 from .browser_agent import install_browser_tools
 from .efficiency_runtime import install_efficiency_runtime
 from .observability import Telemetry, install_calibrated_routing
+from .routing_v07 import install_v07_routing
 from .runtime_hooks import install_runtime_hooks
 
 _INSTALLED = False
@@ -17,10 +18,9 @@ def install_platform_runtime() -> None:
     if _INSTALLED:
         return
     install_calibrated_routing()
+    install_v07_routing()
     install_runtime_hooks()
     install_browser_tools()
-    # Efficiency wraps the fully composed tool/agent runtime; telemetry then wraps
-    # that result so speculative/escalated/retry paths are all observable.
     install_efficiency_runtime()
 
     from . import local_agent
