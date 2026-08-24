@@ -8,7 +8,9 @@ class AdaptiveFakeProvider:
     last_usage = {"prompt_tokens": 8, "completion_tokens": 4}
 
     def complete(self, messages, tools):
-        context = "\n".join(str(message.get("content") or "") for message in messages).lower()
+        context = "\n".join(
+            str(message.get("content") or "") for message in messages
+        ).lower()
         if "verifier" in context or "verification" in context:
             answer = (
                 '{"status":"passed","checks":["deterministic-fixture"],'
