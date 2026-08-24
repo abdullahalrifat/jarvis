@@ -1,11 +1,7 @@
 import json
-from pathlib import Path
-
-import pytest
 
 from jarvis_cli import browser_agent
 from jarvis_cli.plugin_commands import list_plugin_commands
-from jarvis_cli.plugins import PluginRegistry
 from jarvis_cli.v061_main import main
 
 
@@ -28,19 +24,38 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
     root = plugin_home / "demo" / "1.0.0"
     (root / "commands").mkdir(parents=True)
     (root.parent / "current.json").write_text(json.dumps({"version": "1.0.0"}))
-    (root / "jarvis-plugin.json").write_text(json.dumps({
-        "name": "demo", "version": "1.0.0", "description": "demo", "files": {}, "permissions": []
-    }))
-    (root / "commands" / "echo.json").write_text(json.dumps({
-        "description": "echo", "argv": ["python", "-c", "print('plugin-ok')"]
-    }))
+    (root / "jarvis-plugin.json").write_text(
+        json.dumps(
+            {
+                "name": "demo",
+                "version": "1.0.0",
+                "description": "demo",
+                "files": {},
+                "permissions": [],
+            }
+        )
+    )
+    (root / "commands" / "echo.json").write_text(
+        json.dumps(
+            {
+                "description": "echo",
+                "argv": ["python", "-c", "print('plugin-ok')"],
+            }
+        )
+    )
 
     commands = list_plugin_commands()
     assert [(row["plugin"], row["name"]) for row in commands] == [("demo", "echo")]
-    assert main(["plugin", "run", "demo", "echo", "--workspace", str(tmp_path)]) == 0
+    assert (
+        main(["plugin", "run", "demo", "echo", "--workspace", str(tmp_path)])
+        == 0
+    )
     assert "plugin-ok" in capsys.readouterr().out
 
 
 def test_plugin_command_cli_returns_nonzero_for_unknown(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_PLUGIN_HOME", str(tmp_path / "plugins"))
-    assert main(["plugin", "run", "missing", "noop", "--workspace", str(tmp_path)]) == 1
+    assert (
+        main(["plugin", "run", "missing", "noop", "--workspace", str(tmp_path)])
+        == 1
+    )
