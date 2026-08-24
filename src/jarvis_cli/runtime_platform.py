@@ -7,6 +7,7 @@ from typing import Any
 from .browser_agent import install_browser_tools
 from .efficiency_runtime import install_efficiency_runtime
 from .observability import Telemetry, install_calibrated_routing
+from .patch_guard_v07 import install_patch_guard
 from .routing_v07 import install_v07_routing
 from .runtime_hooks import install_runtime_hooks
 from .speculation_v07 import install_safe_speculation
@@ -24,6 +25,7 @@ def install_platform_runtime() -> None:
     install_browser_tools()
     install_efficiency_runtime()
     install_safe_speculation()
+    install_patch_guard()
 
     from . import local_agent
 
