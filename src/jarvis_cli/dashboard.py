@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 
 from .jobs import JobStore
+from .proof_runtime import proof_path
 
 
 def _clear() -> None:
@@ -16,7 +17,7 @@ def _clear() -> None:
 
 
 def _proof(workspace: Path) -> dict:
-    path = workspace / ".jarvis" / "proofs" / "latest.json"
+    path = proof_path(workspace)
     if not path.is_file():
         return {}
     try:
@@ -51,8 +52,15 @@ def render_dashboard(workspace: str | Path = ".") -> str:
         f"│ Workspace: {str(root)[:61]:61} │",
         f"│ Run: {str(proof.get('run_id', '-'))[:24]:24}  Status: {str(proof.get('status', '-'))[:12]:12}  Model: {str(proof.get('model', '-'))[:15]:15} │",
         f"│ Proof: {len(records):4} records   Tests: {len(tests):3}   Failed: {failed:3}                              │",
-        "├─ Team ────────────────────────────────────────────────────────────────────┤",
+        "├─ Recent execution ────────────────────────────────────────────────────────┤",
     ]
+    for item in records[-5:]:
+        lines.append(
+            f"│ {str(item.get('kind', '-'))[:12]:12} {str(item.get('status', '-'))[:10]:10} {str(item.get('subject', '-'))[:43]:43} │"
+        )
+    if not records:
+        lines.append("│ No proof events yet.                                                       │")
+    lines.append("├─ Team ────────────────────────────────────────────────────────────────────┤")
     tasks = team.get("tasks", {}) if isinstance(team, dict) else {}
     if isinstance(tasks, list):
         task_rows = tasks
