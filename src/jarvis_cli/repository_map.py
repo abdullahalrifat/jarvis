@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import subprocess
@@ -11,6 +12,26 @@ from typing import Any
 from .quality_runtime import JsonCache
 from .repository_graph import LSPPool, RepositoryGraph
 from .skills import SkillRegistry
+
+_LSP_POOLS: dict[str, LSPPool] = {}
+
+
+def _close_lsp_pools() -> None:
+    for pool in list(_LSP_POOLS.values()):
+        pool.close()
+    _LSP_POOLS.clear()
+
+
+atexit.register(_close_lsp_pools)
+
+
+def _pool_for(workspace: Path) -> LSPPool:
+    key = str(workspace)
+    pool = _LSP_POOLS.get(key)
+    if pool is None:
+        pool = LSPPool(workspace)
+        _LSP_POOLS[key] = pool
+    return pool
 
 
 def _lsp_limit() -> int:
@@ -76,27 +97,24 @@ def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[st
         return cached
 
     lsp_enabled = os.getenv("JARVIS_LSP_ANALYSIS", "true").lower() in {"1", "true", "yes"}
-    pool = LSPPool(workspace)
+    pool = _pool_for(workspace)
     remaining = _lsp_limit() if lsp_enabled else 0
-    try:
-        for item in snapshot["files"]:
-            item["recent_git_touches"] = recent.get(item["path"], 0)
-            if remaining <= 0:
-                continue
-            source = workspace / item["path"]
-            client = pool.client_for(source)
-            if client is None:
-                continue
-            try:
-                item["lsp"] = {
-                    "persistent": True,
-                    "document_symbols": client.document_symbols(source) or [],
-                }
-            except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
-                item["lsp"] = {"persistent": True, "error": str(exc)[:500]}
-            remaining -= 1
-    finally:
-        pool.close()
+    for item in snapshot["files"]:
+        item["recent_git_touches"] = recent.get(item["path"], 0)
+        if remaining <= 0:
+            continue
+        source = workspace / item["path"]
+        client = pool.client_for(source)
+        if client is None:
+            continue
+        try:
+            item["lsp"] = {
+                "persistent": True,
+                "document_symbols": client.document_symbols(source) or [],
+            }
+        except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
+            item["lsp"] = {"persistent": True, "error": str(exc)[:500]}
+        remaining -= 1
 
     result = {
         **snapshot,
