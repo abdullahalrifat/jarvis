@@ -21,3 +21,11 @@ def test_package_and_ci_pin_same_immutable_core_release():
     assert workflow.count(f"m.version('jarvis-agent-core') == '{CORE_VERSION}'") == 2
     assert "0.7.0" not in pyproject
     assert "0.7.0" not in workflow
+
+
+def test_release_version_check_does_not_import_runtime_dependencies():
+    workflow = (REPO_ROOT / ".github/workflows/release.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "ast.parse" in workflow
+    assert "import jarvis_cli" not in workflow
