@@ -6,6 +6,7 @@ from typing import Any
 
 from .browser_agent import install_browser_tools
 from .efficiency_runtime import install_efficiency_runtime
+from .escalation_v07 import install_failure_escalation
 from .evidence_v07 import install_evidence_v07
 from .observability import Telemetry, install_calibrated_routing
 from .patch_guard_v07 import install_patch_guard
@@ -28,6 +29,7 @@ def install_platform_runtime() -> None:
     install_safe_speculation()
     install_patch_guard()
     install_evidence_v07()
+    install_failure_escalation()
 
     from . import local_agent
 
