@@ -3,11 +3,14 @@ from pathlib import Path
 
 CORE_VERSION = "0.8.0"
 CORE_SHA256 = "d9569b69385e58a681ea01e900eb81c395d3f202a09a92878eb82bf4d4b8618a"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_package_and_ci_pin_same_immutable_core_release():
-    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
-    workflow = Path(".github/workflows/validate.yml").read_text(encoding="utf-8")
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / ".github/workflows/validate.yml").read_text(
+        encoding="utf-8"
+    )
 
     expected_asset = (
         f"releases/download/v{CORE_VERSION}/"
