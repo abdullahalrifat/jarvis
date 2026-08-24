@@ -34,6 +34,45 @@ class Job:
     heartbeat_at: float | None = None
 
 
+def _pid_alive(pid: int | None) -> bool:
+    if not pid or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _terminate_process_tree(pid: int, *, grace_seconds: float = 3.0) -> None:
+    """Terminate a spawned Jarvis process and its descendants."""
+    if pid <= 0:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=max(5.0, grace_seconds + 2),
+        )
+        return
+    try:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        return
+    deadline = time.monotonic() + max(0.1, grace_seconds)
+    while time.monotonic() < deadline:
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.05)
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        pass
+
+
 class JobStore:
     def __init__(self, path: str | Path | None = None) -> None:
         configured = path or os.getenv("JARVIS_JOBS_DB")
@@ -170,8 +209,7 @@ class JobStore:
         with self._connect() as db:
             updated = db.execute(
                 "UPDATE jobs SET status=?, finished_at=?, returncode=?, stdout_path=?, "
-                "stderr_path=?, error=?, heartbeat_at=? "
-                "WHERE id=? AND status='running'",
+                "stderr_path=?, error=?, heartbeat_at=? WHERE id=? AND status='running'",
                 (
                     status,
                     time.time(),
@@ -211,16 +249,9 @@ class JobStore:
 
     @staticmethod
     def _pid_alive(pid: int | None) -> bool:
-        if not pid or pid <= 0:
-            return False
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        return True
+        return _pid_alive(pid)
 
     def recover_stale(self, *, stale_seconds: float = 90.0) -> list[str]:
-        """Requeue abandoned running jobs only when their child process is gone."""
         cutoff = time.time() - max(15.0, stale_seconds)
         recovered: list[str] = []
         with self._connect() as db:
@@ -231,7 +262,7 @@ class JobStore:
                 (cutoff,),
             ).fetchall()
             for row in rows:
-                if self._pid_alive(row["pid"]):
+                if _pid_alive(row["pid"]):
                     continue
                 updated = db.execute(
                     "UPDATE jobs SET status='queued', started_at=NULL, pid=NULL, "
@@ -246,16 +277,11 @@ class JobStore:
 
     def cancel(self, job_id: str) -> None:
         job = self.get(job_id)
-        # Only signal a process whose worker is still heartbeating. A very stale
-        # PID may have been reused by the OS and must never be killed blindly.
         fresh = bool(
             job.heartbeat_at is not None and time.time() - job.heartbeat_at < 30
         )
         if job.status == "running" and job.pid and fresh:
-            try:
-                os.kill(job.pid, signal.SIGTERM)
-            except OSError:
-                pass
+            _terminate_process_tree(job.pid)
         with self._connect() as db:
             db.execute(
                 "UPDATE jobs SET status='cancelled', finished_at=?, "
@@ -292,7 +318,6 @@ class JobStore:
         return schedule_id
 
     def tick_schedules(self) -> list[str]:
-        """Atomically advance due schedules and enqueue exactly one job each."""
         now = time.time()
         created: list[str] = []
         with self._connect() as db:
@@ -335,46 +360,64 @@ class JobStore:
             ]
 
 
-def _field_matches(value: int, expression: str, minimum: int, maximum: int) -> bool:
-    if expression == "*":
-        return True
+def _field_values(
+    expression: str,
+    minimum: int,
+    maximum: int,
+    *,
+    sunday_7: bool = False,
+) -> set[int]:
+    raw_max = 7 if sunday_7 else maximum
     allowed: set[int] = set()
-    for part in expression.split(","):
-        if part.startswith("*/"):
-            step = int(part[2:])
+    for raw in expression.split(","):
+        part = raw.strip()
+        if not part:
+            raise ValueError("empty cron field")
+        step = 1
+        base = part
+        if "/" in part:
+            base, step_raw = part.split("/", 1)
+            step = int(step_raw)
             if step <= 0:
                 raise ValueError("cron step must be positive")
-            allowed.update(range(minimum, maximum + 1, step))
-        elif "-" in part:
-            start, end = (int(item) for item in part.split("-", 1))
-            if start > end or start < minimum or end > maximum:
-                raise ValueError("cron range is outside field bounds")
-            allowed.update(range(start, end + 1))
+        if base == "*":
+            start, end = minimum, raw_max
+        elif "-" in base:
+            start, end = (int(item) for item in base.split("-", 1))
         else:
-            item = int(part)
-            if item < minimum or item > maximum:
-                raise ValueError("cron value is outside field bounds")
-            allowed.add(item)
-    return value in allowed
+            start = end = int(base)
+        if start > end or start < minimum or end > raw_max:
+            raise ValueError("cron value is outside field bounds")
+        allowed.update(range(start, end + 1, step))
+    return {0 if sunday_7 and item == 7 else item for item in allowed}
 
 
 def _cron_matches(expression: str, timestamp: float) -> bool:
     fields = expression.split()
     if len(fields) != 5:
         raise ValueError("cron must have 5 fields: minute hour day month weekday")
+    minute, hour, dom, month, dow = fields
     dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     weekday = (dt.weekday() + 1) % 7
-    values = (dt.minute, dt.hour, dt.day, dt.month, weekday)
-    bounds = ((0, 59), (0, 23), (1, 31), (1, 12), (0, 6))
-    return all(
-        _field_matches(value, field, *bound)
-        for value, field, bound in zip(values, fields, bounds)
-    )
+    if dt.minute not in _field_values(minute, 0, 59):
+        return False
+    if dt.hour not in _field_values(hour, 0, 23):
+        return False
+    if dt.month not in _field_values(month, 1, 12):
+        return False
+    dom_match = dt.day in _field_values(dom, 1, 31)
+    dow_match = weekday in _field_values(dow, 0, 6, sunday_7=True)
+    if dom == "*" and dow == "*":
+        return True
+    if dom == "*":
+        return dow_match
+    if dow == "*":
+        return dom_match
+    return dom_match or dow_match
 
 
 def _next_cron(expression: str, after: float) -> float:
     candidate = int(after // 60 + 1) * 60
-    # Bound search to two years of minutes to prevent malformed schedules hanging.
     for _ in range(60 * 24 * 366 * 2):
         if _cron_matches(expression, candidate):
             return float(candidate)
@@ -409,7 +452,7 @@ def run_worker(*, once: bool = False, poll_seconds: float = 1.0) -> int:
                 start_new_session=(os.name != "nt"),
             )
             if not store.set_pid(job.id, process.pid, worker_id):
-                process.terminate()
+                _terminate_process_tree(process.pid)
                 process.wait(timeout=5)
                 if once:
                     return 2
@@ -419,14 +462,13 @@ def run_worker(*, once: bool = False, poll_seconds: float = 1.0) -> int:
                 now = time.monotonic()
                 if now - last_heartbeat >= 5:
                     if not store.heartbeat(job.id, worker_id):
-                        process.terminate()
+                        _terminate_process_tree(process.pid)
                         break
                     last_heartbeat = now
                 time.sleep(0.2)
             returncode = process.wait()
         store.finish(job.id, returncode, str(stdout_path), str(stderr_path))
         if once:
-            # Cancellation is a user decision, not a child-process failure.
             final = store.get(job.id)
             return 0 if final.status == "cancelled" else returncode
 
