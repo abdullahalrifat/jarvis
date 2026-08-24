@@ -3,13 +3,13 @@ name: Apply provider identity hardening
 on:
   push:
     branches: [feature/v0.4-quality-routing]
-    paths: [.github/workflows/fix-provider-identity.yml]
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
