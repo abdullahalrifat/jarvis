@@ -14,6 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from .enterprise_policy import load_enterprise_policy
 from .sandbox import sandbox_command
 from .workspace_trust import is_workspace_trusted
 
@@ -69,7 +70,15 @@ def user_hooks_path() -> Path:
 class HookRegistry:
     def __init__(self, workspace: str | Path) -> None:
         self.workspace = Path(workspace).resolve()
-        self.project_hooks_trusted = is_workspace_trusted(self.workspace)
+        policy = load_enterprise_policy()
+        self.project_hooks_trusted = (
+            policy.allow_project_hooks
+            and (
+                is_workspace_trusted(self.workspace)
+                if policy.require_workspace_trust
+                else True
+            )
+        )
         self.hooks = self._load()
 
     def _load(self) -> list[Hook]:
