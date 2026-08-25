@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tomli>=2; python_version < '3.11'",
-    "jarvis-agent-core @ git+https://github.com/abdullahalrifat/jarvis-core.git@c30ffc900779caa07f9945f96a78e57828cb2aff",
+    "jarvis-agent-core @ git+https://github.com/abdullahalrifat/jarvis-core.git@af3fcd5052dd6d5c15606302dcc7bd9f687fca78",
 ]
 dynamic = ["version"]
 
