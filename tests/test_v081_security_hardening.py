@@ -7,6 +7,7 @@ from jarvis_cli.hooks import HookRegistry
 from jarvis_cli.mcp import HTTPMCPClient
 from jarvis_cli.mcp_policy_runtime import authorize_mcp_call
 from jarvis_cli.process_env import sanitized_subprocess_env
+from jarvis_cli.web import _PublicRedirectHandler, _public_url
 from jarvis_cli.workspace_trust import (
     is_workspace_trusted,
     trust_workspace,
@@ -127,3 +128,30 @@ def test_tool_subprocess_environment_has_explicit_allow_escape_hatch(monkeypatch
     env = sanitized_subprocess_env()
     assert env["TEST_API_KEY"] == "needed-by-test"
     assert "JARVIS_COMMAND_ENV_ALLOW" not in env
+
+
+def test_web_fetch_rejects_embedded_credentials(monkeypatch):
+    monkeypatch.setattr(
+        "jarvis_cli.web.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+    with pytest.raises(APIError, match="credentials"):
+        _public_url("https://user:pass@example.com/path")
+
+
+def test_web_redirect_is_validated_before_following(monkeypatch):
+    def resolve(host, *_args, **_kwargs):
+        address = "169.254.169.254" if host == "metadata.example" else "93.184.216.34"
+        return [(None, None, None, None, (address, 80))]
+
+    monkeypatch.setattr("jarvis_cli.web.socket.getaddrinfo", resolve)
+    handler = _PublicRedirectHandler()
+    with pytest.raises(APIError, match="private or local"):
+        handler.redirect_request(
+            None,
+            None,
+            302,
+            "Found",
+            {},
+            "http://metadata.example/latest/meta-data",
+        )
