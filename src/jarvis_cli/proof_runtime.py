@@ -48,9 +48,7 @@ def _digest(payload: Any) -> str:
 
 
 def _redact_text(value: str) -> str:
-    value = _SECRET_ASSIGNMENT.sub(
-        lambda match: f"{match.group(1)}=[REDACTED]", value
-    )
+    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
     value = _BEARER.sub("Bearer [REDACTED]", value)
     return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
 
@@ -89,9 +87,7 @@ def _compact_detail(value: str) -> str:
     if len(redacted) <= 4000:
         return redacted
     digest = hashlib.sha256(value.encode(errors="replace")).hexdigest()
-    return redacted[:3000] + (
-        f"\n...[truncated sha256={digest} length={len(value)}]"
-    )
+    return redacted[:3000] + (f"\n...[truncated sha256={digest} length={len(value)}]")
 
 
 def proof_root(workspace: str | Path) -> Path:
@@ -313,15 +309,12 @@ def install_proof_runtime() -> None:
                     and "[exit 0]" not in result
                 ):
                     status = "failed"
-                joined = " ".join(
-                    str(x).casefold() for x in arguments.get("argv", [])
-                )
+                joined = " ".join(str(x).casefold() for x in arguments.get("argv", []))
                 kind = (
                     "test"
                     if name == "run_command"
                     and any(
-                        marker in joined
-                        for marker in ("pytest", " test", "unittest")
+                        marker in joined for marker in ("pytest", " test", "unittest")
                     )
                     else "tool"
                 )
