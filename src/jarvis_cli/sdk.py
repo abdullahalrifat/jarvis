@@ -81,7 +81,12 @@ class LocalJarvis:
             workspace=str(config.workspace),
         ):
             result = local_agent.run_local_agent(task, config, tools=tools)
-        return SDKResult(status="completed", result=result)
+        from .proof_runtime import last_run_id
+
+        run_id = last_run_id()
+        if not run_id:
+            raise APIError("local execution completed without a run-scoped proof identity")
+        return SDKResult(status="completed", result=result, run_id=run_id)
 
 
 class LegacyRemoteJarvis:
