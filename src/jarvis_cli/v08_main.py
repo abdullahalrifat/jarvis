@@ -13,6 +13,12 @@ from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
 from .proof_runtime import PermissionPolicy, proof_path, trusted_permissions_path
 from .sdk import LocalJarvis
+from .workspace_trust import (
+    is_workspace_trusted,
+    trust_file,
+    trust_workspace,
+    untrust_workspace,
+)
 
 
 def _remote_options(parser: argparse.ArgumentParser) -> None:
@@ -75,6 +81,11 @@ def _parser() -> argparse.ArgumentParser:
 
     permissions = subs.add_parser("permissions")
     permissions.add_argument("--workspace", default=".")
+
+    trust = subs.add_parser("trust")
+    trust.add_argument("--workspace", default=".")
+    trust.add_argument("--revoke", action="store_true")
+    trust.add_argument("--status", action="store_true")
 
     dashboard = subs.add_parser("dashboard")
     dashboard.add_argument("--workspace", default=".")
@@ -173,9 +184,39 @@ def _permissions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _trust(args: argparse.Namespace) -> int:
+    workspace = Path(args.workspace).expanduser().resolve()
+    if args.revoke:
+        path = untrust_workspace(workspace)
+        state = False
+    elif args.status:
+        path = trust_file()
+        state = is_workspace_trusted(workspace)
+    else:
+        path = trust_workspace(workspace)
+        state = True
+    print(
+        json.dumps(
+            {
+                "workspace": str(workspace),
+                "trusted": state,
+                "trust_file": str(path),
+                "effect": (
+                    "project-local executable configuration such as hooks may run"
+                    if state
+                    else "project-local executable configuration is disabled"
+                ),
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] in {"cloud", "proof", "permissions", "dashboard"}:
+    commands = {"cloud", "proof", "permissions", "trust", "dashboard"}
+    if argv and argv[0] in commands:
         try:
             args = _parser().parse_args(argv)
             if args.command == "cloud":
@@ -184,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
                 return _proof(args)
             if args.command == "permissions":
                 return _permissions(args)
+            if args.command == "trust":
+                return _trust(args)
             if args.command == "dashboard":
                 if args.watch:
                     watch_dashboard(args.workspace, args.interval)
