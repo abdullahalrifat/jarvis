@@ -2,7 +2,7 @@
 
 ## Current contract line
 
-Jarvis 0.9 uses the provider-neutral Jarvis Core 0.9.1 proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
+Jarvis 0.9.1 uses the provider-neutral Jarvis Core 0.9.2 proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
 
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
@@ -33,14 +33,13 @@ pipx install .
 jarvis --version
 ```
 
-The v0.8.1 line pins the verified immutable Core v0.8.0 GitHub Release wheel:
+Jarvis 0.9.1 pins the exact reviewed Jarvis Core 0.9.2 source commit:
 
 ```text
-jarvis-agent-core 0.8.0
-SHA-256 d9569b69385e58a681ea01e900eb81c395d3f202a09a92878eb82bf4d4b8618a
+af3fcd5052dd6d5c15606302dcc7bd9f687fca78
 ```
 
-A clean installation therefore does not require a mutable Core branch or a manual Core checkout.
+The immutable source pin keeps installation reproducible while Core 0.9.2 is being released. After the release exists, this pin can be replaced with the verified wheel and checksum.
 
 ## Connect a model
 
@@ -150,7 +149,7 @@ jarvis cloud worker --worker-id worker-1 --model auto
 
 The largest remaining gaps are not another list of shallow commands. They are proof, isolation and integrated developer experience:
 
-- executable private CI/release certification on the exact v0.8.1 heads;
+- executable private CI/release certification on the exact 0.9.1 head;
 - retained real-repository issue-resolution benchmarks across local and remote models;
 - prompt-injection and secret-canary red-team suites across repo/web/MCP/Skills/Hooks/browser inputs;
 - long-running chaos/soak tests for restarts, partitions, lease/cancellation races and state failures;
@@ -165,7 +164,7 @@ The complete prioritized list is in [docs/world-class-readiness.md](docs/world-c
 
 ## Validation status
 
-Core v0.8.0's public release artifact has been independently downloaded, installed and checksum-verified. The v0.8.1 CLI and Server hardening has focused regression coverage and static diff review, but private GitHub Actions currently fail before checkout/runner provisioning. Until the Python 3.10/3.12/3.13, clean-wheel, Server/Postgres/UI/Compose, model-integration, supply-chain and cross-repository jobs actually execute, v0.8.1 should be treated as **audit-hardened but not release-certified**.
+Core 0.9.2 and Jarvis 0.9.1 include coordinated version and clean-install gates. Private GitHub Actions may still fail before runner provisioning because of account billing; until the full matrices execute, this line should be treated as **audit-hardened but not release-certified**.
 
 ## Development
 
