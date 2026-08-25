@@ -59,6 +59,13 @@ class HookResult:
     returncode: int = 0
 
 
+def user_hooks_path() -> Path:
+    config_root = Path(
+        os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    ).expanduser()
+    return config_root / "jarvis" / "hooks.toml"
+
+
 class HookRegistry:
     def __init__(self, workspace: str | Path) -> None:
         self.workspace = Path(workspace).resolve()
@@ -66,7 +73,7 @@ class HookRegistry:
         self.hooks = self._load()
 
     def _load(self) -> list[Hook]:
-        paths = [Path.home() / ".config" / "jarvis" / "hooks.toml"]
+        paths = [user_hooks_path()]
         project_path = self.workspace / ".jarvis" / "hooks.toml"
         if self.project_hooks_trusted:
             paths.append(project_path)
