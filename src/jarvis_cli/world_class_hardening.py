@@ -14,6 +14,19 @@ from typing import Any, Iterable
 
 
 _INSTALLED = False
+_IGNORED_DIRS = {
+    ".git",
+    ".jarvis",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    ".cache",
+    "__pycache__",
+}
 
 
 def _endpoint_identity(config: Any) -> tuple[str, str, str, str]:
@@ -79,16 +92,43 @@ def _fallback_configs(
     return routed_configs
 
 
+def _bounded_file_list(tools: Any, value: str, limit: int = 500) -> str:
+    """Walk only until the requested result budget is full.
+
+    The old implementation sorted a complete recursive glob before slicing to
+    500 results, which could enumerate hundreds of thousands of generated files.
+    """
+    root = tools._path(value)
+    if not root.is_dir():
+        raise tools._api_error(f"Not a directory: {value}") if hasattr(tools, "_api_error") else NotADirectoryError(value)
+    rows: list[str] = []
+    for current, dirs, names in os.walk(root):
+        dirs[:] = sorted(
+            item for item in dirs if item not in _IGNORED_DIRS
+        )
+        for name in sorted(names):
+            candidate = os.path.join(current, name)
+            if not os.path.isfile(candidate):
+                continue
+            rows.append(str(tools._path(candidate).relative_to(tools.root)))
+            if len(rows) >= limit:
+                return "\n".join(rows)
+    return "\n".join(rows)
+
+
 def install_world_class_hardening() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
 
-    from . import local_agent, proof_runtime
+    from . import efficiency_runtime, local_agent, proof_runtime
     from .profiles import load_profiles
 
     provider_type = local_agent.ModelProvider
     original_route_config = local_agent._LocalAgentBackend._route_config
+    base_tools = local_agent.LocalTools
+    base_run = local_agent.run_local_agent
+    base_confidence = efficiency_runtime._evidence_confidence
 
     def build_model_provider(config):
         primary = provider_type(config)
@@ -126,8 +166,59 @@ def install_world_class_hardening() -> None:
             return routed
         return replace(routed, api_key=_profile_api_key(profile, config))
 
+    class HardenedTools(base_tools):
+        def execute(self, name: str, arguments: dict[str, Any]) -> str:
+            if name == "list_files":
+                return _bounded_file_list(
+                    self,
+                    str(arguments.get("path", ".")),
+                    limit=500,
+                )
+            return super().execute(name, arguments)
+
+        def close(self) -> None:
+            browser = getattr(self, "_browser_session", None)
+            if browser is not None:
+                browser.close()
+            parent = getattr(super(), "close", None)
+            if callable(parent):
+                parent()
+
+    def hardened_confidence(state, verifier_passed):
+        evidence_count = (
+            state.tests_passed
+            + state.tests_failed
+            + state.commands_passed
+            + state.commands_failed
+        )
+        effective_verifier = verifier_passed
+        if verifier_passed is True and evidence_count == 0:
+            # Absence of a failed check is not successful verification. A
+            # multi-agent verifier may still provide useful review evidence, so
+            # preserve the neutral/unknown contribution instead of forcing zero.
+            effective_verifier = None
+        score = base_confidence(state, effective_verifier)
+        if evidence_count == 0:
+            score = min(score, 0.49)
+        if state.mutations > 0 and state.tests_passed == 0 and state.commands_passed == 0:
+            score = min(score, 0.45)
+        return score
+
+    def run_with_cleanup(task: str, config, **kwargs):
+        tools = kwargs.get("tools")
+        try:
+            return base_run(task, config, **kwargs)
+        finally:
+            if tools is not None:
+                close = getattr(tools, "close", None)
+                if callable(close):
+                    close()
+
     local_agent.build_model_provider = build_model_provider
     local_agent._LocalAgentBackend._route_config = route_config
+    local_agent.LocalTools = HardenedTools
+    local_agent.run_local_agent = run_with_cleanup
+    efficiency_runtime._evidence_confidence = hardened_confidence
 
     # A browser click can submit a form, start a deployment, change account
     # state, or trigger another external side effect. Treat it like browser_type:
