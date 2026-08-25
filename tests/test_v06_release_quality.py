@@ -52,7 +52,9 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
     )
 
     commands = list_plugin_commands()
-    assert [(row["plugin"], row["name"]) for row in commands] == [("demo", "echo")]
+    assert [(row["plugin"], row["name"]) for row in commands] == [
+        ("demo", "echo")
+    ]
     assert (
         main(["plugin", "run", "demo", "echo", "--workspace", str(tmp_path)])
         == 0
@@ -60,14 +62,36 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
     assert "plugin-ok" in capsys.readouterr().out
 
 
-def test_plugin_runtime_discovers_installed_skill(tmp_path, monkeypatch):
-    from jarvis_cli import hooks, mcp, mcp_registry, plugin_runtime, runtime_hooks, skills, v05_main
+def test_plugin_runtime_discovers_installed_skill_and_mcp(tmp_path, monkeypatch):
+    from jarvis_cli import (
+        hooks,
+        mcp,
+        mcp_registry,
+        plugin_runtime,
+        runtime_hooks,
+        skills,
+        v05_main,
+    )
 
     root = _install_demo_plugin(tmp_path, monkeypatch)
     skill_root = root / "skills" / "review"
     skill_root.mkdir(parents=True)
     (skill_root / "SKILL.md").write_text(
         "---\nname: review\ndescription: Review code safely\n---\nReview carefully.\n"
+    )
+    mcp_root = root / "mcp"
+    mcp_root.mkdir()
+    (mcp_root / "demo.toml").write_text(
+        """
+[servers.plugin_demo]
+transport = "http"
+endpoint = "http://localhost:8765/mcp"
+[servers.plugin_demo.tools.inspect]
+allow = true
+requires_approval = true
+read_only = true
+""".strip(),
+        encoding="utf-8",
     )
 
     originals = (
@@ -85,6 +109,11 @@ def test_plugin_runtime_discovers_installed_skill(tmp_path, monkeypatch):
         plugin_runtime.install_plugin_runtime()
         names = {item.name for item in skills.SkillRegistry(tmp_path).list()}
         assert "review" in names
+        configs = mcp.load_mcp_config()
+        assert "plugin_demo" in configs
+        permission = configs["plugin_demo"].permissions[0]
+        assert permission.tool == "inspect"
+        assert permission.requires_approval is True
     finally:
         (
             skills.SkillRegistry,
@@ -122,7 +151,9 @@ def test_legacy_cloud_worker_executes_claim_and_reports_completion(tmp_path):
             self.calls.append((method, path, payload))
             return {"ok": True}
 
-    worker = LegacyCloudWorker("https://unused.invalid", "token", "worker-1", Local())
+    worker = LegacyCloudWorker(
+        "https://unused.invalid", "token", "worker-1", Local()
+    )
     client = Client()
     worker.client = client
     result = worker.execute_claimed(

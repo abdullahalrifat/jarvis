@@ -1,46 +1,62 @@
 # Jarvis roadmap
 
-Jarvis targets dependable, open-model-first coding outcomes comparable with mature commercial terminal agents while remaining useful without Server or a paid model.
+Jarvis targets dependable, open-model-first coding outcomes comparable with mature commercial coding agents while remaining useful without Server or a paid model. Capability claims are evidence-based; feature count alone is not a release criterion.
+
+See [docs/world-class-readiness.md](docs/world-class-readiness.md) for the detailed parity and production-gap analysis.
 
 ## Capability maturity
 
-- **FOUNDATION** — bounded implementation exists with focused tests.
+- **FOUNDATION** — bounded implementation and focused tests exist.
 - **INTEGRATED** — exercised through the real agent/runtime path.
-- **PRODUCTION-READY** — failure, recovery, permission and compatibility gates pass.
-- **MEASURED** — replay/benchmark data proves quality, latency and token behavior.
+- **VALIDATED** — compatibility, malformed input, timeout/cancellation, permission and recovery gates execute in CI.
+- **MEASURED** — retained benchmark data proves quality, latency and token/cost behavior.
+- **PRODUCTION-READY** — VALIDATED + MEASURED with documented operational limits and no unresolved P0/P1 reliability issue.
+
+Because private GitHub Actions currently fail before runner provisioning, current v0.8.1 work cannot advance to VALIDATED even where focused tests exist.
 
 | Capability | Current maturity |
 | --- | --- |
 | Standalone local tool loop | INTEGRATED |
-| Resumable sessions and checkpoints | INTEGRATED |
+| Resumable sessions / protocol-safe transcripts | INTEGRATED |
 | Provider profiles, fallback and health | INTEGRATED |
 | Evidence and independent verification | INTEGRATED |
 | Per-hunk review and reversible changes | INTEGRATED |
-| Attachments / image / PDF context | INTEGRATED |
-| Hierarchical instructions and memory | INTEGRATED |
-| MCP lifecycle and tool policy | INTEGRATED |
+| Attachments / native image / PDF context | INTEGRATED |
+| Hierarchical instructions and durable memory | INTEGRATED |
+| Persistent deny-by-default MCP | INTEGRATED |
+| MCP per-tool approval enforcement | FOUNDATION — v0.8.1 |
+| Workspace trust before executable project Hooks | FOUNDATION — v0.8.1 |
+| Secret-minimized agent subprocess environment | FOUNDATION — v0.8.1 |
 | Adaptive multi-agent execution | INTEGRATED |
 | Heterogeneous role/model routing | INTEGRATED |
 | Persistent repository graph | INTEGRATED |
 | Persistent full stdio LSP surface | INTEGRATED |
 | Isolated task worktrees | INTEGRATED |
-| Measured benchmark harness + corpus | INTEGRATED |
+| Eval harness + synthetic/adversarial corpus | INTEGRATED |
+| Real-repository benchmark baseline | NOT STARTED |
+| Prompt-injection / secret-canary red-team suite | NOT STARTED |
 | Enforced read-only plan mode | INTEGRATED |
-| OS sandbox + network policy | INTEGRATED |
+| Linux/macOS OS sandbox + network policy | INTEGRATED |
+| Native Windows AppContainer sandbox | NOT STARTED |
 | Lazy project/user Skills | INTEGRATED |
 | Deterministic lifecycle Hooks | INTEGRATED |
 | Rich dependency-free terminal TUI | INTEGRATED |
 | Agent-team task board + parallel worktrees | INTEGRATED |
 | Browser / Playwright verification agent | INTEGRATED |
 | Capability-scoped plugin packaging | INTEGRATED |
-| Background jobs + standard cron scheduler | INTEGRATED |
+| Signed plugin publisher trust / revocation | NOT STARTED |
+| Background CLI jobs + standard cron scheduler | INTEGRATED |
+| In-agent nonblocking process tool | NOT STARTED |
 | Process-tree job cancellation | INTEGRATED |
 | OpenTelemetry + JSONL trace fallback | INTEGRATED |
 | Automatic empirical route calibration | INTEGRATED |
 | Python SDK + reviewed remote Runs | INTEGRATED |
+| TypeScript SDK | NOT STARTED |
 | Portable Git cloud workspaces | INTEGRATED |
 | Lease-fenced cloud workers | INTEGRATED |
 | Idempotent cloud submissions | INTEGRATED |
+| Per-task container/VM-style cloud isolation | NOT STARTED |
+| Deterministic cloud bootstrap/cache identity | FOUNDATION / PARTIAL |
 | Unified execution proof ledger | INTEGRATED |
 | Deterministic permission policy | INTEGRATED |
 | Autonomous dashboard | INTEGRATED |
@@ -53,56 +69,75 @@ Jarvis targets dependable, open-model-first coding outcomes comparable with matu
 | Impact-aware test/blast-radius selection | INTEGRATED |
 | Semantic patch-scope guard + minimization | INTEGRATED |
 | Run-scoped tool-result deduplication | INTEGRATED |
-| Adversarial reliability benchmark corpus | FOUNDATION |
-| TypeScript SDK | NOT STARTED |
-| Native Windows AppContainer sandbox | NOT STARTED |
+| Code + conversation independent checkpoint rewind | PARTIAL |
+| Native IDE extension / local-cloud handoff | NOT STARTED |
+| GitHub PR review + inline annotations | NOT STARTED |
+| Live steering / attach-to-running-agent | NOT STARTED |
+| Central organization policy / audit export | NOT STARTED |
+| Multi-node admission control / quotas / backpressure | NOT STARTED |
 
 ## v0.4 — adaptive quality hardening
 
-The v0.4 line established deterministic complexity/risk analysis, selective multi-agent escalation, heterogeneous model routing, execution-backed completion evidence, bounded indexing/caching, initial LSP support, task worktrees and quality measurement contracts.
+Established deterministic complexity/risk analysis, selective multi-agent escalation, heterogeneous model routing, execution-backed completion evidence, bounded indexing/caching, LSP support, task worktrees and quality measurement contracts.
 
 ## v0.5 — developer intelligence and experience
 
-v0.5 added the measured evaluation harness, persistent repository graph and full LSP lifecycle, enforced plan mode and sandbox/network policy, rich TUI, lazy Skills, and deterministic runtime Hooks.
+Added the evaluation harness, persistent repository graph and full LSP lifecycle, enforced plan mode and sandbox/network policy, rich TUI, lazy Skills, and deterministic runtime Hooks.
 
 ## v0.6 — agent platform
 
-v0.6 turned the CLI/runtime into a distributed developer-agent platform: agent teams, Playwright browser verification, capability-scoped plugins, durable jobs/schedules, OpenTelemetry/calibration, Python SDK, reviewed remote Runs and reclaimable cloud-worker leases.
+Added agent teams, Playwright browser verification, capability-scoped plugins, durable jobs/schedules, OpenTelemetry/calibration, Python SDK, reviewed remote Runs and reclaimable cloud-worker leases.
 
 ## v0.7 — efficiency and reliability
 
-v0.7 optimizes quality per token and reduces false completion with structural context compilation, bounded speculation, failure-driven escalation, verifier isolation, evidence confidence, failure memory, impact-aware verification, semantic patch scope, result deduplication, and adversarial evals.
+Added structural context compilation, bounded speculation, failure-driven escalation, verifier isolation, evidence confidence, failure memory, impact-aware verification, semantic patch scope, result deduplication and adversarial evals.
 
 ## v0.8 — autonomous engineering runtime
 
-v0.8 hardens long-running engineering work around explicit ownership and proof:
+Added unique cloud lease fencing, killable worker execution, idempotent portable Git tasks, provider-safe model/profile overrides, run-scoped proof, deterministic permissions, process-tree cancellation and conventional cron semantics.
 
-1. Fence every cloud attempt with a unique lease ID and reject stale heartbeat/state/completion writes.
-2. Run cloud agent execution in a killable child and stop it when cancellation or lease loss becomes definitive.
-3. Make cloud submission idempotent and portable across Git-backed workers without transmitting provider credentials.
-4. Honor `auto`, named profiles, and raw model overrides without leaking a base provider API key into another provider.
-5. Persist run-scoped execution proof outside the Git workspace and expose it through `jarvis proof` / `jarvis dashboard`.
-6. Apply deterministic allow/ask/deny permission boundaries while preserving existing interactive approvals.
-7. Cancel complete local process trees and use conventional UTC cron semantics including DOM/DOW OR and Sunday `0/7`.
-8. Validate the release through Core, CLI, Postgres, supply-chain/model, and cross-repository gates.
+## v0.8.1 — post-merge correctness and trust hardening
 
-## Next P0 — measured production proof
+1. Pin CLI and Server to the verified immutable Core v0.8.0 wheel.
+2. Make public Python SDK cloud APIs use the fenced/idempotent implementations.
+3. Make CLI release version inspection dependency-free.
+4. Add ordinary Postgres fencing/idempotency CI in Server and repair tagged image publication.
+5. Require explicit user-owned workspace trust before project-local executable Hooks load.
+6. Enforce MCP `requires_approval`; harden stdio concurrency/deadlock behavior, loopback URL validation and HTTP response bounds.
+7. Scrub credentials and credential-bearing URLs from agent-run command environments by default, with an explicit operator allowlist.
 
-1. Retain v0.8 cross-repository and Postgres fencing gates as required checks.
-2. Run core + adversarial benchmark corpora across Ollama and at least one configured remote provider and retain comparable baselines.
-3. Measure success, false-completion rate, latency and tokens/task with speculation/escalation on and off.
-4. Add longer-running chaos tests for network partitions, worker restarts, Server restarts, scheduler ownership, and OTLP exporter failure.
-5. Release immutable Core artifacts in dependency order and pin consumers only to released wheels/checksums.
+These v0.8.1 items remain FOUNDATION until the private CI matrix can execute.
 
-## P1 — remaining world-class gaps
+## Next P0 — production proof
 
-- TypeScript SDK parity with Python;
-- native Windows AppContainer sandboxing;
-- richer interactive dashboard panes and job attachment;
-- signed plugin publisher trust roots beyond checksum integrity;
-- multi-node queue backpressure/autoscaling policies;
-- dashboard presets for traces, route quality, cost, confidence and escalation rate.
+1. Restore executable private CI and require exact-head Python, clean-wheel, Postgres, UI, Compose, model, supply-chain and cross-repo gates.
+2. Add reproducible real-repository issue-resolution benchmarks and retain model/provider baselines.
+3. Add hostile repository/web/MCP/Skill/Hook/browser prompt-injection and secret-canary evaluations.
+4. Add long-running chaos/soak tests for network partition, worker/Server restart, lease loss, cancellation races, scheduler ownership, disk/state failure and OTLP outages.
+5. Add independently constrained per-task cloud sandboxes with CPU/RAM/PID/disk quotas and explicit egress policy for shared workloads.
+6. Add deterministic cloud environment bootstrap, caching, invalidation and dependency-network policy.
 
-## Completion gates
+## P1 — developer parity
 
-A capability advances to PRODUCTION-READY only when happy path, cancellation, timeout, malformed input, permission denial, prompt injection, compatibility and recovery are tested and documented. “World-class” remains a measured reliability and quality target, not a feature-count claim.
+- native IDE extension with selected-file context, diagnostics and local/cloud task continuity;
+- GitHub PR review workflow with line annotations and evidence-linked re-review;
+- nonblocking in-agent process start/log/stop for dev servers and long tests;
+- independent code/conversation checkpoint rewind;
+- live steering, job attachment, subagent progress and diff comments;
+- bounded direct write/edit primitives routed through approval, scope, undo and proof;
+- screenshot/DOM/network evidence attached to browser verification and review;
+- TypeScript SDK parity;
+- native Windows sandbox.
+
+## P1 — platform/enterprise parity
+
+- signed plugin publisher identities and revocation;
+- organization-enforced policy and audit export;
+- queue admission control, quotas, fairness, backpressure and autoscaling signals;
+- Slack/issue/PR event integrations with explicit identities and approvals;
+- worker/Core/CLI/Server fleet compatibility reporting;
+- retention/export policy for traces, proofs, conversations and artifacts.
+
+## Completion gate
+
+A capability advances to PRODUCTION-READY only after happy path, malformed input, cancellation, timeout, permission denial, prompt injection, compatibility, recovery and benchmark evidence are all retained. “World-class” remains a measured reliability, security and ergonomics target—not a feature-count claim.

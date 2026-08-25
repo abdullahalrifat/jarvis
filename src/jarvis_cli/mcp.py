@@ -8,9 +8,10 @@ import os
 from pathlib import Path
 import queue
 import subprocess
-from threading import Lock, Thread
+from threading import RLock, Thread
 from time import monotonic
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 try:
@@ -21,6 +22,11 @@ except ModuleNotFoundError:
 from jarvis_core import MCPServerConfig, ToolPermission
 
 from .client import APIError
+
+MAX_MCP_RESPONSE_BYTES = max(
+    65_536,
+    int(os.getenv("JARVIS_MAX_MCP_RESPONSE_BYTES", "4194304")),
+)
 
 
 class MCPClient:
@@ -38,30 +44,39 @@ class MCPClient:
         self.permissions = permissions or {}
         self._process: subprocess.Popen[str] | None = None
         self._responses: queue.Queue[dict[str, Any]] = queue.Queue()
-        self._lock = Lock()
+        self._lock = RLock()
         self._next_id = 0
         self._initialized = False
         self.last_ok: float | None = None
         atexit.register(self.close)
 
-    def start(self) -> None:
+    def _start_locked(self) -> subprocess.Popen[str]:
         if self._process and self._process.poll() is None:
-            return
-        self._process = subprocess.Popen(
+            return self._process
+        process = subprocess.Popen(
             self.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            # Never leave an unread PIPE here: a noisy MCP server can fill the
+            # OS pipe buffer and deadlock its JSON-RPC stdout path.
+            stderr=subprocess.DEVNULL,
             text=True,
             shell=False,
             bufsize=1,
         )
-        Thread(target=self._reader, daemon=True).start()
+        self._process = process
+        Thread(target=self._reader, args=(process,), daemon=True).start()
         self._initialized = False
+        return process
 
-    def _reader(self) -> None:
-        assert self._process and self._process.stdout
-        for line in self._process.stdout:
+    def start(self) -> None:
+        with self._lock:
+            self._start_locked()
+
+    def _reader(self, process: subprocess.Popen[str]) -> None:
+        if process.stdout is None:
+            return
+        for line in process.stdout:
             try:
                 item = json.loads(line)
             except json.JSONDecodeError:
@@ -70,12 +85,13 @@ class MCPClient:
                 self._responses.put(item)
 
     def _send(self, method: str, params: dict[str, Any] | None = None) -> Any:
-        self.start()
-        assert self._process and self._process.stdin
         with self._lock:
+            process = self._start_locked()
+            if process.stdin is None:
+                raise APIError("MCP process stdin is unavailable")
             self._next_id += 1
             request_id = self._next_id
-            self._process.stdin.write(
+            process.stdin.write(
                 json.dumps(
                     {
                         "jsonrpc": "2.0",
@@ -86,9 +102,9 @@ class MCPClient:
                 )
                 + "\n"
             )
-            self._process.stdin.flush()
+            process.stdin.flush()
             deadline = monotonic() + self.timeout
-            deferred = []
+            deferred: list[dict[str, Any]] = []
             try:
                 while monotonic() < deadline:
                     try:
@@ -110,25 +126,32 @@ class MCPClient:
         raise APIError(f"MCP request timed out: {method}")
 
     def initialize(self) -> None:
-        if self._initialized:
-            return
-        self._send(
-            "initialize",
-            {
-                "protocolVersion": "2026-07-28",
-                "capabilities": {},
-                "clientInfo": {"name": "jarvis", "version": "0.3"},
-            },
-        )
-        assert self._process and self._process.stdin
-        self._process.stdin.write(
-            json.dumps(
-                {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
+        with self._lock:
+            if self._initialized:
+                return
+            self._send(
+                "initialize",
+                {
+                    "protocolVersion": "2026-07-28",
+                    "capabilities": {},
+                    "clientInfo": {"name": "jarvis", "version": "0.8"},
+                },
             )
-            + "\n"
-        )
-        self._process.stdin.flush()
-        self._initialized = True
+            process = self._start_locked()
+            if process.stdin is None:
+                raise APIError("MCP process stdin is unavailable")
+            process.stdin.write(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized",
+                        "params": {},
+                    }
+                )
+                + "\n"
+            )
+            process.stdin.flush()
+            self._initialized = True
 
     def list_tools(self) -> list[dict[str, Any]]:
         self.initialize()
@@ -142,16 +165,25 @@ class MCPClient:
         return self._send("tools/call", {"name": name, "arguments": arguments})
 
     def health(self) -> dict[str, Any]:
-        running = self._process is not None and self._process.poll() is None
-        return {"running": running, "last_ok": self.last_ok, "command": self.command}
+        with self._lock:
+            running = self._process is not None and self._process.poll() is None
+        return {
+            "running": running,
+            "last_ok": self.last_ok,
+            "command": self.command,
+        }
 
     def close(self) -> None:
-        if self._process and self._process.poll() is None:
-            self._process.terminate()
+        with self._lock:
+            process = self._process
+            self._process = None
+            self._initialized = False
+        if process and process.poll() is None:
+            process.terminate()
             try:
-                self._process.wait(timeout=2)
+                process.wait(timeout=2)
             except subprocess.TimeoutExpired:
-                self._process.kill()
+                process.kill()
 
 
 class HTTPMCPClient:
@@ -163,38 +195,67 @@ class HTTPMCPClient:
         timeout: float = 30,
         permissions: dict[str, ToolPermission] | None = None,
     ) -> None:
-        if not endpoint.startswith(
-            ("https://", "http://127.0.0.1", "http://localhost")
-        ):
-            raise ValueError("remote MCP endpoints must use HTTPS")
+        parsed = urlparse(endpoint)
+        host = (parsed.hostname or "").casefold()
+        local_http = parsed.scheme == "http" and host in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }
+        if parsed.scheme != "https" and not local_http:
+            raise ValueError(
+                "remote MCP endpoints must use HTTPS; plain HTTP is limited "
+                "to exact loopback hosts"
+            )
+        if not host or parsed.username or parsed.password or parsed.fragment:
+            raise ValueError("MCP endpoint URL contains unsafe authority data")
         self.endpoint = endpoint
         self.token = token
         self.timeout = timeout
         self.permissions = permissions or {}
         self._next_id = 0
+        self._lock = RLock()
         self.last_ok: float | None = None
 
     def _send(self, method: str, params: dict[str, Any] | None = None) -> Any:
-        self._next_id += 1
-        body = json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "id": self._next_id,
-                "method": method,
-                "params": params or {},
+        with self._lock:
+            self._next_id += 1
+            request_id = self._next_id
+            body = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": method,
+                    "params": params or {},
+                }
+            ).encode()
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
             }
-        ).encode()
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        with urlopen(
-            Request(self.endpoint, body, headers), timeout=self.timeout
-        ) as response:
-            payload = json.loads(response.read())
-        if "error" in payload:
-            raise APIError(f"MCP error: {payload['error']}")
-        self.last_ok = monotonic()
-        return payload.get("result")
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+            with urlopen(
+                Request(self.endpoint, body, headers), timeout=self.timeout
+            ) as response:
+                raw = response.read(MAX_MCP_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_MCP_RESPONSE_BYTES:
+                raise APIError(
+                    "MCP HTTP response exceeded the configured "
+                    f"{MAX_MCP_RESPONSE_BYTES}-byte safety limit"
+                )
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise APIError("MCP endpoint returned invalid JSON") from exc
+            if not isinstance(payload, dict):
+                raise APIError("MCP endpoint returned a non-object JSON response")
+            if payload.get("id") not in {None, request_id}:
+                raise APIError("MCP endpoint returned a mismatched JSON-RPC id")
+            if "error" in payload:
+                raise APIError(f"MCP error: {payload['error']}")
+            self.last_ok = monotonic()
+            return payload.get("result")
 
     def list_tools(self) -> list[dict[str, Any]]:
         return list((self._send("tools/list") or {}).get("tools") or [])
@@ -206,7 +267,11 @@ class HTTPMCPClient:
         return self._send("tools/call", {"name": name, "arguments": arguments})
 
     def health(self) -> dict[str, Any]:
-        return {"running": True, "last_ok": self.last_ok, "endpoint": self.endpoint}
+        return {
+            "running": True,
+            "last_ok": self.last_ok,
+            "endpoint": self.endpoint,
+        }
 
 
 def default_mcp_config_path() -> Path:

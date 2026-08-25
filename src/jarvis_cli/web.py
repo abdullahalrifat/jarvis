@@ -9,7 +9,7 @@ import socket
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from jarvis_core import citation_context, normalize_search_results
 
@@ -41,6 +41,8 @@ def _public_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise APIError("Only public HTTP(S) URLs may be fetched.")
+    if parsed.username or parsed.password:
+        raise APIError("Web fetch refused URL-embedded credentials.")
     try:
         addresses = {
             item[4][0]
@@ -58,6 +60,18 @@ def _public_url(url: str) -> str:
     return url
 
 
+class _PublicRedirectHandler(HTTPRedirectHandler):
+    """Validate redirect destinations before urllib sends the next request."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        validated = _public_url(str(newurl))
+        return super().redirect_request(req, fp, code, msg, headers, validated)
+
+
+def _safe_urlopen(request: Request, *, timeout: float):
+    return build_opener(_PublicRedirectHandler()).open(request, timeout=timeout)
+
+
 def search_web(query: str, *, limit: int = 8, opener=urlopen) -> dict[str, Any]:
     endpoint = os.getenv("JARVIS_SEARCH_URL", "").rstrip("/")
     if not endpoint:
@@ -68,7 +82,7 @@ def search_web(query: str, *, limit: int = 8, opener=urlopen) -> dict[str, Any]:
     params = urlencode({"q": query, "format": "json", "safesearch": 1})
     request = Request(
         f"{endpoint}/search?{params}",
-        headers={"Accept": "application/json", "User-Agent": "Jarvis/0.1"},
+        headers={"Accept": "application/json", "User-Agent": "Jarvis/0.8"},
     )
     try:
         with opener(request, timeout=20) as response:
@@ -81,6 +95,8 @@ def search_web(query: str, *, limit: int = 8, opener=urlopen) -> dict[str, Any]:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise APIError("Search endpoint did not return SearXNG JSON.") from exc
+    if not isinstance(payload, dict):
+        raise APIError("Search endpoint returned a non-object JSON response.")
     results = normalize_search_results(payload.get("results", []), limit=limit)
     return {
         "query": query,
@@ -89,16 +105,24 @@ def search_web(query: str, *, limit: int = 8, opener=urlopen) -> dict[str, Any]:
     }
 
 
-def fetch_web(url: str, *, max_chars: int = 30_000, opener=urlopen) -> dict[str, Any]:
+def fetch_web(
+    url: str,
+    *,
+    max_chars: int = 30_000,
+    opener=None,
+) -> dict[str, Any]:
     request = Request(
         _public_url(url),
-        headers={"Accept": "text/html,text/plain", "User-Agent": "Jarvis/0.1"},
+        headers={"Accept": "text/html,text/plain", "User-Agent": "Jarvis/0.8"},
     )
+    open_request = opener or _safe_urlopen
     try:
-        with opener(request, timeout=20) as response:
+        with open_request(request, timeout=20) as response:
             content_type = str(response.headers.get("Content-Type", ""))
             raw = response.read(MAX_WEB_BYTES + 1)
             final_url = _public_url(str(response.geturl()))
+    except APIError:
+        raise
     except OSError as exc:
         raise APIError(f"Web fetch failed: {exc}") from exc
     if len(raw) > MAX_WEB_BYTES:

@@ -8,8 +8,10 @@ from .browser_agent import install_browser_tools
 from .efficiency_runtime import install_efficiency_runtime
 from .escalation_v07 import install_failure_escalation
 from .evidence_v07 import install_evidence_v07
+from .mcp_policy_runtime import install_mcp_policy_runtime
 from .observability import Telemetry, install_calibrated_routing
 from .patch_guard_v07 import install_patch_guard
+from .process_policy_runtime import install_process_policy_runtime
 from .proof_runtime import install_proof_runtime
 from .routing_v07 import install_v07_routing
 from .runtime_hooks import install_runtime_hooks
@@ -31,6 +33,8 @@ def install_platform_runtime() -> None:
     install_patch_guard()
     install_evidence_v07()
     install_failure_escalation()
+    install_process_policy_runtime()
+    install_mcp_policy_runtime()
 
     from . import local_agent
 
@@ -44,7 +48,7 @@ def install_platform_runtime() -> None:
                 "jarvis.tool",
                 tool=name,
                 workspace=str(self.root),
-                mutating=name in {"apply_patch", "run_command"},
+                mutating=name in {"apply_patch", "run_command", "mcp_call"},
             ):
                 return super().execute(name, arguments)
 

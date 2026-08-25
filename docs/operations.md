@@ -1,63 +1,82 @@
 # Local operations
 
-## Session records
+## Sessions and protocol-safe continuation
 
-Every local run creates a SQLite record under
-`${XDG_STATE_HOME:-~/.local/state}/jarvis/sessions.sqlite3`. Override the path
-with `JARVIS_SESSION_DB`.
+Local runs persist under `${XDG_STATE_HOME:-~/.local/state}/jarvis/sessions.sqlite3` unless `JARVIS_SESSION_DB` overrides the path.
 
 ```bash
 jarvis sessions
 jarvis session-show SESSION_ID
+jarvis session-resume SESSION_ID
+jarvis session-fork SESSION_ID --name experiment
+jarvis session-rename SESSION_ID "release investigation"
+jarvis session-archive SESSION_ID
 ```
 
-Records contain workspace, task, status, model, result, and trace path. They are
-inspectable run records; they do not yet resume the complete transcript into a
-new local agent turn.
+Session checkpoints preserve the canonical model/tool transcript and provider conversion keeps tool-call identifiers valid when resuming or switching supported providers. Session continuation is still different from an independent code+conversation time-travel checkpoint system; that remains a roadmap gap.
 
-## Redacted traces
+## Traces and execution proof
 
-Local runs write JSONL events under the Jarvis state directory. Secret-shaped
-fields such as tokens, passwords, cookies, and authorization values are
-redacted.
+Local runs emit redacted JSONL telemetry and v0.8 proof records outside the workspace.
 
 ```bash
 jarvis trace PATH
+jarvis proof --workspace .
+jarvis dashboard --workspace . --watch
 ```
 
-Redaction is defense in depth. Do not place secrets in prompts, filenames, or
-ordinary values and assume every possible secret pattern will be recognized.
+Proof covers routes, permission decisions, approvals, tools/tests, failures and completion without persisting model chain-of-thought. Secret redaction is defense in depth; do not intentionally place secrets in prompts or repository content.
 
-## Repository map and attachments
+## Workspace trust
 
-`jarvis repo-map` stores a compact symbol/hash map for context selection.
-`jarvis local --file PATH TASK` adds an explicit bounded text attachment.
-Attachment content is untrusted. Image, PDF, directory, and glob attachments
-are not yet supported by the standalone CLI.
+A repository is untrusted by default. Project-local executable Hooks are disabled until the exact workspace is explicitly trusted:
 
-## Undo
-
-`jarvis undo` reverses the last patch recorded by the local Git-backed patch
-transaction. Review the diff first. It is not yet a general multi-run undo
-ledger and does not reverse arbitrary commands or external effects.
-
-## Evaluations
-
-Evaluation files are JSON arrays, or an object with a `cases` array:
-
-```json
-{
-  "cases": [
-    {
-      "name": "cites-source",
-      "task": "answer with a source URL",
-      "expected_contains": ["https://"],
-      "forbidden_contains": ["I cannot"]
-    }
-  ]
-}
+```bash
+jarvis trust --workspace . --status
+jarvis trust --workspace .
+jarvis trust --workspace . --revoke
 ```
 
-Run `jarvis eval evals/smoke.json`. The current scorer checks required and
-forbidden text. It is useful for deterministic smoke tests, but it is not yet a
-full model judge, coding benchmark, latency/cost harness, or A/B optimizer.
+The trust registry lives under the user configuration directory. Trust only repositories you have reviewed: trust allows executable project Hook configuration, which is intentionally a stronger permission than approving an individual edit.
+
+## Command environment and sandbox
+
+Agent-run `run_command` processes are shell-free, command-allowlisted and passed through the configured OS sandbox. Credential-like environment variables and credential-bearing URLs are removed from child environments by default.
+
+If a trusted test/build genuinely requires one:
+
+```bash
+export JARVIS_COMMAND_ENV_ALLOW=PRIVATE_PACKAGE_TOKEN
+```
+
+Avoid broad allowlists. Repository code can print an allowed secret into model context.
+
+Default network policy is deny. If the platform cannot enforce a configured deny/allowlist sandbox, Jarvis fails closed unless the operator explicitly chooses permissive/off mode. See the security notes in [world-class-readiness.md](world-class-readiness.md).
+
+## Repository intelligence and attachments
+
+`jarvis repo-map` builds bounded repository intelligence backed by persistent graph/index data and LSP where a supported language server is available. The LSP layer supports persistent document lifecycle, symbols, definitions/references, hover, implementations/type definitions, rename/code actions, formatting/signature help and diagnostics.
+
+Explicit attachments support bounded text/PDF/image context; image content is emitted as native provider image parts rather than base64 prompt text.
+
+## Review and undo
+
+Jarvis validates patches before applying them and supports review/undo flows around recorded changes. Per-hunk review and patch-scope verification reduce broad edits.
+
+`jarvis undo` is not a universal rollback for arbitrary shell commands, network side effects or external systems. A richer independent code/conversation checkpoint rewind remains on the roadmap.
+
+## Background jobs and schedules
+
+Jarvis provides durable local jobs and standard five-field UTC cron scheduling. Cancellation terminates the spawned process tree. This is useful for unattended CLI automation.
+
+It is **not yet** a first-class model tool for starting a dev server or long-running test in the background while the same reasoning loop continues; that is tracked as a developer-experience parity gap.
+
+## Evaluations and measured routing
+
+The evaluation system includes versioned fixtures/corpora, adversarial cases, route observations and empirical calibration. Use the repository eval commands and `jarvis optimize ...` diagnostics to inspect measured routing behavior.
+
+For a production/world-class claim, synthetic cases are insufficient. The project still needs retained real-repository issue-resolution baselines, prompt-injection/secret-canary red-team suites and long-running chaos/soak measurements. See [world-class-readiness.md](world-class-readiness.md).
+
+## MCP operations
+
+Configured MCP integrations are persistent and deny-by-default. Tool policy can require approval even when a tool is allowed. HTTP response size and endpoint scheme/host validation are bounded in v0.8.1. See [mcp.md](mcp.md).
