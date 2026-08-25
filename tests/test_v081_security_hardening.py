@@ -66,7 +66,10 @@ def test_trust_registry_is_user_owned_and_atomic(tmp_path, monkeypatch):
     workspace.mkdir()
     target = trust_workspace(workspace)
     payload = json.loads(target.read_text(encoding="utf-8"))
-    assert str(workspace.resolve()) in payload["workspaces"]
+    assert payload["version"] == 2
+    assert payload["workspaces"][0]["path"] == str(workspace.resolve())
+    assert len(payload["workspaces"][0]["repository_fingerprint"]) == 64
+    assert len(payload["workspaces"][0]["executable_config_digest"]) == 64
     assert not target.with_suffix(target.suffix + ".tmp").exists()
 
 
@@ -155,3 +158,32 @@ def test_web_redirect_is_validated_before_following(monkeypatch):
             {},
             "http://metadata.example/latest/meta-data",
         )
+
+
+
+def test_workspace_trust_invalidates_when_executable_config_changes(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    _project_hook(workspace)
+    trust_workspace(workspace)
+    assert is_workspace_trusted(workspace)
+
+    (workspace / ".jarvis" / "hooks.toml").write_text(
+        '[[hook]]\nevent="SessionEnd"\ncommand=["python", "-c", "print(2)"]\n',
+        encoding="utf-8",
+    )
+    assert not is_workspace_trusted(workspace)
+    assert HookRegistry(workspace).hooks == []
+
+
+def test_purpose_specific_environment_allowlist(monkeypatch):
+    monkeypatch.setenv("HOOK_API_KEY", "required")
+    monkeypatch.setenv("OTHER_API_KEY", "secret")
+    monkeypatch.setenv("JARVIS_HOOK_ENV_ALLOW", "HOOK_API_KEY")
+    env = sanitized_subprocess_env("JARVIS_HOOK_ENV_ALLOW")
+    assert env["HOOK_API_KEY"] == "required"
+    assert "OTHER_API_KEY" not in env
+    assert "JARVIS_HOOK_ENV_ALLOW" not in env
