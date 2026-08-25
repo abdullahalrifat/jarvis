@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 import multiprocessing as mp
 import os
@@ -231,6 +232,53 @@ class FencedCloudWorker(LegacyCloudWorker):
             payload["local_execution"] = local_proof
         return payload
 
+
+    @staticmethod
+    def _completion_proof(
+        *,
+        task_id: str,
+        lease_id: str,
+        attempt: int,
+        prepared: _PreparedWorkspace,
+        workspace_result: dict[str, Any],
+        local,
+        local_proof: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Build the versioned proof envelope accepted by the Server gate."""
+
+        if not local_proof:
+            raise APIError("successful cloud completion requires local execution proof")
+        canonical_local = json.dumps(
+            local_proof, sort_keys=True, separators=(",", ":"), default=str
+        ).encode()
+        source = json.dumps(
+            prepared.source, sort_keys=True, separators=(",", ":"), default=str
+        ).encode()
+        diff = str(workspace_result.get("diff") or "")
+        artifacts = {}
+        if diff:
+            artifacts["workspace.diff"] = hashlib.sha256(diff.encode()).hexdigest()
+        return {
+            "schema_version": 1,
+            "task_id": task_id,
+            "lease_id": lease_id,
+            "attempt": max(1, int(attempt)),
+            "workspace_digest": hashlib.sha256(source).hexdigest(),
+            "route": str(local.config.provider),
+            "model": str(local.config.model),
+            "mutation_digest": hashlib.sha256(diff.encode()).hexdigest(),
+            "verifications": [
+                {
+                    "command": "jarvis local execution proof",
+                    "status": "passed",
+                    "exit_code": 0,
+                    "output_digest": hashlib.sha256(canonical_local).hexdigest(),
+                }
+            ],
+            "artifact_hashes": artifacts,
+        }
+
+
     @staticmethod
     def _load_local_proof(workspace: str) -> dict[str, Any] | None:
         target = proof_path(workspace)
@@ -361,6 +409,15 @@ class FencedCloudWorker(LegacyCloudWorker):
                 "uploading_result",
                 self._proof(records, local_proof),
             )
+            completion_proof = self._completion_proof(
+                task_id=task_id,
+                lease_id=lease_id,
+                attempt=int(task.get("attempts") or 1),
+                prepared=prepared,
+                workspace_result=workspace_result,
+                local=local,
+                local_proof=local_proof,
+            )
             response = self.client.request(
                 "POST",
                 f"/platform/cloud/tasks/{task_id}/complete",
@@ -372,7 +429,7 @@ class FencedCloudWorker(LegacyCloudWorker):
                         "result": result.result,
                         "workspace": workspace_result,
                     },
-                    "proof": self._proof(records, local_proof),
+                    "proof": completion_proof,
                 },
             )
             if response.get("ok") is not True:
@@ -383,7 +440,7 @@ class FencedCloudWorker(LegacyCloudWorker):
                 run_id=result.run_id,
                 raw={
                     "workspace": workspace_result,
-                    "proof": self._proof(records, local_proof),
+                    "proof": completion_proof,
                 },
             )
         except BaseException as exc:
