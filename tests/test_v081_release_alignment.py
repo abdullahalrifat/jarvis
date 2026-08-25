@@ -23,9 +23,7 @@ def test_package_and_ci_pin_same_immutable_core_contract():
 
 
 def test_release_version_check_does_not_import_runtime_dependencies():
-    workflow = (REPO_ROOT / ".github/workflows/release.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (REPO_ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "ast.parse" in workflow
     assert "import jarvis_cli" not in workflow
 
