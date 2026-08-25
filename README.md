@@ -36,13 +36,11 @@ pipx install .
 jarvis --version
 ```
 
-The package metadata pins the exact Core 0.2.0 release artifact. Pip downloads
-that public wheel automatically and verifies its SHA-256 during installation.
-
-Jarvis installs the separately released
-[jarvis-agent-core v0.2.0](https://github.com/abdullahalrifat/jarvis-core/releases/tag/v0.2.0)
-wheel directly from GitHub with a verified SHA-256. A clean `pipx install .`
-therefore does not depend on PyPI or require a separate Core bootstrap step.
+The package metadata pins the separately released
+[jarvis-agent-core v0.8.0](https://github.com/abdullahalrifat/jarvis-core/releases/tag/v0.8.0)
+wheel and its SHA-256. A clean `pipx install .` downloads that immutable public
+artifact directly from GitHub; it does not require PyPI or a separate Core
+bootstrap step.
 
 ## Connect a model
 
@@ -146,29 +144,36 @@ cancellation, reviewable sandbox changes, stdin, and text/JSON/JSONL output.
 
 ## Capability boundary
 
-Implemented now:
+Integrated in v0.8:
 
-- standalone bounded agent loop with guarded repository tools;
-- remote or local open-model inference and capability-aware profiles;
-- token budgets, context compaction, artifacts, and selective multi-agent mode;
-- web evidence with citations and SSRF/prompt-injection boundaries;
-- local session records, redacted traces, repository maps, attachments, undo,
-  MCP foundations, and replayable evaluation cases;
-- explicit durable Server mode.
+- standalone OpenAI-compatible and Anthropic tool loops with provider-specific
+  credentials, health-aware fallback, token budgets, and context compaction;
+- canonical resumable transcripts, searchable/forkable sessions, redacted
+  traces, repository maps, persistent LSP, structural context, and evaluations;
+- text, image, PDF, and clipboard attachments with native provider message
+  construction;
+- guarded patches, per-hunk review, transactional undo, enforced plan mode,
+  fail-closed OS/network sandboxing, hierarchical instructions, memory, Skills,
+  Hooks, and deny-by-default MCP policy;
+- adaptive multi-agent execution, heterogeneous role/model routing, isolated
+  verification, evidence confidence, failure-driven escalation, impact-aware
+  testing, patch-scope guards, and tool-result deduplication;
+- agent teams, browser verification, capability-scoped plugins, background
+  jobs, standard cron scheduling, OpenTelemetry, empirical route calibration,
+  Python SDK, portable cloud workspaces, lease-fenced workers, idempotent cloud
+  tasks, deterministic permissions, proof ledger, and autonomous dashboard.
 
-Not yet complete:
+Still requiring production proof or future implementation:
 
-- resuming a local transcript into a continued agent conversation;
-- session rename, fork, archive, delete, and interactive search;
-- image/PDF attachments and multimodal tool flow;
-- per-file/per-hunk diff approval and a complete undo ledger;
-- full MCP lifecycle/configuration, hooks, and signed plugins;
-- hierarchical instruction/memory policy and OS keyring integration;
-- provider failover/circuit breakers and benchmark-driven route optimization;
-- signed standalone binaries, secure updater, SBOM, and OS sandbox profiles.
+- retained adversarial benchmarks across local and remote providers, including
+  measured false-completion, latency, token, and regression baselines;
+- longer chaos tests for partitions, worker/server restarts, lease reclaim,
+  scheduler ownership, cancellation, and telemetry-export failure;
+- TypeScript SDK parity, signed plugin publisher trust roots, richer interactive
+  dashboard/job attachment, and native Windows AppContainer isolation.
 
-See [ROADMAP.md](ROADMAP.md). “Claude-like” means dependable comparable
-outcomes, not copying another product or requiring a paid provider.
+See [ROADMAP.md](ROADMAP.md). Capability maturity is evidence-based:
+`INTEGRATED` does not mean universally production-proven.
 
 ## Development
 
@@ -188,53 +193,19 @@ versioned Server protocol contract without sharing tool implementations or
 storage policy.
 
 
-## World-class runtime (0.3 preview)
+## v0.8 security and reliability
 
-The coordinated 0.3 release adds durable session continuation, provider fallback and circuit breaking, evidence contracts, transactional hunk review, benchmark-calibrated model routing, multimodal attachments, persistent policy-controlled MCP, hierarchical instructions and expiring memory, and hardened standalone distribution.
-
-Common workflows:
-
-```bash
-jarvis sessions
-jarvis session-resume SESSION_ID
-jarvis session-fork SESSION_ID --name experiment
-jarvis session-rename SESSION_ID "release investigation"
-jarvis session-archive SESSION_ID
-jarvis local --file report.pdf --file "screenshots/*.png" "verify the findings"
-jarvis self-update
-```
-
-Security defaults are deliberate: MCP tools require explicit permission, secrets use the operating-system keyring when persistence is requested, self-update verifies SHA-256 checksums, and supported platform sandboxes can disable network access for commands. The temporary Core dependency is pinned to an immutable public commit while 0.3 is under review; it will be replaced with the signed 0.3 release wheel before this feature set is marked stable.
-
-
-## Runtime hardening in 0.3.1
-
-Local sessions checkpoint the complete canonical transcript after every model
-and tool turn. Resuming preserves tool-call IDs and converts the transcript to
-the selected provider, so a session can safely continue after a tool call or
-switch between OpenAI-compatible and Anthropic profiles.
-
-Each fallback profile may set its own credential source:
-
-```toml
-[models.local]
-provider = "openai"
-model = "coder"
-base_url = "http://127.0.0.1:4000/v1"
-api_key_env = "LOCAL_LITELLM_KEY"
-
-[models.claude]
-provider = "anthropic"
-model = "claude-sonnet-4-5"
-base_url = "https://api.anthropic.com"
-api_key_env = "ANTHROPIC_API_KEY"
-```
-
-Image attachments are sent as native OpenAI image URL parts or Anthropic base64
-image blocks; they are no longer exposed to the model as base64 text. PDF text
-extraction remains available through the `multimodal` extra.
+Local sessions checkpoint the canonical transcript after model and tool turns,
+preserving tool-call identifiers across resume and provider conversion. Every
+fallback profile resolves its own credential source.
 
 MCP configuration lives at `~/.config/jarvis/mcp.toml` (or
-`JARVIS_MCP_CONFIG`). Clients are cached for the process lifetime and every
-tool is denied unless its policy explicitly sets `allow = true`. Remote MCP
-endpoints require HTTPS except for localhost.
+`JARVIS_MCP_CONFIG`). Tools are denied unless explicitly allowed. Project Hooks
+run only in trusted workspaces. Image attachments use native OpenAI or Anthropic
+content blocks, and supported OS sandboxes fail closed when configured network
+policy cannot be enforced.
+
+Autonomous and remote execution uses fenced leases, idempotent submissions,
+killable process trees, deterministic allow/ask/deny decisions, and a durable
+execution-proof ledger. Refer to [ROADMAP.md](ROADMAP.md) for the remaining
+measured production gates.
