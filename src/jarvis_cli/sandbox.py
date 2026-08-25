@@ -15,6 +15,8 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from .enterprise_policy import load_enterprise_policy
+
 
 @dataclass(frozen=True)
 class SandboxPolicy:
@@ -38,17 +40,37 @@ class SandboxPolicy:
         network_mode = os.getenv(
             "JARVIS_NETWORK", str(network.get("mode", "deny"))
         ).lower()
-        hosts = network.get("allow", [])
+        hosts = {
+            str(host).casefold().rstrip(".")
+            for host in network.get("allow", [])
+            if str(host).strip()
+        }
         if mode not in {"auto", "required", "off", "permissive", "false", "0"}:
             raise ValueError("sandbox mode must be auto, required, permissive, or off")
         if network_mode not in {"deny", "allow", "allowlist"}:
             raise ValueError("sandbox network mode must be deny, allow, or allowlist")
+
+        enterprise = load_enterprise_policy()
+        admin_hosts = set(enterprise.allowed_network_hosts)
+        if admin_hosts:
+            # Administrator hosts are a ceiling, never an implicit grant. Project
+            # allowlists must opt into a subset; unrestricted network=allow is
+            # narrowed to the administrator allowlist.
+            if network_mode == "allow":
+                network_mode = "allowlist"
+                hosts = set(admin_hosts)
+            elif network_mode == "allowlist":
+                hosts = {
+                    host
+                    for host in hosts
+                    if host in admin_hosts
+                    or any(host.endswith("." + allowed) for allowed in admin_hosts)
+                }
+
         return cls(
             mode=mode,
             network=network_mode,
-            allowed_hosts=tuple(
-                str(host).casefold() for host in hosts if str(host).strip()
-            ),
+            allowed_hosts=tuple(sorted(hosts)),
             readonly_paths=tuple(
                 str(item) for item in filesystem.get("readonly", [])
             ),
@@ -64,7 +86,7 @@ class SandboxPolicy:
             for match in re.findall(r"https?://[^\s'\"]+", value):
                 host = urlparse(match).hostname
                 if host:
-                    hosts.add(host.casefold())
+                    hosts.add(host.casefold().rstrip("."))
         if not hosts or self.network == "allow":
             return
         if self.network == "deny":
@@ -81,7 +103,9 @@ class SandboxPolicy:
             )
 
 
-def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+def _linux_bwrap(
+    policy: SandboxPolicy, root: str, argv: list[str]
+) -> list[str] | None:
     if not shutil.which("bwrap"):
         return None
     command = [
@@ -134,7 +158,9 @@ def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str]
     return [*command, *argv]
 
 
-def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+def _macos_sandbox(
+    policy: SandboxPolicy, root: str, argv: list[str]
+) -> list[str] | None:
     if not shutil.which("sandbox-exec"):
         return None
     network_rule = (
@@ -151,15 +177,7 @@ def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[st
 def _windows_appcontainer(
     policy: SandboxPolicy, root: str, argv: list[str]
 ) -> list[str] | None:
-    # An AppContainer without capabilities has no internet/client network
-    # capability and can be granted workspace-only write access by the launcher.
-    # Host allowlists require an external proxy/firewall and therefore fail
-    # closed rather than pretending AppContainer can express DNS allowlists.
-    if policy.network == "allowlist":
-        return None
-    if policy.network == "allow":
-        # We currently do not grant internetClient. Falling back to no sandbox in
-        # auto mode is honest; required mode will fail closed below.
+    if policy.network in {"allowlist", "allow"}:
         return None
     from .windows_appcontainer import wrapper_command
 
@@ -169,11 +187,7 @@ def _windows_appcontainer(
 def sandbox_command(
     argv: list[str], workspace: str | Path, *, purpose: str = "command"
 ) -> list[str]:
-    """Return an OS-isolated command or fail closed for unenforceable policy.
-
-    ``mode=off``/``permissive`` is an explicit unsafe escape hatch. In default
-    auto mode, deny-network commands use a native sandbox when available.
-    """
+    """Return an OS-isolated command or fail closed for unenforceable policy."""
     policy = SandboxPolicy.load(workspace)
     policy.validate_network_args(argv)
     if policy.mode in {"off", "false", "0", "permissive"}:
