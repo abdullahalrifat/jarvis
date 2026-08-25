@@ -5,7 +5,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-
 FILES = {
     "README.md": """# Jarvis benchmark service
 
@@ -116,15 +115,37 @@ def create_core_fixture(root: str | Path) -> Path:
     )
     try:
         subprocess.run(["git", "init", "-q"], cwd=target, check=False, timeout=10)
-        subprocess.run(["git", "config", "user.email", "jarvis@example.invalid"], cwd=target, check=False, timeout=10)
-        subprocess.run(["git", "config", "user.name", "Jarvis Benchmark"], cwd=target, check=False, timeout=10)
+        subprocess.run(
+            ["git", "config", "user.email", "jarvis@example.invalid"],
+            cwd=target,
+            check=False,
+            timeout=10,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Jarvis Benchmark"],
+            cwd=target,
+            check=False,
+            timeout=10,
+        )
         subprocess.run(["git", "add", "."], cwd=target, check=False, timeout=10)
-        subprocess.run(["git", "commit", "-qm", "seed benchmark fixture"], cwd=target, check=False, timeout=10)
+        subprocess.run(
+            ["git", "commit", "-qm", "seed benchmark fixture"],
+            cwd=target,
+            check=False,
+            timeout=10,
+        )
         # Create a small history signal for auth.py.
         with (target / "src/auth.py").open("a", encoding="utf-8") as handle:
             handle.write("\n# benchmark history touch\n")
-        subprocess.run(["git", "add", "src/auth.py"], cwd=target, check=False, timeout=10)
-        subprocess.run(["git", "commit", "-qm", "touch auth flow"], cwd=target, check=False, timeout=10)
+        subprocess.run(
+            ["git", "add", "src/auth.py"], cwd=target, check=False, timeout=10
+        )
+        subprocess.run(
+            ["git", "commit", "-qm", "touch auth flow"],
+            cwd=target,
+            check=False,
+            timeout=10,
+        )
     except (OSError, subprocess.TimeoutExpired):
         pass
     return target

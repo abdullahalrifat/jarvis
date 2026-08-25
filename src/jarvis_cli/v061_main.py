@@ -15,7 +15,9 @@ def _plugin_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis plugin")
     subs = parser.add_subparsers(dest="action", required=True)
     subs.add_parser("commands", help="List executable commands from installed plugins")
-    run = subs.add_parser("run", help="Run an installed plugin command through Jarvis sandbox policy")
+    run = subs.add_parser(
+        "run", help="Run an installed plugin command through Jarvis sandbox policy"
+    )
     run.add_argument("plugin")
     run.add_argument("command")
     run.add_argument("--workspace", default=".")
@@ -43,7 +45,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(json.dumps(result, indent=2, ensure_ascii=False))
             return 0 if int(result.get("returncode", 1)) == 0 else 2
-        except (APIError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
+        except (
+            APIError,
+            OSError,
+            PermissionError,
+            RuntimeError,
+            TimeoutError,
+            ValueError,
+        ) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 

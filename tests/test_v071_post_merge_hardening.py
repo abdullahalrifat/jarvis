@@ -62,7 +62,9 @@ def test_due_schedule_is_claimed_once_across_competing_workers(tmp_path):
     store = JobStore(path)
     schedule_id = store.add_schedule("health", ["local", "health"], interval_seconds=60)
     with store._connect() as db:
-        db.execute("UPDATE schedules SET next_run=? WHERE id=?", (time.time() - 1, schedule_id))
+        db.execute(
+            "UPDATE schedules SET next_run=? WHERE id=?", (time.time() - 1, schedule_id)
+        )
 
     created: list[str] = []
 
@@ -123,7 +125,9 @@ def test_team_dependencies_inherit_integrated_code_and_results(tmp_path):
     assert observations["base"] == board.tasks["a"].integrated_commit
 
 
-def test_default_network_deny_fails_closed_without_native_sandbox(monkeypatch, tmp_path):
+def test_default_network_deny_fails_closed_without_native_sandbox(
+    monkeypatch, tmp_path
+):
     monkeypatch.setattr("jarvis_cli.sandbox.platform.system", lambda: "Windows")
     monkeypatch.delenv("JARVIS_SANDBOX", raising=False)
     monkeypatch.delenv("JARVIS_NETWORK", raising=False)

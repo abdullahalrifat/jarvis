@@ -22,20 +22,32 @@ def install_runtime_hooks() -> None:
 
     class HookedLocalTools(BaseTools):
         def __init__(self, config, approval=None, artifact_resolver=None):
-            super().__init__(config, approval=approval, artifact_resolver=artifact_resolver)
+            super().__init__(
+                config, approval=approval, artifact_resolver=artifact_resolver
+            )
             self._hooks = HookRegistry(config.workspace)
 
         def execute(self, name: str, arguments: dict[str, Any]) -> str:
-            payload = {"tool": name, "arguments": arguments, "workspace": str(self.root)}
+            payload = {
+                "tool": name,
+                "arguments": arguments,
+                "workspace": str(self.root),
+            }
             context = self._hooks.enforce("PreTool", payload, tool=name)
             if name in _MUTATING_TOOLS:
                 self._hooks.enforce("PreMutation", payload, tool=name)
             try:
                 result = super().execute(name, arguments)
             except Exception as exc:
-                self._hooks.run("ToolFailure", {**payload, "error": str(exc)}, tool=name)
+                self._hooks.run(
+                    "ToolFailure", {**payload, "error": str(exc)}, tool=name
+                )
                 raise
-            post_payload = {**payload, "result": result[:20_000], "hook_context": context}
+            post_payload = {
+                **payload,
+                "result": result[:20_000],
+                "hook_context": context,
+            }
             self._hooks.enforce("PostTool", post_payload, tool=name)
             if name in _MUTATING_TOOLS:
                 self._hooks.enforce("PostMutation", post_payload, tool=name)
@@ -57,7 +69,11 @@ def install_runtime_hooks() -> None:
             if context:
                 copied = [dict(message) for message in messages]
                 injected = "Hook-provided trusted runtime context:\n" + context
-                if copied and copied[0].get("role") == "system" and isinstance(copied[0].get("content"), str):
+                if (
+                    copied
+                    and copied[0].get("role") == "system"
+                    and isinstance(copied[0].get("content"), str)
+                ):
                     copied[0]["content"] = str(copied[0]["content"]) + "\n\n" + injected
                 else:
                     copied.insert(0, {"role": "system", "content": injected})

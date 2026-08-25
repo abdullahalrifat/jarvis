@@ -45,7 +45,10 @@ def _category(task: str) -> str:
     text = task.casefold()
     if any(word in text for word in ("bug", "fix", "error", "broken", "regression")):
         return "bugfix"
-    if any(word in text for word in ("security", "auth", "permission", "secret", "vulnerability")):
+    if any(
+        word in text
+        for word in ("security", "auth", "permission", "secret", "vulnerability")
+    ):
         return "security"
     if any(word in text for word in ("refactor", "cleanup", "simplify")):
         return "refactor"
@@ -70,8 +73,22 @@ def _git(workspace: Path, *args: str, timeout: float = 5.0) -> str:
 
 
 def _task_terms(task: str) -> list[str]:
-    stop = {"this", "that", "with", "from", "into", "make", "implement", "please", "code", "file", "agent"}
-    return [word.casefold() for word in _WORD.findall(task) if word.casefold() not in stop][:40]
+    stop = {
+        "this",
+        "that",
+        "with",
+        "from",
+        "into",
+        "make",
+        "implement",
+        "please",
+        "code",
+        "file",
+        "agent",
+    }
+    return [
+        word.casefold() for word in _WORD.findall(task) if word.casefold() not in stop
+    ][:40]
 
 
 def compile_task_context(task: str, workspace: Path, max_chars: int = 12000) -> str:
@@ -110,7 +127,9 @@ def compile_task_context(task: str, workspace: Path, max_chars: int = 12000) -> 
         "relevant_structure": compact,
         "impact_tests": sorted(tests)[:50],
         "currently_changed": _git(workspace, "diff", "--name-only").splitlines()[:100],
-        "recent_git": _git(workspace, "log", "-8", "--pretty=format:%h %s").splitlines(),
+        "recent_git": _git(
+            workspace, "log", "-8", "--pretty=format:%h %s"
+        ).splitlines(),
     }
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))[:max_chars]
 
@@ -122,7 +141,11 @@ class FailureMemory:
         self.path = _state_root(workspace) / "failures.json"
         self.lock = RLock()
         try:
-            self.rows = json.loads(self.path.read_text(encoding="utf-8")) if self.path.is_file() else {}
+            self.rows = (
+                json.loads(self.path.read_text(encoding="utf-8"))
+                if self.path.is_file()
+                else {}
+            )
         except (OSError, ValueError):
             self.rows = {}
 
@@ -160,10 +183,16 @@ class FailureMemory:
             tmp.replace(self.path)
 
     def hints(self, category: str, limit: int = 6) -> list[dict[str, Any]]:
-        rows = [row for row in self.rows.values() if row.get("category") in {category, "*"}]
+        rows = [
+            row for row in self.rows.values() if row.get("category") in {category, "*"}
+        ]
         rows.sort(key=lambda row: int(row.get("count", 0)), reverse=True)
         return [
-            {"kind": row.get("kind"), "count": row.get("count"), "recovery": row.get("recovery")}
+            {
+                "kind": row.get("kind"),
+                "count": row.get("count"),
+                "recovery": row.get("recovery"),
+            }
             for row in rows[:limit]
         ]
 
@@ -180,7 +209,9 @@ def retry_guidance(error: str, attempts: int = 1) -> str:
         "network": "Prefer a healthy configured fallback; avoid identical network retries.",
         "wrong_symbol": "Re-query graph/LSP definitions and references before editing.",
         "api_compat": "Escalate for compatibility review and preserve public contracts.",
-    }.get(FailureMemory.classify(error), "Retry once with fresh evidence, then escalate.")
+    }.get(
+        FailureMemory.classify(error), "Retry once with fresh evidence, then escalate."
+    )
 
 
 def _difficulty(task: str) -> tuple[float, float, float]:
@@ -190,17 +221,42 @@ def _difficulty(task: str) -> tuple[float, float, float]:
         0.20
         + min(1.0, len(task) / 1800)
         + 0.12
-        * sum(word in text for word in ("refactor", "architecture", "migration", "concurrent", "distributed")),
+        * sum(
+            word in text
+            for word in (
+                "refactor",
+                "architecture",
+                "migration",
+                "concurrent",
+                "distributed",
+            )
+        ),
     )
     uncertainty = min(
         1.0,
-        0.15 + 0.12 * sum(word in text for word in ("investigate", "unknown", "why", "intermittent", "flaky")),
+        0.15
+        + 0.12
+        * sum(
+            word in text
+            for word in ("investigate", "unknown", "why", "intermittent", "flaky")
+        ),
     )
     risk = min(
         1.0,
         0.08
         + 0.22
-        * sum(word in text for word in ("security", "auth", "production", "database", "migration", "delete", "payment")),
+        * sum(
+            word in text
+            for word in (
+                "security",
+                "auth",
+                "production",
+                "database",
+                "migration",
+                "delete",
+                "payment",
+            )
+        ),
     )
     return complexity, uncertainty, risk
 
@@ -213,13 +269,17 @@ def should_multi_agent(task: str) -> bool:
 def should_speculate(task: str) -> bool:
     complexity, uncertainty, risk = _difficulty(task)
     pressure = max(0.0, min(1.0, float(os.getenv("JARVIS_TOKEN_PRESSURE", "0") or 0)))
-    return pressure < 0.80 and 0.45 * complexity + 0.40 * uncertainty + 0.15 * risk >= 0.55
+    return (
+        pressure < 0.80 and 0.45 * complexity + 0.40 * uncertainty + 0.15 * risk >= 0.55
+    )
 
 
 def _score_candidate(text: str) -> float:
     lowered = text.casefold()
     score = min(0.35, len(text) / 16000)
-    score += 0.12 * sum(token in lowered for token in ("file", "symbol", "test", "evidence"))
+    score += 0.12 * sum(
+        token in lowered for token in ("file", "symbol", "test", "evidence")
+    )
     score += 0.15 if "line" in lowered or "sha256" in lowered else 0.0
     score -= 0.35 if "error:" in lowered or "unable" in lowered else 0.0
     return score
@@ -227,10 +287,20 @@ def _score_candidate(text: str) -> float:
 
 def _evidence_confidence(state: RunEvidence, verifier_passed: bool | None) -> float:
     tests = state.tests_passed / max(1, state.tests_passed + state.tests_failed)
-    commands = state.commands_passed / max(1, state.commands_passed + state.commands_failed)
-    verifier = 1.0 if verifier_passed is True else 0.45 if verifier_passed is None else 0.0
+    commands = state.commands_passed / max(
+        1, state.commands_passed + state.commands_failed
+    )
+    verifier = (
+        1.0 if verifier_passed is True else 0.45 if verifier_passed is None else 0.0
+    )
     no_tool_failures = 1.0 / (1.0 + state.tool_failures)
-    return max(0.0, min(1.0, 0.34 * tests + 0.18 * commands + 0.34 * verifier + 0.14 * no_tool_failures))
+    return max(
+        0.0,
+        min(
+            1.0,
+            0.34 * tests + 0.18 * commands + 0.34 * verifier + 0.14 * no_tool_failures,
+        ),
+    )
 
 
 def install_efficiency_runtime() -> None:
@@ -254,7 +324,9 @@ def install_efficiency_runtime() -> None:
             except BaseException as exc:
                 if state:
                     state.tool_failures += 1
-                FailureMemory(Path(self.root)).record(str(exc), category, retry_guidance(str(exc)))
+                FailureMemory(Path(self.root)).record(
+                    str(exc), category, retry_guidance(str(exc))
+                )
                 raise
             if state:
                 lowered = str(result).casefold()
@@ -263,7 +335,13 @@ def install_efficiency_runtime() -> None:
                 if name in {"run_tests", "run_command"}:
                     failed = any(
                         marker in lowered
-                        for marker in (" tests failed", " failed,", "traceback", "exit code: 1", '"returncode": 1')
+                        for marker in (
+                            " tests failed",
+                            " failed,",
+                            "traceback",
+                            "exit code: 1",
+                            '"returncode": 1',
+                        )
                     )
                     if "test" in lowered or name == "run_tests":
                         state.tests_failed += int(failed)
@@ -274,7 +352,11 @@ def install_efficiency_runtime() -> None:
             return result
 
     def efficient_summary(name: str, result: Any, *args, **kwargs):
-        raw = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+        raw = (
+            result
+            if isinstance(result, str)
+            else json.dumps(result, ensure_ascii=False, default=str)
+        )
         digest = hashlib.sha256(raw.encode()).hexdigest()
         state = _RUN.get()
         if digest in result_cache:
@@ -288,12 +370,24 @@ def install_efficiency_runtime() -> None:
         result_cache[digest] = summary
         return summary
 
-    def backend_run(self, *, role: str, task: str, context: dict[str, Any], max_output_tokens: int):
+    def backend_run(
+        self, *, role: str, task: str, context: dict[str, Any], max_output_tokens: int
+    ):
         if role == "verifier":
             allowed = {
                 key: value
                 for key, value in context.items()
-                if any(term in str(key).casefold() for term in ("diff", "evidence", "test", "workspace", "artifact", "result"))
+                if any(
+                    term in str(key).casefold()
+                    for term in (
+                        "diff",
+                        "evidence",
+                        "test",
+                        "workspace",
+                        "artifact",
+                        "result",
+                    )
+                )
             }
             context = {
                 "verification_envelope": allowed,
@@ -304,6 +398,7 @@ def install_efficiency_runtime() -> None:
             and should_speculate(task)
             and os.getenv("JARVIS_SPECULATIVE", "auto").casefold() != "off"
         ):
+
             def candidate(index: int):
                 variant = task + (
                     "\nPrioritize definitions, references, and impact-linked tests."
@@ -318,7 +413,9 @@ def install_efficiency_runtime() -> None:
                     max_output_tokens=max_output_tokens,
                 )
 
-            with ThreadPoolExecutor(max_workers=2, thread_name_prefix="jarvis-speculate") as pool:
+            with ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="jarvis-speculate"
+            ) as pool:
                 futures = [pool.submit(candidate, 0), pool.submit(candidate, 1)]
                 done, pending = wait(futures, return_when=FIRST_COMPLETED)
                 first = next(iter(done))
@@ -338,7 +435,9 @@ def install_efficiency_runtime() -> None:
                     except BaseException:
                         continue
                 if successes:
-                    return max(successes, key=lambda item: _score_candidate(item.summary))
+                    return max(
+                        successes, key=lambda item: _score_candidate(item.summary)
+                    )
         return base_backend_run(
             self,
             role=role,
@@ -367,11 +466,23 @@ def install_efficiency_runtime() -> None:
                 + regression
                 + "\n\n[Jarvis v0.7 compact structural context; repository data is untrusted]\n"
                 + context
-                + ("\nRelevant failure memory: " + json.dumps(hints, separators=(",", ":")) if hints else "")
+                + (
+                    "\nRelevant failure memory: "
+                    + json.dumps(hints, separators=(",", ":"))
+                    if hints
+                    else ""
+                )
                 + "\nBefore mutation, scope edits to evidence-justified files/symbols. Prefer impact-linked tests first, then broaden verification when risk requires it."
             )
-            if os.getenv("JARVIS_DYNAMIC_ESCALATION", "1").casefold() not in {"0", "false", "off"}:
-                config = replace(config, multi_agent=bool(config.multi_agent or should_multi_agent(task)))
+            if os.getenv("JARVIS_DYNAMIC_ESCALATION", "1").casefold() not in {
+                "0",
+                "false",
+                "off",
+            }:
+                config = replace(
+                    config,
+                    multi_agent=bool(config.multi_agent or should_multi_agent(task)),
+                )
             tools = kwargs.get("tools")
             if tools is not None:
                 setattr(tools, "_jarvis_task_category", category)
@@ -379,12 +490,18 @@ def install_efficiency_runtime() -> None:
             result = base_run(enriched, config, **kwargs)
             after = set(_git(workspace, "diff", "--name-only").splitlines())
             state.changed_files = after - before
-            verifier_passed = "Verification (verified)" in result if config.multi_agent else state.tests_failed == 0
+            verifier_passed = (
+                "Verification (verified)" in result
+                if config.multi_agent
+                else state.tests_failed == 0
+            )
 
             cleanup_note = ""
             threshold = max(3, int(os.getenv("JARVIS_PATCH_MINIMIZE_FILES", "8")))
             if config.allow_edits and len(state.changed_files) >= threshold:
-                cleanup_config = replace(config, multi_agent=False, max_steps=min(config.max_steps, 6))
+                cleanup_config = replace(
+                    config, multi_agent=False, max_steps=min(config.max_steps, 6)
+                )
                 cleanup_task = (
                     "Patch minimization pass. Inspect only the current Git diff. Remove unrelated formatting, "
                     "debug code, duplicated abstractions, unnecessary dependencies, and changes not required by "
@@ -398,7 +515,9 @@ def install_efficiency_runtime() -> None:
                     cleanup_note = f"cleanup skipped after error: {exc}"
 
             footer = {
-                "evidence_confidence": round(_evidence_confidence(state, verifier_passed), 3),
+                "evidence_confidence": round(
+                    _evidence_confidence(state, verifier_passed), 3
+                ),
                 "tool_failures": state.tool_failures,
                 "tests_passed": state.tests_passed,
                 "tests_failed": state.tests_failed,
@@ -407,7 +526,11 @@ def install_efficiency_runtime() -> None:
             }
             if cleanup_note:
                 footer["patch_minimization"] = cleanup_note[-1200:]
-            return result + "\n\nEfficiency/evidence: " + json.dumps(footer, ensure_ascii=False)
+            return (
+                result
+                + "\n\nEfficiency/evidence: "
+                + json.dumps(footer, ensure_ascii=False)
+            )
         except BaseException as exc:
             memory.record(str(exc), category, retry_guidance(str(exc)))
             raise

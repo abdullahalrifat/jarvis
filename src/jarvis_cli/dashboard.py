@@ -59,8 +59,12 @@ def render_dashboard(workspace: str | Path = ".") -> str:
             f"│ {str(item.get('kind', '-'))[:12]:12} {str(item.get('status', '-'))[:10]:10} {str(item.get('subject', '-'))[:43]:43} │"
         )
     if not records:
-        lines.append("│ No proof events yet.                                                       │")
-    lines.append("├─ Team ────────────────────────────────────────────────────────────────────┤")
+        lines.append(
+            "│ No proof events yet.                                                       │"
+        )
+    lines.append(
+        "├─ Team ────────────────────────────────────────────────────────────────────┤"
+    )
     tasks = team.get("tasks", {}) if isinstance(team, dict) else {}
     if isinstance(tasks, list):
         task_rows = tasks
@@ -74,17 +78,23 @@ def render_dashboard(workspace: str | Path = ".") -> str:
                 f"│ {str(item.get('id', item.get('name', 'task')))[:18]:18} {str(item.get('status', '-'))[:12]:12} {str(item.get('role', ''))[:35]:35} │"
             )
     else:
-        lines.append("│ No active persisted team board.                                           │")
-    lines.append("├─ Background jobs ─────────────────────────────────────────────────────────┤")
+        lines.append(
+            "│ No active persisted team board.                                           │"
+        )
+    lines.append(
+        "├─ Background jobs ─────────────────────────────────────────────────────────┤"
+    )
     if jobs:
         for job in jobs[:8]:
             command = " ".join(job.argv)
-            lines.append(
-                f"│ {job.id[:16]:16} {job.status[:11]:11} {command[:42]:42} │"
-            )
+            lines.append(f"│ {job.id[:16]:16} {job.status[:11]:11} {command[:42]:42} │")
     else:
-        lines.append("│ No local jobs.                                                            │")
-    lines.append("╰────────────────────────────────────────────────────────────────────────────╯")
+        lines.append(
+            "│ No local jobs.                                                            │"
+        )
+    lines.append(
+        "╰────────────────────────────────────────────────────────────────────────────╯"
+    )
     return "\n".join(lines)
 
 

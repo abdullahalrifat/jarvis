@@ -89,7 +89,9 @@ def build_patch_plan(task: str, workspace: Path) -> PatchPlan:
         seen.add(path)
         raw_targets.append(item)
     try:
-        blast = change_impact(workspace, [str(item.get("path")) for item in raw_targets])
+        blast = change_impact(
+            workspace, [str(item.get("path")) for item in raw_targets]
+        )
     except Exception:
         blast = {"importers": [], "tests": [], "config": [], "deployment": []}
 
@@ -111,9 +113,7 @@ def build_patch_plan(task: str, workspace: Path) -> PatchPlan:
                 impact=global_importers,
             )
         )
-    allow_new = bool(
-        re.search(r"\b(add|create|implement|introduce|new)\b", task, re.I)
-    )
+    allow_new = bool(re.search(r"\b(add|create|implement|introduce|new)\b", task, re.I))
     return PatchPlan(
         task[:600],
         _category(task),
@@ -163,8 +163,7 @@ def _allowed(
     parents = {str(Path(item).parent).replace("\\", "/") for item in plan.paths}
     parent = str(Path(normalized).parent).replace("\\", "/")
     return parent in parents or any(
-        part in {"src", "tests", "test", "docs"}
-        for part in Path(normalized).parts
+        part in {"src", "tests", "test", "docs"} for part in Path(normalized).parts
     )
 
 
@@ -264,9 +263,7 @@ def install_patch_guard() -> None:
                 and new_changed
                 and int(evidence.get("tests_passed", 0) or 0) == 0
             ):
-                result += (
-                    "\n\nCompletion gate: INCOMPLETE — a nontrivial bug fix changed files but no successful regression/verification test was recorded."
-                )
+                result += "\n\nCompletion gate: INCOMPLETE — a nontrivial bug fix changed files but no successful regression/verification test was recorded."
             return result
         finally:
             _PLAN.reset(plan_token)

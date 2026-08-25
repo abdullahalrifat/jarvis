@@ -14,13 +14,17 @@ def task_category(task: str) -> str:
     text = task.casefold()
     if any(word in text for word in ("bug", "fix", "error", "regression", "broken")):
         return "bugfix"
-    if any(word in text for word in ("security", "vulnerability", "auth", "permission")):
+    if any(
+        word in text for word in ("security", "vulnerability", "auth", "permission")
+    ):
         return "security"
     if any(word in text for word in ("refactor", "cleanup", "simplify")):
         return "refactor"
     if any(word in text for word in ("test", "coverage", "fixture")):
         return "tests"
-    if any(word in text for word in ("architecture", "design", "migration", "distributed")):
+    if any(
+        word in text for word in ("architecture", "design", "migration", "distributed")
+    ):
         return "architecture"
     if any(word in text for word in ("browser", "frontend", "playwright", "ui")):
         return "frontend"
@@ -52,7 +56,13 @@ def _is_local(profile) -> bool:
     except Exception:
         host = ""
     provider = str(profile.provider).casefold()
-    return host in {"localhost", "127.0.0.1", "::1", "ollama", "litellm"} or provider in {
+    return host in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "ollama",
+        "litellm",
+    } or provider in {
         "ollama",
         "local",
     }
@@ -79,9 +89,13 @@ def install_v07_routing() -> None:
         store = CalibrationStore()
         measured = []
         for profile in candidates:
-            score = store.utility(profile.name, category) or store.utility(profile.model, category)
+            score = store.utility(profile.name, category) or store.utility(
+                profile.model, category
+            )
             if score is not None:
-                measured.append((score[0], score[1], profile.priority, profile.name, profile))
+                measured.append(
+                    (score[0], score[1], profile.priority, profile.name, profile)
+                )
         if measured:
             measured.sort(key=lambda row: row[:4], reverse=True)
             return measured[0][-1]
@@ -92,7 +106,9 @@ def install_v07_routing() -> None:
         if mode != "off" and _difficulty(task) < 0.55:
             local = [profile for profile in candidates if _is_local(profile)]
             if local:
-                local.sort(key=lambda profile: (profile.priority, profile.name), reverse=True)
+                local.sort(
+                    key=lambda profile: (profile.priority, profile.name), reverse=True
+                )
                 return local[0]
         return base(registry, task=task, required=required)
 

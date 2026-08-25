@@ -39,9 +39,7 @@ def configure_otel(service: str = "jarvis-cli") -> None:
         if current.__class__.__module__.startswith("opentelemetry.sdk"):
             _OTEL_CONFIGURED = True
             return
-        provider = TracerProvider(
-            resource=Resource.create({"service.name": service})
-        )
+        provider = TracerProvider(resource=Resource.create({"service.name": service}))
         provider.add_span_processor(
             BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint))
         )
@@ -107,9 +105,7 @@ class CalibrationStore:
             return None
         success = fmean(1.0 if row.success else 0.0 for row in rows)
         quality = fmean(max(0.0, min(1.0, row.score)) for row in rows)
-        incorrect = fmean(
-            1.0 if row.incorrect_completion else 0.0 for row in rows
-        )
+        incorrect = fmean(1.0 if row.incorrect_completion else 0.0 for row in rows)
         latency = fmean(max(0.0, row.latency_ms) for row in rows)
         failures = fmean(max(0, row.tool_failures) for row in rows)
         utility = (
@@ -194,9 +190,7 @@ class Telemetry:
             record["duration_ms"] = (perf_counter() - started) * 1000
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(
-                    json.dumps(record, ensure_ascii=False, default=str) + "\n"
-                )
+                handle.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
             if cm:
                 cm.__exit__(*error_info)
 

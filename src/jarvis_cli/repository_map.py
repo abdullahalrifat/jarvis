@@ -47,9 +47,7 @@ def _lsp_limit() -> int:
         return 8
 
 
-def _recent_git_changes(
-    workspace: Path, *, limit: int = 200
-) -> dict[str, int]:
+def _recent_git_changes(workspace: Path, *, limit: int = 200) -> dict[str, int]:
     try:
         result = subprocess.run(
             [
@@ -76,14 +74,10 @@ def _recent_git_changes(
         path = line.strip()
         if path:
             counts[path] = counts.get(path, 0) + 1
-    return dict(
-        sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
-    )
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit])
 
 
-def build_repository_map(
-    root: str | Path, *, max_files: int = 2_000
-) -> dict[str, Any]:
+def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[str, Any]:
     """Build a persistent graph snapshot plus bounded live LSP enrichment."""
 
     workspace = Path(root).resolve()

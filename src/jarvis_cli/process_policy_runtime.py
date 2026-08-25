@@ -55,9 +55,7 @@ def install_process_policy_runtime() -> None:
                     env=sanitized_subprocess_env(),
                 )
             except (OSError, subprocess.TimeoutExpired) as exc:
-                raise APIError(
-                    f"Command failed to start or timed out: {exc}"
-                ) from exc
+                raise APIError(f"Command failed to start or timed out: {exc}") from exc
             output = f"$ {shlex.join(argv)}\n{result.stdout}{result.stderr}"
             return self._bounded(output + f"\n[exit {result.returncode}]")
 

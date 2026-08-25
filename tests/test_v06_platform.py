@@ -12,7 +12,9 @@ from jarvis_cli.team_runtime import PersistentTaskBoard, TeamTaskSpec
 
 def test_task_board_dependency_progression(tmp_path):
     first = TeamTaskSpec(title="inspect", task="inspect", id="a", write=False)
-    second = TeamTaskSpec(title="implement", task="implement", id="b", dependencies=("a",))
+    second = TeamTaskSpec(
+        title="implement", task="implement", id="b", dependencies=("a",)
+    )
     board = PersistentTaskBoard(tmp_path / "board.json", [first, second])
     assert board.tasks["a"].status == "ready"
     assert board.tasks["b"].status == "pending"
@@ -23,7 +25,9 @@ def test_task_board_dependency_progression(tmp_path):
 
 def test_task_board_file_rejects_unknown_dependencies(tmp_path):
     source = tmp_path / "team.json"
-    source.write_text(json.dumps({"tasks": [{"id": "b", "title": "b", "dependencies": ["missing"]}]}))
+    source.write_text(
+        json.dumps({"tasks": [{"id": "b", "title": "b", "dependencies": ["missing"]}]})
+    )
     with pytest.raises(ValueError):
         PersistentTaskBoard.from_file(source, tmp_path / "board.json")
 
@@ -32,9 +36,18 @@ def test_plugin_build_and_checksum_verified_install(tmp_path):
     source = tmp_path / "plugin"
     skill = source / "skills" / "review"
     skill.mkdir(parents=True)
-    (skill / "SKILL.md").write_text("---\nname: review\ndescription: Review code\n---\nReview carefully.\n")
+    (skill / "SKILL.md").write_text(
+        "---\nname: review\ndescription: Review code\n---\nReview carefully.\n"
+    )
     (source / "jarvis-plugin.json").write_text(
-        json.dumps({"name": "review-pack", "version": "1.0.0", "description": "review", "permissions": []})
+        json.dumps(
+            {
+                "name": "review-pack",
+                "version": "1.0.0",
+                "description": "review",
+                "permissions": [],
+            }
+        )
     )
     archive = build_plugin(source, tmp_path / "plugin.jarvis-plugin")
     registry = PluginRegistry(tmp_path / "installed")
@@ -71,14 +84,18 @@ def test_scheduler_cron_matching_and_next_occurrence():
     value = datetime.datetime(2026, 8, 24, 12, 0, tzinfo=datetime.timezone.utc)
     assert _cron_matches("0 12 * * *", value.timestamp())
     next_value = _next_cron("5 12 * * *", value.timestamp())
-    assert datetime.datetime.fromtimestamp(next_value, datetime.timezone.utc).minute == 5
+    assert (
+        datetime.datetime.fromtimestamp(next_value, datetime.timezone.utc).minute == 5
+    )
 
 
 def test_calibration_prefers_successful_route(tmp_path):
     store = CalibrationStore(tmp_path / "routes.json")
     for _ in range(3):
         store.record(RouteObservation("safe", "code", True, 1.0, 500))
-        store.record(RouteObservation("fast", "code", False, 0.0, 100, incorrect_completion=True))
+        store.record(
+            RouteObservation("fast", "code", False, 0.0, 100, incorrect_completion=True)
+        )
     board = store.leaderboard("code")
     assert board[0]["route"] == "safe"
 

@@ -102,9 +102,7 @@ class HookRegistry:
                             min(120.0, float(item.get("timeout", 10))),
                         ),
                         when_tool=(
-                            str(item["when_tool"])
-                            if item.get("when_tool")
-                            else None
+                            str(item["when_tool"]) if item.get("when_tool") else None
                         ),
                         required=bool(item.get("required", False)),
                     )
@@ -131,13 +129,13 @@ class HookRegistry:
         results: list[HookResult] = []
         for hook in self.for_event(event, tool=tool):
             env = sanitized_subprocess_env("JARVIS_HOOK_ENV_ALLOW")
-            env.update({
-                "JARVIS_HOOK_EVENT": event,
-                "JARVIS_HOOK_TOOL": tool or "",
-            })
-            argv = sandbox_command(
-                list(hook.command), self.workspace, purpose="hook"
+            env.update(
+                {
+                    "JARVIS_HOOK_EVENT": event,
+                    "JARVIS_HOOK_TOOL": tool or "",
+                }
             )
+            argv = sandbox_command(list(hook.command), self.workspace, purpose="hook")
             try:
                 completed = subprocess.run(
                     argv,
@@ -160,9 +158,7 @@ class HookRegistry:
                         )
                     )
                 else:
-                    results.append(
-                        HookResult(stderr=str(exc), returncode=124)
-                    )
+                    results.append(HookResult(stderr=str(exc), returncode=124))
                 continue
             parsed: dict[str, Any] = {}
             if completed.stdout.strip():
@@ -177,9 +173,7 @@ class HookRegistry:
                 HookResult(
                     allowed=allowed,
                     add_context=str(parsed.get("add_context") or "")[:20_000],
-                    require_approval=bool(
-                        parsed.get("require_approval", False)
-                    ),
+                    require_approval=bool(parsed.get("require_approval", False)),
                     stdout=completed.stdout[:20_000],
                     stderr=completed.stderr[:20_000],
                     returncode=completed.returncode,
@@ -198,8 +192,7 @@ class HookRegistry:
         for result in self.run(event, payload, tool=tool):
             if not result.allowed:
                 raise PermissionError(
-                    f"Jarvis hook denied {event}: "
-                    f"{result.stderr or result.stdout}"
+                    f"Jarvis hook denied {event}: " f"{result.stderr or result.stdout}"
                 )
             if result.add_context:
                 context.append(result.add_context)

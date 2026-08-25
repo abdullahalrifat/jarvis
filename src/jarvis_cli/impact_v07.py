@@ -39,11 +39,18 @@ def _candidate_configs(root: Path, max_files: int = 1000) -> list[Path]:
         if not path.is_file():
             continue
         rel = path.relative_to(root)
-        if any(part in {".git", ".jarvis", "node_modules", ".venv", "dist", "build"} for part in rel.parts):
+        if any(
+            part in {".git", ".jarvis", "node_modules", ".venv", "dist", "build"}
+            for part in rel.parts
+        ):
             continue
         if path.name in _CONFIG_NAMES or (
             path.suffix.casefold() in _CONFIG_SUFFIXES
-            and any(part in {".github", "deploy", "deployment", "k8s", "helm", "infra", "config"} for part in rel.parts)
+            and any(
+                part
+                in {".github", "deploy", "deployment", "k8s", "helm", "infra", "config"}
+                for part in rel.parts
+            )
         ):
             rows.append(path)
     return rows
@@ -79,7 +86,10 @@ def change_impact(workspace: str | Path, changed: Iterable[str]) -> dict[str, An
             if path.parent != root:
                 continue
         config_hits.append(rel)
-        if any(part in {".github", "deploy", "deployment", "k8s", "helm", "infra"} for part in path.relative_to(root).parts) or path.name.lower().startswith(("docker", "compose")):
+        if any(
+            part in {".github", "deploy", "deployment", "k8s", "helm", "infra"}
+            for part in path.relative_to(root).parts
+        ) or path.name.lower().startswith(("docker", "compose")):
             deployment_hits.append(rel)
 
     return {

@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 from .client import APIError
 
-
 BROWSER_TOOL_SCHEMAS = [
     {
         "name": "browser_open",
@@ -158,25 +157,39 @@ class BrowserSession:
         self._page = self._context.new_page()
         self._page.on(
             "console",
-            lambda message: self._console.append(f"{message.type}: {message.text}")
-            if len(self._console) < 500
-            else None,
+            lambda message: (
+                self._console.append(f"{message.type}: {message.text}")
+                if len(self._console) < 500
+                else None
+            ),
         )
         self._page.on(
             "request",
-            lambda request: self._network.append(
-                {"method": request.method, "url": request.url[:2000], "blocked": False}
-            )
-            if len(self._network) < 1000
-            else None,
+            lambda request: (
+                self._network.append(
+                    {
+                        "method": request.method,
+                        "url": request.url[:2000],
+                        "blocked": False,
+                    }
+                )
+                if len(self._network) < 1000
+                else None
+            ),
         )
         self._page.on(
             "response",
-            lambda response: self._network.append(
-                {"status": response.status, "url": response.url[:2000], "response": True}
-            )
-            if len(self._network) < 1000
-            else None,
+            lambda response: (
+                self._network.append(
+                    {
+                        "status": response.status,
+                        "url": response.url[:2000],
+                        "response": True,
+                    }
+                )
+                if len(self._network) < 1000
+                else None
+            ),
         )
         return self._page
 

@@ -91,8 +91,7 @@ class JobStore:
 
     def _init(self) -> None:
         with self._connect() as db:
-            db.executescript(
-                """
+            db.executescript("""
                 PRAGMA journal_mode=WAL;
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY, argv TEXT NOT NULL, status TEXT NOT NULL,
@@ -107,8 +106,7 @@ class JobStore:
                     interval_seconds REAL, cron TEXT, enabled INTEGER NOT NULL DEFAULT 1,
                     next_run REAL NOT NULL, last_run REAL
                 );
-                """
-            )
+                """)
             columns = {
                 str(row[1]) for row in db.execute("PRAGMA table_info(jobs)").fetchall()
             }
@@ -305,9 +303,7 @@ class JobStore:
         schedule_id = uuid.uuid4().hex[:12]
         now = time.time()
         next_run = (
-            now + interval_seconds
-            if interval_seconds
-            else _next_cron(str(cron), now)
+            now + interval_seconds if interval_seconds else _next_cron(str(cron), now)
         )
         with self._connect() as db:
             db.execute(
@@ -355,8 +351,7 @@ class JobStore:
     def schedules(self) -> list[dict[str, Any]]:
         with self._connect() as db:
             return [
-                dict(row)
-                for row in db.execute("SELECT * FROM schedules ORDER BY name")
+                dict(row) for row in db.execute("SELECT * FROM schedules ORDER BY name")
             ]
 
 
@@ -441,9 +436,10 @@ def run_worker(*, once: bool = False, poll_seconds: float = 1.0) -> int:
             continue
         stdout_path = logs / f"{job.id}.out"
         stderr_path = logs / f"{job.id}.err"
-        with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open(
-            "w", encoding="utf-8"
-        ) as stderr:
+        with (
+            stdout_path.open("w", encoding="utf-8") as stdout,
+            stderr_path.open("w", encoding="utf-8") as stderr,
+        ):
             process = subprocess.Popen(
                 [sys.executable, "-m", "jarvis_cli", *job.argv],
                 stdout=stdout,

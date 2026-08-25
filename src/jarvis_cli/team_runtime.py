@@ -14,7 +14,6 @@ import uuid
 
 from .quality_runtime import WorktreeManager
 
-
 TERMINAL = {"completed", "failed", "cancelled", "blocked"}
 
 
@@ -48,7 +47,9 @@ class TeamTaskState:
 
 
 class PersistentTaskBoard:
-    def __init__(self, path: str | Path, specs: list[TeamTaskSpec] | None = None) -> None:
+    def __init__(
+        self, path: str | Path, specs: list[TeamTaskSpec] | None = None
+    ) -> None:
         self.path = Path(path)
         self._lock = RLock()
         self.tasks: dict[str, TeamTaskState] = {}
@@ -63,7 +64,9 @@ class PersistentTaskBoard:
                 self.tasks[spec.id] = TeamTaskState(spec=spec)
                 continue
             if existing.spec != spec:
-                raise ValueError(f"task definition changed for existing task id: {spec.id}")
+                raise ValueError(
+                    f"task definition changed for existing task id: {spec.id}"
+                )
             if existing.status == "running":
                 existing.status = "ready"
                 existing.owner = None
@@ -130,7 +133,9 @@ class PersistentTaskBoard:
             for state in self.tasks.values():
                 if state.status not in {"pending", "ready", "blocked"}:
                     continue
-                dependencies = [self.tasks[dep].status for dep in state.spec.dependencies]
+                dependencies = [
+                    self.tasks[dep].status for dep in state.spec.dependencies
+                ]
                 if any(
                     status in {"failed", "cancelled", "blocked"}
                     for status in dependencies
@@ -196,10 +201,7 @@ class TeamCoordinator:
         self.runner = runner
         self.workers = max(1, min(workers, 8))
         default_root = (
-            self.repository.parent
-            / ".jarvis-worktrees"
-            / self.repository.name
-            / "team"
+            self.repository.parent / ".jarvis-worktrees" / self.repository.name / "team"
         )
         self.worktree_root = Path(worktree_root or default_root).resolve()
         try:
@@ -213,7 +215,9 @@ class TeamCoordinator:
         self._integration_target: Path | None = None
 
     @staticmethod
-    def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    def _git(
+        root: Path, *args: str, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["git", "-C", str(root), *args],
             check=check,
@@ -294,7 +298,11 @@ class TeamCoordinator:
             return None
         checked = self._git(target, "diff", "--cached", "--check", check=False)
         if checked.returncode:
-            raise RuntimeError("team task patch failed git diff --check: " + checked.stdout + checked.stderr)
+            raise RuntimeError(
+                "team task patch failed git diff --check: "
+                + checked.stdout
+                + checked.stderr
+            )
         self._git(
             target,
             "-c",
@@ -334,9 +342,10 @@ class TeamCoordinator:
 
     def _run_one(self, state: TeamTaskState, worker: str) -> str:
         integration = self._ensure_integration()
-        base = self.board.integration_branch or self._git(
-            integration, "rev-parse", "HEAD"
-        ).stdout.strip()
+        base = (
+            self.board.integration_branch
+            or self._git(integration, "rev-parse", "HEAD").stdout.strip()
+        )
         target = self.manager.create(state.spec.id, base=base)
         metadata = json.loads(
             (target / ".jarvis-worktree.json").read_text(encoding="utf-8")
@@ -382,9 +391,7 @@ class TeamCoordinator:
                     if state.spec.id in active_ids or len(futures) >= self.workers:
                         continue
                     worker_index += 1
-                    future = pool.submit(
-                        self._run_one, state, f"worker-{worker_index}"
-                    )
+                    future = pool.submit(self._run_one, state, f"worker-{worker_index}")
                     futures[future] = state.spec.id
                 if not futures:
                     if all(

@@ -35,9 +35,13 @@ def _provider_options(parser: argparse.ArgumentParser, *, task: bool = True) -> 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis-v05", add_help=False)
     subs = parser.add_subparsers(dest="command")
-    plan = subs.add_parser("plan", help="Create an enforced read-only implementation plan")
+    plan = subs.add_parser(
+        "plan", help="Create an enforced read-only implementation plan"
+    )
     _provider_options(plan)
-    tui = subs.add_parser("tui", help="Run a local task with the rich terminal status UI")
+    tui = subs.add_parser(
+        "tui", help="Run a local task with the rich terminal status UI"
+    )
     _provider_options(tui)
     skills = subs.add_parser("skills", help="List or inspect lazy Jarvis skills")
     skills.add_argument("name", nargs="?")
@@ -69,8 +73,14 @@ def _workspace_from_args(argv: list[str]) -> Path:
 def _task_words(argv: list[str]) -> list[str]:
     values: list[str] = []
     options_with_value = {
-        "--provider", "--base-url", "--model", "--api-key-env", "--workspace",
-        "--timeout", "--max-steps", "--file",
+        "--provider",
+        "--base-url",
+        "--model",
+        "--api-key-env",
+        "--workspace",
+        "--timeout",
+        "--max-steps",
+        "--file",
     }
     skip = False
     for value in argv:

@@ -2,7 +2,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-
 CORE_VERSION = "0.9.1"
 CORE_COMMIT = "c30ffc900779caa07f9945f96a78e57828cb2aff"
 REPO_ROOT = Path(__file__).resolve().parents[1]

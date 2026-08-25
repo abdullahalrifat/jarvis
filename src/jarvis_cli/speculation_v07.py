@@ -27,7 +27,9 @@ class _CancellableProvider:
         self.provider = provider
         self.cancelled = cancelled
         self.last_usage = {}
-        self.active_provider = getattr(provider, "active_provider", provider.config.provider)
+        self.active_provider = getattr(
+            provider, "active_provider", provider.config.provider
+        )
 
     def complete(self, messages, tools):
         if self.cancelled.is_set():

@@ -7,7 +7,12 @@ import json
 from pathlib import Path
 import sys
 
-from .efficiency_runtime import FailureMemory, compile_task_context, should_multi_agent, should_speculate
+from .efficiency_runtime import (
+    FailureMemory,
+    compile_task_context,
+    should_multi_agent,
+    should_speculate,
+)
 from .observability import CalibrationStore
 from .patch_guard_v07 import build_patch_plan
 from .routing_v07 import task_category
@@ -17,18 +22,26 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis optimize")
     sub = parser.add_subparsers(dest="action", required=True)
 
-    routes = sub.add_parser("routes", help="Show measured provider/model performance for a task type")
+    routes = sub.add_parser(
+        "routes", help="Show measured provider/model performance for a task type"
+    )
     routes.add_argument("--category", default="code")
 
-    failures = sub.add_parser("failures", help="Show structured recurring failure memory")
+    failures = sub.add_parser(
+        "failures", help="Show structured recurring failure memory"
+    )
     failures.add_argument("--workspace", default=".")
     failures.add_argument("--category", default="code")
 
-    context = sub.add_parser("context", help="Preview the adaptive context compiler output")
+    context = sub.add_parser(
+        "context", help="Preview the adaptive context compiler output"
+    )
     context.add_argument("task")
     context.add_argument("--workspace", default=".")
 
-    policy = sub.add_parser("policy", help="Preview escalation/speculation/patch-plan decisions")
+    policy = sub.add_parser(
+        "policy", help="Preview escalation/speculation/patch-plan decisions"
+    )
     policy.add_argument("task")
     policy.add_argument("--workspace", default=".")
     return parser

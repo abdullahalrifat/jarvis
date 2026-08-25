@@ -193,9 +193,7 @@ class _RejectRedirects(HTTPRedirectHandler):
     """Never forward MCP credentials or requests across redirects."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise APIError(
-            f"MCP endpoint redirects are forbidden ({code} to {newurl})"
-        )
+        raise APIError(f"MCP endpoint redirects are forbidden ({code} to {newurl})")
 
 
 class HTTPMCPClient:

@@ -17,11 +17,46 @@ from pathlib import Path
 from typing import Any
 
 _SOURCE_SUFFIXES = {
-    ".py", ".pyi", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java",
-    ".kt", ".kts", ".scala", ".sc", ".c", ".cc", ".cpp", ".cxx", ".h",
-    ".hpp", ".cs", ".rb", ".php", ".swift", ".ex", ".exs", ".vue", ".svelte",
+    ".py",
+    ".pyi",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".go",
+    ".rs",
+    ".java",
+    ".kt",
+    ".kts",
+    ".scala",
+    ".sc",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".ex",
+    ".exs",
+    ".vue",
+    ".svelte",
 }
-_IGNORED = {".git", ".jarvis", "node_modules", ".venv", "venv", "dist", "build", "target", ".next", ".cache"}
+_IGNORED = {
+    ".git",
+    ".jarvis",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    ".cache",
+}
 
 
 def _digest(path: Path) -> str:
@@ -45,7 +80,9 @@ def _python_structure(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     imports: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            symbols.append({"name": node.name, "kind": type(node).__name__, "line": node.lineno})
+            symbols.append(
+                {"name": node.name, "kind": type(node).__name__, "line": node.lineno}
+            )
         elif isinstance(node, ast.Import):
             imports.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
@@ -69,8 +106,7 @@ class RepositoryGraph:
 
     def _init_schema(self) -> None:
         cur = self.connection.cursor()
-        cur.executescript(
-            """
+        cur.executescript("""
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS files(
               path TEXT PRIMARY KEY, digest TEXT NOT NULL, size INTEGER NOT NULL,
@@ -90,9 +126,11 @@ class RepositoryGraph:
             );
             CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
             CREATE INDEX IF NOT EXISTS idx_imports_target ON imports(target);
-            """
+            """)
+        cur.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version', ?)",
+            (str(self.SCHEMA_VERSION),),
         )
-        cur.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version', ?)", (str(self.SCHEMA_VERSION),))
         self.connection.commit()
 
     def _iter_sources(self, max_files: int = 10_000):
@@ -120,12 +158,21 @@ class RepositoryGraph:
             rel = path.relative_to(self.root).as_posix()
             seen.add(rel)
             stat = path.stat()
-            existing = cur.execute("SELECT digest, size, mtime_ns FROM files WHERE path=?", (rel,)).fetchone()
-            if existing and existing["size"] == stat.st_size and existing["mtime_ns"] == stat.st_mtime_ns:
+            existing = cur.execute(
+                "SELECT digest, size, mtime_ns FROM files WHERE path=?", (rel,)
+            ).fetchone()
+            if (
+                existing
+                and existing["size"] == stat.st_size
+                and existing["mtime_ns"] == stat.st_mtime_ns
+            ):
                 continue
             digest = _digest(path)
             if existing and existing["digest"] == digest:
-                cur.execute("UPDATE files SET size=?,mtime_ns=? WHERE path=?", (stat.st_size, stat.st_mtime_ns, rel))
+                cur.execute(
+                    "UPDATE files SET size=?,mtime_ns=? WHERE path=?",
+                    (stat.st_size, stat.st_mtime_ns, rel),
+                )
                 continue
             changed += 1
             symbols: list[dict[str, Any]] = []
@@ -160,14 +207,19 @@ class RepositoryGraph:
     def _rebuild_test_links(self, cur: sqlite3.Cursor) -> None:
         cur.execute("DELETE FROM test_links")
         paths = [row[0] for row in cur.execute("SELECT path FROM files")]
-        tests = [p for p in paths if Path(p).name.startswith("test_") or "/tests/" in f"/{p}"]
+        tests = [
+            p for p in paths if Path(p).name.startswith("test_") or "/tests/" in f"/{p}"
+        ]
         for source in paths:
             if source in tests:
                 continue
             stem = Path(source).stem.casefold()
             for test in tests:
                 if stem and stem in Path(test).stem.casefold():
-                    cur.execute("INSERT OR IGNORE INTO test_links(source,test) VALUES(?,?)", (source, test))
+                    cur.execute(
+                        "INSERT OR IGNORE INTO test_links(source,test) VALUES(?,?)",
+                        (source, test),
+                    )
 
     def find_symbol(self, name: str, limit: int = 100) -> list[dict[str, Any]]:
         rows = self.connection.execute(
@@ -177,21 +229,65 @@ class RepositoryGraph:
         return [dict(row) for row in rows]
 
     def related_tests(self, path: str) -> list[str]:
-        return [row[0] for row in self.connection.execute("SELECT test FROM test_links WHERE source=? ORDER BY test", (path,))]
+        return [
+            row[0]
+            for row in self.connection.execute(
+                "SELECT test FROM test_links WHERE source=? ORDER BY test", (path,)
+            )
+        ]
 
     def importers(self, target: str, limit: int = 100) -> list[str]:
-        return [row[0] for row in self.connection.execute("SELECT source FROM imports WHERE target LIKE ? ORDER BY source LIMIT ?", (f"%{target}%", limit))]
+        return [
+            row[0]
+            for row in self.connection.execute(
+                "SELECT source FROM imports WHERE target LIKE ? ORDER BY source LIMIT ?",
+                (f"%{target}%", limit),
+            )
+        ]
 
     def snapshot(self, max_files: int = 2_000) -> dict[str, Any]:
         self.update()
-        rows = list(self.connection.execute("SELECT path,digest,size,language FROM files ORDER BY path LIMIT ?", (max_files,)))
+        rows = list(
+            self.connection.execute(
+                "SELECT path,digest,size,language FROM files ORDER BY path LIMIT ?",
+                (max_files,),
+            )
+        )
         files = []
         for row in rows:
             rel = row["path"]
-            symbols = [dict(r) for r in self.connection.execute("SELECT name,kind,line FROM symbols WHERE file_path=? ORDER BY line", (rel,))]
-            imports = [r[0] for r in self.connection.execute("SELECT target FROM imports WHERE source=? ORDER BY target", (rel,))]
-            files.append({"path": rel, "sha256": row["digest"], "size": row["size"], "language": row["language"], "symbols": symbols, "imports": imports, "tests": self.related_tests(rel)})
-        return {"workspace": str(self.root), "files": files, "truncated": self.connection.execute("SELECT COUNT(*) FROM files").fetchone()[0] > max_files}
+            symbols = [
+                dict(r)
+                for r in self.connection.execute(
+                    "SELECT name,kind,line FROM symbols WHERE file_path=? ORDER BY line",
+                    (rel,),
+                )
+            ]
+            imports = [
+                r[0]
+                for r in self.connection.execute(
+                    "SELECT target FROM imports WHERE source=? ORDER BY target", (rel,)
+                )
+            ]
+            files.append(
+                {
+                    "path": rel,
+                    "sha256": row["digest"],
+                    "size": row["size"],
+                    "language": row["language"],
+                    "symbols": symbols,
+                    "imports": imports,
+                    "tests": self.related_tests(rel),
+                }
+            )
+        return {
+            "workspace": str(self.root),
+            "files": files,
+            "truncated": self.connection.execute(
+                "SELECT COUNT(*) FROM files"
+            ).fetchone()[0]
+            > max_files,
+        }
 
 
 @dataclass(frozen=True)
@@ -216,10 +312,36 @@ class PersistentLSPClient:
     def start(self) -> None:
         if self.process and self.process.poll() is None:
             return
-        self.process = subprocess.Popen(self.command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=self.root)
+        self.process = subprocess.Popen(
+            self.command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            cwd=self.root,
+        )
         self._reader = threading.Thread(target=self._read_loop, daemon=True)
         self._reader.start()
-        self.request("initialize", {"processId": os.getpid(), "rootUri": self.root.as_uri(), "capabilities": {"textDocument": {"documentSymbol": {}, "definition": {}, "references": {}, "implementation": {}, "typeDefinition": {}, "hover": {}, "rename": {}, "codeAction": {}}, "workspace": {"symbol": {}}}}, timeout=10)
+        self.request(
+            "initialize",
+            {
+                "processId": os.getpid(),
+                "rootUri": self.root.as_uri(),
+                "capabilities": {
+                    "textDocument": {
+                        "documentSymbol": {},
+                        "definition": {},
+                        "references": {},
+                        "implementation": {},
+                        "typeDefinition": {},
+                        "hover": {},
+                        "rename": {},
+                        "codeAction": {},
+                    },
+                    "workspace": {"symbol": {}},
+                },
+            },
+            timeout=10,
+        )
         self.notify("initialized", {})
 
     def close(self) -> None:
@@ -239,7 +361,9 @@ class PersistentLSPClient:
             raise RuntimeError("LSP process is not running")
         raw = json.dumps(payload, separators=(",", ":")).encode()
         with self._lock:
-            self.process.stdin.write(f"Content-Length: {len(raw)}\r\n\r\n".encode() + raw)
+            self.process.stdin.write(
+                f"Content-Length: {len(raw)}\r\n\r\n".encode() + raw
+            )
             self.process.stdin.flush()
 
     def _read_loop(self) -> None:
@@ -271,7 +395,9 @@ class PersistentLSPClient:
         self.start() if method != "initialize" and self.process is None else None
         request_id = self._next_id
         self._next_id += 1
-        self._send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        self._send(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+        )
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             response = self._responses.pop(request_id, None)
@@ -288,37 +414,77 @@ class PersistentLSPClient:
     def open_document(self, path: str | Path) -> None:
         file_path = Path(path).resolve()
         text = file_path.read_text(encoding="utf-8", errors="replace")
-        self.notify("textDocument/didOpen", {"textDocument": {"uri": file_path.as_uri(), "languageId": _language(file_path), "version": 1, "text": text}})
+        self.notify(
+            "textDocument/didOpen",
+            {
+                "textDocument": {
+                    "uri": file_path.as_uri(),
+                    "languageId": _language(file_path),
+                    "version": 1,
+                    "text": text,
+                }
+            },
+        )
 
     def _text_position(self, path: str | Path, position: LSPPosition) -> dict[str, Any]:
-        return {"textDocument": {"uri": Path(path).resolve().as_uri()}, "position": {"line": position.line, "character": position.character}}
+        return {
+            "textDocument": {"uri": Path(path).resolve().as_uri()},
+            "position": {"line": position.line, "character": position.character},
+        }
 
     def document_symbols(self, path: str | Path) -> Any:
         self.open_document(path)
-        return self.request("textDocument/documentSymbol", {"textDocument": {"uri": Path(path).resolve().as_uri()}})
+        return self.request(
+            "textDocument/documentSymbol",
+            {"textDocument": {"uri": Path(path).resolve().as_uri()}},
+        )
 
     def definition(self, path: str | Path, position: LSPPosition) -> Any:
-        return self.request("textDocument/definition", self._text_position(path, position))
+        return self.request(
+            "textDocument/definition", self._text_position(path, position)
+        )
 
     def references(self, path: str | Path, position: LSPPosition) -> Any:
-        params = self._text_position(path, position); params["context"] = {"includeDeclaration": True}
+        params = self._text_position(path, position)
+        params["context"] = {"includeDeclaration": True}
         return self.request("textDocument/references", params)
 
     def implementation(self, path: str | Path, position: LSPPosition) -> Any:
-        return self.request("textDocument/implementation", self._text_position(path, position))
+        return self.request(
+            "textDocument/implementation", self._text_position(path, position)
+        )
 
     def type_definition(self, path: str | Path, position: LSPPosition) -> Any:
-        return self.request("textDocument/typeDefinition", self._text_position(path, position))
+        return self.request(
+            "textDocument/typeDefinition", self._text_position(path, position)
+        )
 
     def hover(self, path: str | Path, position: LSPPosition) -> Any:
         return self.request("textDocument/hover", self._text_position(path, position))
 
     def rename(self, path: str | Path, position: LSPPosition, new_name: str) -> Any:
-        params = self._text_position(path, position); params["newName"] = new_name
+        params = self._text_position(path, position)
+        params["newName"] = new_name
         return self.request("textDocument/rename", params)
 
-    def code_actions(self, path: str | Path, start: LSPPosition, end: LSPPosition, diagnostics: list[dict[str, Any]] | None = None) -> Any:
-        return self.request("textDocument/codeAction", {"textDocument": {"uri": Path(path).resolve().as_uri()}, "range": {"start": {"line": start.line, "character": start.character}, "end": {"line": end.line, "character": end.character}}, "context": {"diagnostics": diagnostics or []}})
+    def code_actions(
+        self,
+        path: str | Path,
+        start: LSPPosition,
+        end: LSPPosition,
+        diagnostics: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        return self.request(
+            "textDocument/codeAction",
+            {
+                "textDocument": {"uri": Path(path).resolve().as_uri()},
+                "range": {
+                    "start": {"line": start.line, "character": start.character},
+                    "end": {"line": end.line, "character": end.character},
+                },
+                "context": {"diagnostics": diagnostics or []},
+            },
+        )
 
     def workspace_symbols(self, query: str) -> Any:
         return self.request("workspace/symbol", {"query": query})
@@ -336,8 +502,13 @@ class LSPPool:
         ".jsx": ["typescript-language-server", "--stdio"],
         ".go": ["gopls"],
         ".rs": ["rust-analyzer"],
-        ".c": ["clangd"], ".cc": ["clangd"], ".cpp": ["clangd"], ".h": ["clangd"], ".hpp": ["clangd"],
-        ".scala": ["metals"], ".sc": ["metals"],
+        ".c": ["clangd"],
+        ".cc": ["clangd"],
+        ".cpp": ["clangd"],
+        ".h": ["clangd"],
+        ".hpp": ["clangd"],
+        ".scala": ["metals"],
+        ".sc": ["metals"],
     }
 
     def __init__(self, root: str | Path) -> None:

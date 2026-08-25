@@ -18,15 +18,24 @@ from jarvis_cli.routing_v07 import task_category
 
 def _git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@example.com"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Test"], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.name", "Test"], check=True
+    )
     return tmp_path
 
 
 def test_context_compiler_prefers_matching_symbols_and_tests(tmp_path):
     root = _git_repo(tmp_path)
-    (root / "auth.py").write_text("class AuthService:\n    def login(self):\n        return True\n")
-    (root / "test_auth.py").write_text("from auth import AuthService\n\ndef test_login():\n    assert AuthService().login()\n")
+    (root / "auth.py").write_text(
+        "class AuthService:\n    def login(self):\n        return True\n"
+    )
+    (root / "test_auth.py").write_text(
+        "from auth import AuthService\n\ndef test_login():\n    assert AuthService().login()\n"
+    )
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "commit", "-qm", "seed"], check=True)
 

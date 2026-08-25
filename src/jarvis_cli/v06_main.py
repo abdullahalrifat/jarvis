@@ -162,11 +162,7 @@ def _run_team(args: argparse.Namespace) -> int:
         workers=args.workers,
     )
     print(json.dumps(coordinator.run(), indent=2, ensure_ascii=False))
-    return (
-        0
-        if all(item.status == "completed" for item in board.tasks.values())
-        else 2
-    )
+    return 0 if all(item.status == "completed" for item in board.tasks.values()) else 2
 
 
 def _run_browser(args: argparse.Namespace) -> int:
@@ -217,9 +213,7 @@ def _run_jobs(args: argparse.Namespace) -> int:
         return 0
     if args.action == "list":
         print(
-            json.dumps(
-                [job.__dict__ for job in store.list()], indent=2, default=list
-            )
+            json.dumps([job.__dict__ for job in store.list()], indent=2, default=list)
         )
         return 0
     if args.action == "show":
@@ -253,9 +247,7 @@ def _run_jobs(args: argparse.Namespace) -> int:
 def _server_key(args: argparse.Namespace) -> str:
     value = os.getenv(args.server_api_key_env, "")
     if not value:
-        raise APIError(
-            f"No Server API key configured in {args.server_api_key_env}."
-        )
+        raise APIError(f"No Server API key configured in {args.server_api_key_env}.")
     return value
 
 
@@ -355,9 +347,7 @@ def _record_benchmark_calibration(args: argparse.Namespace) -> int:
                 success=bool(report.get("passed") == report.get("total")),
                 score=float(report.get("score", 0)),
                 latency_ms=float(report.get("median_latency_seconds", 0)) * 1000,
-                incorrect_completion=float(
-                    report.get("incorrect_completion_rate", 0)
-                )
+                incorrect_completion=float(report.get("incorrect_completion_rate", 0))
                 > 0,
             )
         )
@@ -394,9 +384,7 @@ def main(argv: list[str] | None = None) -> int:
                 return _run_cloud(args)
             if args.command == "calibrate":
                 print(
-                    json.dumps(
-                        CalibrationStore().leaderboard(args.category), indent=2
-                    )
+                    json.dumps(CalibrationStore().leaderboard(args.category), indent=2)
                 )
                 return 0
         except (
