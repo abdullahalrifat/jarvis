@@ -7,6 +7,7 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from .enterprise_policy import load_enterprise_policy
 from .plugins import PluginRegistry
 
 _INSTALLED = False
@@ -16,6 +17,12 @@ def install_plugin_runtime() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
+    # Administrator policy is evaluated before any plugin roots, hooks, skills or
+    # MCP descriptors are discovered. A repository/user plugin cannot weaken it.
+    if not load_enterprise_policy().allow_plugins:
+        _INSTALLED = True
+        return
+
     from . import hooks, mcp, mcp_registry, skills
 
     BaseSkillRegistry = skills.SkillRegistry
@@ -34,6 +41,8 @@ def install_plugin_runtime() -> None:
     class PluginHookRegistry(BaseHookRegistry):
         def _load(self):
             loaded = list(super()._load())
+            if not load_enterprise_policy().allow_plugins:
+                return loaded
             for root in PluginRegistry().active_roots():
                 directory = root / "hooks"
                 if not directory.is_dir():
@@ -72,9 +81,7 @@ def install_plugin_runtime() -> None:
 
     def plugin_load_mcp_config(path=None):
         configs = dict(base_load_mcp_config(path))
-        # An explicit config path is a caller-selected isolated registry; do not
-        # silently merge installed plugins into it.
-        if path is not None:
+        if path is not None or not load_enterprise_policy().allow_plugins:
             return configs
         for root in PluginRegistry().active_roots():
             directory = root / "mcp"
@@ -82,8 +89,6 @@ def install_plugin_runtime() -> None:
                 continue
             for source in sorted(directory.glob("*.toml")):
                 for alias, config in base_load_mcp_config(source).items():
-                    # User config wins over plugins. Conflicting plugins are
-                    # deterministic first-wins to avoid capability shadowing.
                     configs.setdefault(alias, config)
         return configs
 
@@ -92,9 +97,6 @@ def install_plugin_runtime() -> None:
     mcp.load_mcp_config = plugin_load_mcp_config
     mcp_registry.load_mcp_config = plugin_load_mcp_config
 
-    # v0.5 modules import registries directly. Rebind any modules already loaded
-    # so installed plugins affect normal local/plan/TUI execution regardless of
-    # import order.
     from . import runtime_hooks, v05_main
 
     runtime_hooks.HookRegistry = PluginHookRegistry
