@@ -94,9 +94,6 @@ def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str]
         "--unshare-uts",
     ]
     if policy.network in {"deny", "allowlist"}:
-        # bubblewrap cannot express hostname allowlists by itself. A configured
-        # allowlist is therefore enforced by argv validation plus a fully
-        # isolated network namespace unless a future proxy transport is used.
         command.append("--unshare-net")
     command.extend(
         [
@@ -140,9 +137,6 @@ def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str]
 def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
     if not shutil.which("sandbox-exec"):
         return None
-    # sandbox-exec does not provide a safe hostname allowlist primitive. Treat
-    # allowlist as deny at the kernel boundary; explicit unrestricted networking
-    # requires network.mode=allow.
     network_rule = (
         "(allow network*)" if policy.network == "allow" else "(deny network*)"
     )
@@ -154,14 +148,31 @@ def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[st
     return ["sandbox-exec", "-p", profile, *argv]
 
 
+def _windows_appcontainer(
+    policy: SandboxPolicy, root: str, argv: list[str]
+) -> list[str] | None:
+    # An AppContainer without capabilities has no internet/client network
+    # capability and can be granted workspace-only write access by the launcher.
+    # Host allowlists require an external proxy/firewall and therefore fail
+    # closed rather than pretending AppContainer can express DNS allowlists.
+    if policy.network == "allowlist":
+        return None
+    if policy.network == "allow":
+        # We currently do not grant internetClient. Falling back to no sandbox in
+        # auto mode is honest; required mode will fail closed below.
+        return None
+    from .windows_appcontainer import wrapper_command
+
+    return wrapper_command(root, argv)
+
+
 def sandbox_command(
     argv: list[str], workspace: str | Path, *, purpose: str = "command"
 ) -> list[str]:
     """Return an OS-isolated command or fail closed for unenforceable policy.
 
-    `mode=off`/`permissive` is an explicit unsafe escape hatch. In the default
-    `auto` mode, a deny/allowlist network policy is never represented as secure
-    when no native sandbox can enforce it.
+    ``mode=off``/``permissive`` is an explicit unsafe escape hatch. In default
+    auto mode, deny-network commands use a native sandbox when available.
     """
     policy = SandboxPolicy.load(workspace)
     policy.validate_network_args(argv)
@@ -176,7 +187,7 @@ def sandbox_command(
     elif system == "darwin":
         sandboxed = _macos_sandbox(policy, root, argv)
     elif system == "windows":
-        sandboxed = None
+        sandboxed = _windows_appcontainer(policy, root, argv)
 
     if sandboxed is not None:
         return sandboxed
@@ -185,8 +196,8 @@ def sandbox_command(
         platform_name = platform.system() or "this platform"
         raise RuntimeError(
             f"Jarvis cannot enforce the configured sandbox/network policy on {platform_name}. "
-            "Install bubblewrap on Linux, use a supported macOS sandbox, or explicitly set "
-            "JARVIS_SANDBOX=permissive/off only if unrestricted process networking is acceptable."
+            "Install bubblewrap on Linux, use the supported macOS sandbox, use "
+            "Windows AppContainer for deny-network workloads, or explicitly set "
+            "JARVIS_SANDBOX=permissive/off only when unrestricted execution is acceptable."
         )
-    # network=allow with auto mode does not claim isolation when none exists.
     return argv
