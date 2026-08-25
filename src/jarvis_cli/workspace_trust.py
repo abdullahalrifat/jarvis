@@ -12,7 +12,9 @@ def trust_file() -> Path:
     configured = os.getenv("JARVIS_TRUST_FILE")
     if configured:
         return Path(configured).expanduser().resolve()
-    root = Path(os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))).expanduser()
+    root = Path(
+        os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    ).expanduser()
     return root / "jarvis" / "trusted-workspaces.json"
 
 
@@ -33,7 +35,9 @@ def _load() -> dict[str, Any]:
         workspaces = []
     return {
         "version": 1,
-        "workspaces": sorted({str(item) for item in workspaces if str(item).strip()}),
+        "workspaces": sorted(
+            {str(item) for item in workspaces if str(item).strip()}
+        ),
     }
 
 
@@ -41,7 +45,10 @@ def _write(payload: dict[str, Any]) -> Path:
     path = trust_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     try:
         os.chmod(tmp, 0o600)
     except OSError:
@@ -68,5 +75,7 @@ def trust_workspace(workspace: str | Path) -> Path:
 def untrust_workspace(workspace: str | Path) -> Path:
     payload = _load()
     identity = _identity(workspace)
-    payload["workspaces"] = [item for item in payload["workspaces"] if item != identity]
+    payload["workspaces"] = [
+        item for item in payload["workspaces"] if item != identity
+    ]
     return _write(payload)
