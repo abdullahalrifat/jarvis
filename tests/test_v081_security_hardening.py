@@ -160,7 +160,6 @@ def test_web_redirect_is_validated_before_following(monkeypatch):
         )
 
 
-
 def test_workspace_trust_invalidates_when_executable_config_changes(
     tmp_path, monkeypatch
 ):
