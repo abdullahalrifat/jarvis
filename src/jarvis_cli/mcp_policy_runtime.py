@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from .client import APIError
@@ -21,6 +22,26 @@ def _permission(server: str, tool_name: str):
     return permission
 
 
+def authorize_mcp_call(
+    server: str,
+    tool_name: str,
+    approval: Callable[[str], bool],
+):
+    """Return the effective permission or fail closed before transport use."""
+    if not server or not tool_name:
+        raise APIError("mcp_call requires server and tool_name")
+    permission = _permission(server, tool_name)
+    if permission.requires_approval:
+        description = (
+            f"Allow MCP tool {server}.{tool_name}"
+            + (" (read-only)" if permission.read_only else "")
+            + "?"
+        )
+        if not approval(description):
+            raise APIError(f"User rejected MCP tool call: {server}.{tool_name}")
+    return permission
+
+
 def install_mcp_policy_runtime() -> None:
     global _INSTALLED
     if _INSTALLED:
@@ -34,22 +55,11 @@ def install_mcp_policy_runtime() -> None:
         def execute(self, name: str, arguments: dict[str, Any]) -> str:
             if name != "mcp_call":
                 return super().execute(name, arguments)
-
-            server = str(arguments.get("server") or "")
-            tool_name = str(arguments.get("tool_name") or "")
-            if not server or not tool_name:
-                raise APIError("mcp_call requires server and tool_name")
-            permission = _permission(server, tool_name)
-            if permission.requires_approval:
-                description = (
-                    f"Allow MCP tool {server}.{tool_name}"
-                    + (" (read-only)" if permission.read_only else "")
-                    + "?"
-                )
-                if not self.approval(description):
-                    raise APIError(
-                        f"User rejected MCP tool call: {server}.{tool_name}"
-                    )
+            authorize_mcp_call(
+                str(arguments.get("server") or ""),
+                str(arguments.get("tool_name") or ""),
+                self.approval,
+            )
             return super().execute(name, arguments)
 
     local_agent.LocalTools = MCPPolicyTools
