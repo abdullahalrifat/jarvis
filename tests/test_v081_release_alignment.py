@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 
 CORE_VERSION = "0.8.0"
@@ -29,3 +31,24 @@ def test_release_version_check_does_not_import_runtime_dependencies():
     )
     assert "ast.parse" in workflow
     assert "import jarvis_cli" not in workflow
+
+
+def test_package_version_is_importable_without_runtime_dependencies():
+    script = (
+        "import builtins, sys; "
+        "real_import = builtins.__import__; "
+        "builtins.__import__ = lambda name, *args, **kwargs: "
+        "(_ for _ in ()).throw(ModuleNotFoundError(name)) "
+        "if name == 'jarvis_core' else real_import(name, *args, **kwargs); "
+        "import jarvis_cli; print(jarvis_cli.__version__)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "0.8.1"

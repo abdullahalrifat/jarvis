@@ -84,7 +84,7 @@ class LocalJarvis:
         return SDKResult(status="completed", result=result)
 
 
-class RemoteJarvis:
+class LegacyRemoteJarvis:
     def __init__(
         self,
         base_url: str,
@@ -204,7 +204,7 @@ class _PreparedWorkspace:
     source: dict[str, Any]
 
 
-class CloudWorker:
+class LegacyCloudWorker:
     """Lease-based external worker that executes cloud tasks with local Jarvis."""
 
     def __init__(
@@ -474,18 +474,18 @@ class CloudWorker:
     def _workspace_result(prepared: _PreparedWorkspace) -> dict[str, Any]:
         if prepared.source.get("kind") != "git":
             return dict(prepared.source)
-        status = CloudWorker._git(prepared.path, "status", "--short")
-        tracked_diff = CloudWorker._git(prepared.path, "diff", "--binary")
+        status = LegacyCloudWorker._git(prepared.path, "status", "--short")
+        tracked_diff = LegacyCloudWorker._git(prepared.path, "diff", "--binary")
         limit = 500_000
         tracked_truncated = len(tracked_diff) > limit
         diff = tracked_diff[:limit]
         untracked_truncated = False
         if len(diff) < limit:
-            untracked, untracked_truncated = CloudWorker._untracked_patch(
+            untracked, untracked_truncated = LegacyCloudWorker._untracked_patch(
                 prepared.path, limit - len(diff)
             )
             diff += untracked
-        head = CloudWorker._git(prepared.path, "rev-parse", "HEAD")
+        head = LegacyCloudWorker._git(prepared.path, "rev-parse", "HEAD")
         return {
             **prepared.source,
             "head_commit": head,
@@ -570,3 +570,12 @@ class CloudWorker:
             result = self.run_once()
             if result is None:
                 time.sleep(self.poll_seconds)
+
+
+# Import the hardened implementations only when callers opt into the SDK.  Keeping
+# this at the SDK boundary makes ``import jarvis_cli`` safe for packaging and
+# version discovery even when runtime dependencies have not been installed yet.
+from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
+
+RemoteJarvis = AutonomousRemoteJarvis
+CloudWorker = FencedCloudWorker
