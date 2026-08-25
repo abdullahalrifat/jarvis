@@ -22,6 +22,7 @@ from .client import APIError
 
 _INSTALLED = False
 _RUN: ContextVar[dict[str, Any] | None] = ContextVar("jarvis_v08_proof", default=None)
+_LAST_RUN_ID: ContextVar[str | None] = ContextVar("jarvis_last_run_id", default=None)
 _MUTATING_TOOLS = {"apply_patch", "write_file", "edit_file", "browser_type"}
 _READONLY_GIT = {"status", "diff", "log", "show", "branch", "rev-parse", "ls-files"}
 _SECRET_KEYS = {
@@ -177,6 +178,12 @@ def _record(
 def current_proof() -> dict[str, Any] | None:
     state = _RUN.get()
     return json.loads(json.dumps(state, default=str)) if state is not None else None
+
+
+def last_run_id() -> str | None:
+    """Return the proof run ID produced by the latest local execution in this context."""
+
+    return _LAST_RUN_ID.get()
 
 
 def _is_mutating(name: str, arguments: dict[str, Any]) -> bool:
@@ -355,6 +362,7 @@ def install_proof_runtime() -> None:
             "records": [],
         }
         token = _RUN.set(state)
+        _LAST_RUN_ID.set(None)
         _write_proof(state)
         _record("route", config.model, "selected", provider=config.provider)
         try:
@@ -371,6 +379,7 @@ def install_proof_runtime() -> None:
             state["finished_at"] = time.time()
             state["duration_seconds"] = state["finished_at"] - state["started_at"]
             _write_proof(state)
+            _LAST_RUN_ID.set(state["run_id"])
             _RUN.reset(token)
 
     local_agent.LocalTools = ProofTools
