@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+- Align the CLI with the immutable Jarvis Core 0.9.2 source commit.
+- Apply repository-wide Black formatting and keep workspace-trust Hook tests isolated.
+- Preserve Jarvis and AI Stack as independent consumers of shared Core contracts.
+
 ## Unreleased — 0.8.1 audit hardening
 
 ### Correctness and release alignment
