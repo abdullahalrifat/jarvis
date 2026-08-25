@@ -197,9 +197,7 @@ def test_workspace_trust_invalidates_when_git_head_changes(tmp_path, monkeypatch
         '[remote "origin"]\nurl = https://example.test/repo.git\n',
         encoding="utf-8",
     )
-    (workspace / ".git" / "HEAD").write_text(
-        "ref: refs/heads/main\n", encoding="utf-8"
-    )
+    (workspace / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
     head_ref.write_text("a" * 40 + "\n", encoding="utf-8")
 
     trust_workspace(workspace)
