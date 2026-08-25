@@ -12,7 +12,8 @@ from threading import RLock, Thread
 from time import monotonic
 from typing import Any
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 try:
     import tomllib
@@ -22,6 +23,7 @@ except ModuleNotFoundError:
 from jarvis_core import MCPServerConfig, ToolPermission
 
 from .client import APIError
+from .process_env import sanitized_subprocess_env
 
 MAX_MCP_RESPONSE_BYTES = max(
     65_536,
@@ -63,6 +65,7 @@ class MCPClient:
             text=True,
             shell=False,
             bufsize=1,
+            env=sanitized_subprocess_env("JARVIS_MCP_ENV_ALLOW"),
         )
         self._process = process
         Thread(target=self._reader, args=(process,), daemon=True).start()
@@ -186,6 +189,15 @@ class MCPClient:
                 process.kill()
 
 
+class _RejectRedirects(HTTPRedirectHandler):
+    """Never forward MCP credentials or requests across redirects."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise APIError(
+            f"MCP endpoint redirects are forbidden ({code} to {newurl})"
+        )
+
+
 class HTTPMCPClient:
     def __init__(
         self,
@@ -213,6 +225,7 @@ class HTTPMCPClient:
         self.token = token
         self.timeout = timeout
         self.permissions = permissions or {}
+        self._opener = build_opener(_RejectRedirects())
         self._next_id = 0
         self._lock = RLock()
         self.last_ok: float | None = None
@@ -235,10 +248,15 @@ class HTTPMCPClient:
             }
             if self.token:
                 headers["Authorization"] = f"Bearer {self.token}"
-            with urlopen(
-                Request(self.endpoint, body, headers), timeout=self.timeout
-            ) as response:
-                raw = response.read(MAX_MCP_RESPONSE_BYTES + 1)
+            try:
+                with self._opener.open(
+                    Request(self.endpoint, body, headers), timeout=self.timeout
+                ) as response:
+                    raw = response.read(MAX_MCP_RESPONSE_BYTES + 1)
+            except HTTPError as exc:
+                if 300 <= exc.code < 400:
+                    raise APIError("MCP endpoint redirects are forbidden") from exc
+                raise APIError(f"MCP HTTP request failed: {exc.code}") from exc
             if len(raw) > MAX_MCP_RESPONSE_BYTES:
                 raise APIError(
                     "MCP HTTP response exceeded the configured "

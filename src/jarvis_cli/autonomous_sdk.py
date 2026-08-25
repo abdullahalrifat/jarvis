@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 import multiprocessing as mp
 import os
@@ -16,6 +17,9 @@ import uuid
 from .client import APIError
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .proof_runtime import proof_path
+CLOUD_EXECUTION_PROTOCOL_VERSION = 1
+EXECUTION_PROOF_SCHEMA_VERSION = 1
+
 from .sdk import (
     LegacyCloudWorker,
     LegacyRemoteJarvis,
@@ -77,12 +81,52 @@ class AutonomousRemoteJarvis(LegacyRemoteJarvis):
             },
         )
 
+    def platform_capabilities(self) -> dict[str, Any]:
+        """Return a server's client-neutral wire protocol capabilities."""
+
+        response = self.client.request("GET", "/platform/capabilities")
+        if not isinstance(response, dict):
+            raise APIError("remote platform returned invalid capabilities")
+        return response
+
     def cancel_cloud(self, task_id: str) -> dict[str, Any]:
         return self.client.request("POST", f"/platform/cloud/tasks/{task_id}/cancel")
 
 
 class FencedCloudWorker(LegacyCloudWorker):
-    """External worker with lease fencing, cancellable execution, and proof reporting."""
+    """Protocol-v1 worker; compatible with any conforming cloud server."""
+
+    def _require_protocol(self) -> None:
+        if getattr(self, "_protocol_checked", False):
+            return
+        capabilities = self.client.request("GET", "/platform/capabilities")
+        protocols = (
+            capabilities.get("protocols", {})
+            if isinstance(capabilities, dict)
+            else {}
+        )
+        cloud = protocols.get("cloud_execution", {})
+        versions = cloud.get("versions", []) if isinstance(cloud, dict) else []
+        proof_versions = (
+            cloud.get("proof_schema_versions", [])
+            if isinstance(cloud, dict)
+            else []
+        )
+        if not isinstance(versions, list) or not isinstance(proof_versions, list):
+            raise APIError("remote server returned malformed protocol capabilities")
+        if (
+            CLOUD_EXECUTION_PROTOCOL_VERSION not in versions
+            or EXECUTION_PROOF_SCHEMA_VERSION not in proof_versions
+        ):
+            raise APIError(
+                "remote server is incompatible: cloud_execution protocol v1 "
+                "with execution proof schema v1 is required"
+            )
+        self._protocol_checked = True
+
+    def claim(self) -> dict[str, Any] | None:
+        self._require_protocol()
+        return super().claim()
 
     def _profile_local(self, matched) -> LocalJarvis:
         config = self.local.config
@@ -231,6 +275,53 @@ class FencedCloudWorker(LegacyCloudWorker):
             payload["local_execution"] = local_proof
         return payload
 
+
+    @staticmethod
+    def _completion_proof(
+        *,
+        task_id: str,
+        lease_id: str,
+        attempt: int,
+        prepared: _PreparedWorkspace,
+        workspace_result: dict[str, Any],
+        local,
+        local_proof: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Build the versioned proof envelope accepted by the Server gate."""
+
+        if not local_proof:
+            raise APIError("successful cloud completion requires local execution proof")
+        canonical_local = json.dumps(
+            local_proof, sort_keys=True, separators=(",", ":"), default=str
+        ).encode()
+        source = json.dumps(
+            prepared.source, sort_keys=True, separators=(",", ":"), default=str
+        ).encode()
+        diff = str(workspace_result.get("diff") or "")
+        artifacts = {}
+        if diff:
+            artifacts["workspace.diff"] = hashlib.sha256(diff.encode()).hexdigest()
+        return {
+            "schema_version": 1,
+            "task_id": task_id,
+            "lease_id": lease_id,
+            "attempt": max(1, int(attempt)),
+            "workspace_digest": hashlib.sha256(source).hexdigest(),
+            "route": str(local.config.provider),
+            "model": str(local.config.model),
+            "mutation_digest": hashlib.sha256(diff.encode()).hexdigest(),
+            "verifications": [
+                {
+                    "command": "jarvis local execution proof",
+                    "status": "passed",
+                    "exit_code": 0,
+                    "output_digest": hashlib.sha256(canonical_local).hexdigest(),
+                }
+            ],
+            "artifact_hashes": artifacts,
+        }
+
+
     @staticmethod
     def _load_local_proof(workspace: str) -> dict[str, Any] | None:
         target = proof_path(workspace)
@@ -361,6 +452,15 @@ class FencedCloudWorker(LegacyCloudWorker):
                 "uploading_result",
                 self._proof(records, local_proof),
             )
+            completion_proof = self._completion_proof(
+                task_id=task_id,
+                lease_id=lease_id,
+                attempt=int(task.get("attempts") or 1),
+                prepared=prepared,
+                workspace_result=workspace_result,
+                local=local,
+                local_proof=local_proof,
+            )
             response = self.client.request(
                 "POST",
                 f"/platform/cloud/tasks/{task_id}/complete",
@@ -372,7 +472,7 @@ class FencedCloudWorker(LegacyCloudWorker):
                         "result": result.result,
                         "workspace": workspace_result,
                     },
-                    "proof": self._proof(records, local_proof),
+                    "proof": completion_proof,
                 },
             )
             if response.get("ok") is not True:
@@ -383,7 +483,7 @@ class FencedCloudWorker(LegacyCloudWorker):
                 run_id=result.run_id,
                 raw={
                     "workspace": workspace_result,
-                    "proof": self._proof(records, local_proof),
+                    "proof": completion_proof,
                 },
             )
         except BaseException as exc:

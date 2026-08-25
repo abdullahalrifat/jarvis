@@ -14,6 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
+from .process_env import sanitized_subprocess_env
 from .sandbox import sandbox_command
 from .workspace_trust import is_workspace_trusted
 
@@ -129,11 +130,11 @@ class HookRegistry:
     ) -> list[HookResult]:
         results: list[HookResult] = []
         for hook in self.for_event(event, tool=tool):
-            env = {
-                **os.environ,
+            env = sanitized_subprocess_env("JARVIS_HOOK_ENV_ALLOW")
+            env.update({
                 "JARVIS_HOOK_EVENT": event,
                 "JARVIS_HOOK_TOOL": tool or "",
-            }
+            })
             argv = sandbox_command(
                 list(hook.command), self.workspace, purpose="hook"
             )

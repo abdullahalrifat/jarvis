@@ -193,3 +193,75 @@ def test_job_cancel_dispatches_process_tree_termination(tmp_path, monkeypatch):
     store.cancel(job_id)
     assert terminated == [os.getpid()]
     assert store.get(job_id).status == "cancelled"
+
+
+
+def test_fenced_worker_negotiates_client_neutral_protocol_before_claim(tmp_path):
+    from jarvis_cli.local_agent import LocalConfig
+
+    worker = FencedCloudWorker(
+        "https://compatible.example",
+        "secret",
+        "worker-1",
+        LocalJarvis(
+            LocalConfig(
+                provider="openai",
+                model="model",
+                api_key="x",
+                base_url="https://provider.example/v1",
+                workspace=tmp_path,
+            )
+        ),
+    )
+    calls = []
+
+    def request(method, path, payload=None):
+        calls.append((method, path))
+        if path == "/platform/capabilities":
+            return {
+                "service": "independent-compatible-server",
+                "protocols": {
+                    "cloud_execution": {
+                        "versions": [1],
+                        "proof_schema_versions": [1],
+                    }
+                },
+            }
+        return {"task": None}
+
+    worker.client.request = request
+    assert worker.claim() is None
+    assert calls == [
+        ("GET", "/platform/capabilities"),
+        ("POST", "/platform/cloud/claim"),
+    ]
+
+
+def test_fenced_worker_rejects_incompatible_server_before_claim(tmp_path):
+    from jarvis_cli.client import APIError
+    from jarvis_cli.local_agent import LocalConfig
+
+    worker = FencedCloudWorker(
+        "https://incompatible.example",
+        "secret",
+        "worker-1",
+        LocalJarvis(
+            LocalConfig(
+                provider="openai",
+                model="model",
+                api_key="x",
+                base_url="https://provider.example/v1",
+                workspace=tmp_path,
+            )
+        ),
+    )
+    worker.client.request = lambda *_args, **_kwargs: {
+        "protocols": {
+            "cloud_execution": {
+                "versions": [2],
+                "proof_schema_versions": [2],
+            }
+        }
+    }
+    with pytest.raises(APIError, match="incompatible"):
+        worker.claim()

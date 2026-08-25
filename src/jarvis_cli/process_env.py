@@ -41,15 +41,14 @@ def _value_contains_url_credentials(value: str) -> bool:
     return parsed.username is not None or parsed.password is not None
 
 
-def sanitized_subprocess_env() -> dict[str, str]:
+def sanitized_subprocess_env(allow_variable: str = "JARVIS_COMMAND_ENV_ALLOW") -> dict[str, str]:
     """Return the host environment minus credentials by default.
 
-    `JARVIS_COMMAND_ENV_ALLOW` is a comma-separated, explicit user override for
-    variables that a trusted build/test command genuinely needs.
+    ``allow_variable`` names a comma-separated, explicit user override for\n    variables that a trusted child process genuinely needs.
     """
     allowed = {
         item.strip()
-        for item in os.getenv("JARVIS_COMMAND_ENV_ALLOW", "").split(",")
+        for item in os.getenv(allow_variable, "").split(",")
         if item.strip()
     }
     result: dict[str, str] = {}
@@ -64,5 +63,5 @@ def sanitized_subprocess_env() -> dict[str, str]:
             continue
         result[name] = value
     # The allowlist configuration itself does not belong in child processes.
-    result.pop("JARVIS_COMMAND_ENV_ALLOW", None)
+    result.pop(allow_variable, None)
     return result
