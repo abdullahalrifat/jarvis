@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 import os
-from typing import Any
+from typing import Any, Iterable
 
 
 _INSTALLED = False
@@ -49,6 +49,36 @@ def _profile_api_key(profile: Any, base_config: Any) -> str:
     return os.getenv(default_env, "")
 
 
+def _fallback_configs(
+    base_config: Any,
+    profiles: dict[str, Any],
+    names: Iterable[str],
+) -> list[Any]:
+    """Return distinct fallback configs using complete inference identity."""
+    routed_configs: list[Any] = []
+    seen = {_endpoint_identity(base_config)}
+    for raw_name in names:
+        name = str(raw_name).strip()
+        if not name:
+            continue
+        profile = profiles.get(name)
+        if profile is None:
+            continue
+        routed = replace(
+            base_config,
+            provider=str(profile.provider).casefold(),
+            model=profile.model,
+            base_url=str(profile.base_url).rstrip("/"),
+            api_key=_profile_api_key(profile, base_config),
+        )
+        identity = _endpoint_identity(routed)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        routed_configs.append(routed)
+    return routed_configs
+
+
 def install_world_class_hardening() -> None:
     global _INSTALLED
     if _INSTALLED:
@@ -71,24 +101,10 @@ def install_world_class_hardening() -> None:
             return primary
 
         profiles = {item.name: item for item in load_profiles().list()}
-        providers = [primary]
-        seen = {_endpoint_identity(config)}
-        for name in names:
-            profile = profiles.get(name)
-            if profile is None:
-                continue
-            routed = replace(
-                config,
-                provider=str(profile.provider).casefold(),
-                model=profile.model,
-                base_url=str(profile.base_url).rstrip("/"),
-                api_key=_profile_api_key(profile, config),
-            )
-            identity = _endpoint_identity(routed)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            providers.append(provider_type(routed))
+        fallback_configs = _fallback_configs(config, profiles, names)
+        if not fallback_configs:
+            return primary
+        providers = [primary, *(provider_type(item) for item in fallback_configs)]
         return local_agent.ResilientModelProvider(providers)
 
     def route_config(self, role: str, config):
