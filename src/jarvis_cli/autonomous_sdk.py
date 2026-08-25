@@ -17,6 +17,9 @@ import uuid
 from .client import APIError
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .proof_runtime import proof_path
+CLOUD_EXECUTION_PROTOCOL_VERSION = 1
+EXECUTION_PROOF_SCHEMA_VERSION = 1
+
 from .sdk import (
     LegacyCloudWorker,
     LegacyRemoteJarvis,
@@ -78,12 +81,50 @@ class AutonomousRemoteJarvis(LegacyRemoteJarvis):
             },
         )
 
+    def platform_capabilities(self) -> dict[str, Any]:
+        """Return a server's client-neutral wire protocol capabilities."""
+
+        response = self.client.request("GET", "/platform/capabilities")
+        if not isinstance(response, dict):
+            raise APIError("remote platform returned invalid capabilities")
+        return response
+
     def cancel_cloud(self, task_id: str) -> dict[str, Any]:
         return self.client.request("POST", f"/platform/cloud/tasks/{task_id}/cancel")
 
 
 class FencedCloudWorker(LegacyCloudWorker):
-    """External worker with lease fencing, cancellable execution, and proof reporting."""
+    """Protocol-v1 worker; compatible with any conforming cloud server."""
+
+    def _require_protocol(self) -> None:
+        if getattr(self, "_protocol_checked", False):
+            return
+        capabilities = self.client.request("GET", "/platform/capabilities")
+        protocols = (
+            capabilities.get("protocols", {})
+            if isinstance(capabilities, dict)
+            else {}
+        )
+        cloud = protocols.get("cloud_execution", {})
+        versions = cloud.get("versions", []) if isinstance(cloud, dict) else []
+        proof_versions = (
+            cloud.get("proof_schema_versions", [])
+            if isinstance(cloud, dict)
+            else []
+        )
+        if (
+            CLOUD_EXECUTION_PROTOCOL_VERSION not in versions
+            or EXECUTION_PROOF_SCHEMA_VERSION not in proof_versions
+        ):
+            raise APIError(
+                "remote server is incompatible: cloud_execution protocol v1 "
+                "with execution proof schema v1 is required"
+            )
+        self._protocol_checked = True
+
+    def claim(self) -> dict[str, Any] | None:
+        self._require_protocol()
+        return super().claim()
 
     def _profile_local(self, matched) -> LocalJarvis:
         config = self.local.config
