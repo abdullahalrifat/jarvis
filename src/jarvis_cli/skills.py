@@ -55,7 +55,11 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
         elif value.lower() in {"true", "false"}:
             data[key] = value.lower() == "true"
         elif value.startswith("[") and value.endswith("]"):
-            data[key] = [part.strip().strip("\"'") for part in value[1:-1].split(",") if part.strip()]
+            data[key] = [
+                part.strip().strip("\"'")
+                for part in value[1:-1].split(",")
+                if part.strip()
+            ]
         else:
             data[key] = value.strip("\"'")
     return data, body
@@ -64,9 +68,14 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
 class SkillRegistry:
     """Indexes metadata cheaply and loads skill bodies only when selected."""
 
-    def __init__(self, workspace: str | Path, extra_roots: Iterable[str | Path] = ()) -> None:
+    def __init__(
+        self, workspace: str | Path, extra_roots: Iterable[str | Path] = ()
+    ) -> None:
         workspace = Path(workspace).resolve()
-        roots = [workspace / ".jarvis" / "skills", Path.home() / ".config" / "jarvis" / "skills"]
+        roots = [
+            workspace / ".jarvis" / "skills",
+            Path.home() / ".config" / "jarvis" / "skills",
+        ]
         roots.extend(Path(root).expanduser().resolve() for root in extra_roots)
         self.roots = roots
         self._metadata: dict[str, SkillMetadata] = {}
@@ -88,7 +97,11 @@ class SkillRegistry:
                     continue
                 description = str(header.get("description") or "").strip()[:500]
                 tools_value = header.get("tools") or []
-                tools = tuple(str(item) for item in tools_value) if isinstance(tools_value, list) else ()
+                tools = (
+                    tuple(str(item) for item in tools_value)
+                    if isinstance(tools_value, list)
+                    else ()
+                )
                 discovered[name] = SkillMetadata(
                     name=name,
                     description=description,
@@ -124,7 +137,12 @@ class SkillRegistry:
             score = sum(1 for word in words if len(word) > 2 and word in haystack)
             if score and item.model_invocable:
                 scored.append((score, item))
-        return [item for _score, item in sorted(scored, key=lambda pair: (-pair[0], pair[1].name))[:limit]]
+        return [
+            item
+            for _score, item in sorted(
+                scored, key=lambda pair: (-pair[0], pair[1].name)
+            )[:limit]
+        ]
 
     def selected_prompt(self, task: str) -> str:
         selected = self.select(task)

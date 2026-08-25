@@ -14,7 +14,6 @@ from typing import Any
 
 from .client import APIError
 
-
 MANIFEST = "jarvis-plugin.json"
 _ALLOWED_SECTIONS = {"skills", "hooks", "commands", "mcp"}
 
@@ -35,7 +34,10 @@ class PluginManifest:
         version = str(payload["version"]).strip()
         if not name or not version:
             raise ValueError("plugin name and version are required")
-        files = {str(key): str(value) for key, value in dict(payload.get("files") or {}).items()}
+        files = {
+            str(key): str(value)
+            for key, value in dict(payload.get("files") or {}).items()
+        }
         return cls(
             name=name,
             version=version,
@@ -59,7 +61,9 @@ def _safe_relative(path: str) -> Path:
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ValueError(f"unsafe plugin path: {path}")
     if not candidate.parts or candidate.parts[0] not in _ALLOWED_SECTIONS:
-        raise ValueError(f"plugin file must live under one of {sorted(_ALLOWED_SECTIONS)}: {path}")
+        raise ValueError(
+            f"plugin file must live under one of {sorted(_ALLOWED_SECTIONS)}: {path}"
+        )
     return candidate
 
 
@@ -90,10 +94,16 @@ def build_plugin(source: str | Path, output: str | Path) -> Path:
 class PluginRegistry:
     def __init__(self, root: str | Path | None = None) -> None:
         configured = root or os.getenv("JARVIS_PLUGIN_HOME")
-        self.root = Path(configured).expanduser() if configured else Path.home() / ".local/share/jarvis/plugins"
+        self.root = (
+            Path(configured).expanduser()
+            if configured
+            else Path.home() / ".local/share/jarvis/plugins"
+        )
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def install(self, archive_path: str | Path, *, approve_permissions: bool = False) -> PluginManifest:
+    def install(
+        self, archive_path: str | Path, *, approve_permissions: bool = False
+    ) -> PluginManifest:
         archive = Path(archive_path).resolve()
         with tempfile.TemporaryDirectory(prefix="jarvis-plugin-") as temporary:
             stage = Path(temporary)
@@ -120,7 +130,9 @@ class PluginRegistry:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(stage, target)
             current = target.parent / "current.json"
-            current.write_text(json.dumps({"version": manifest.version}), encoding="utf-8")
+            current.write_text(
+                json.dumps({"version": manifest.version}), encoding="utf-8"
+            )
             return manifest
 
     def uninstall(self, name: str) -> None:
@@ -138,13 +150,15 @@ class PluginRegistry:
                 continue
             version = str(json.loads(current.read_text(encoding="utf-8"))["version"])
             manifest = PluginManifest.load(directory / version / MANIFEST)
-            rows.append({
-                "name": manifest.name,
-                "version": manifest.version,
-                "description": manifest.description,
-                "permissions": list(manifest.permissions),
-                "path": str(directory / version),
-            })
+            rows.append(
+                {
+                    "name": manifest.name,
+                    "version": manifest.version,
+                    "description": manifest.description,
+                    "permissions": list(manifest.permissions),
+                    "path": str(directory / version),
+                }
+            )
         return rows
 
     def active_roots(self) -> list[Path]:

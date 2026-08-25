@@ -224,9 +224,7 @@ class FullPersistentLSPClient(PersistentLSPClient):
         with self._document_lock:
             for uri in list(self._opened):
                 try:
-                    self.notify(
-                        "textDocument/didClose", {"textDocument": {"uri": uri}}
-                    )
+                    self.notify("textDocument/didClose", {"textDocument": {"uri": uri}})
                 except Exception:
                     pass
                 self._opened.pop(uri, None)

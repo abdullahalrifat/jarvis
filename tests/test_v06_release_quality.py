@@ -52,13 +52,8 @@ def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsy
     )
 
     commands = list_plugin_commands()
-    assert [(row["plugin"], row["name"]) for row in commands] == [
-        ("demo", "echo")
-    ]
-    assert (
-        main(["plugin", "run", "demo", "echo", "--workspace", str(tmp_path)])
-        == 0
-    )
+    assert [(row["plugin"], row["name"]) for row in commands] == [("demo", "echo")]
+    assert main(["plugin", "run", "demo", "echo", "--workspace", str(tmp_path)]) == 0
     assert "plugin-ok" in capsys.readouterr().out
 
 
@@ -129,10 +124,7 @@ read_only = true
 
 def test_plugin_command_cli_returns_nonzero_for_unknown(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_PLUGIN_HOME", str(tmp_path / "plugins"))
-    assert (
-        main(["plugin", "run", "missing", "noop", "--workspace", str(tmp_path)])
-        == 1
-    )
+    assert main(["plugin", "run", "missing", "noop", "--workspace", str(tmp_path)]) == 1
 
 
 def test_legacy_cloud_worker_executes_claim_and_reports_completion(tmp_path):
@@ -151,9 +143,7 @@ def test_legacy_cloud_worker_executes_claim_and_reports_completion(tmp_path):
             self.calls.append((method, path, payload))
             return {"ok": True}
 
-    worker = LegacyCloudWorker(
-        "https://unused.invalid", "token", "worker-1", Local()
-    )
+    worker = LegacyCloudWorker("https://unused.invalid", "token", "worker-1", Local())
     client = Client()
     worker.client = client
     result = worker.execute_claimed(

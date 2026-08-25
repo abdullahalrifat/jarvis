@@ -26,7 +26,9 @@ class Plan:
 def _coerce_plan(payload: dict[str, Any], task: str) -> Plan:
     def values(key: str) -> tuple[str, ...]:
         raw = payload.get(key) or []
-        return tuple(str(item) for item in raw) if isinstance(raw, list) else (str(raw),)
+        return (
+            tuple(str(item) for item in raw) if isinstance(raw, list) else (str(raw),)
+        )
 
     return Plan(
         goal=str(payload.get("goal") or task),

@@ -13,7 +13,10 @@ CSI = "\x1b["
 
 def _supports_ansi(stream=None) -> bool:
     stream = stream or sys.stderr
-    return bool(getattr(stream, "isatty", lambda: False)()) and os.getenv("TERM", "") != "dumb"
+    return (
+        bool(getattr(stream, "isatty", lambda: False)())
+        and os.getenv("TERM", "") != "dumb"
+    )
 
 
 def _clip(text: str, width: int) -> str:
@@ -63,15 +66,24 @@ class TerminalUI:
         header = f"Jarvis  Model: {state.model}  Mode: {state.mode}"
         if state.context_percent is not None:
             header += f"  Context: {state.context_percent}%"
-        lines = ["╭" + "─" * (width - 2) + "╮", "│ " + _clip(header, inner).ljust(inner) + " │", "├" + "─" * (width - 2) + "┤", "│ " + _clip("Task: " + state.task, inner).ljust(inner) + " │"]
+        lines = [
+            "╭" + "─" * (width - 2) + "╮",
+            "│ " + _clip(header, inner).ljust(inner) + " │",
+            "├" + "─" * (width - 2) + "┤",
+            "│ " + _clip("Task: " + state.task, inner).ljust(inner) + " │",
+        ]
         for task in state.tasks[:8]:
             icon = self.ICONS.get(task.status, "·")
             detail = f" — {task.detail}" if task.detail else ""
-            lines.append("│ " + _clip(f"{icon} {task.label}{detail}", inner).ljust(inner) + " │")
+            lines.append(
+                "│ " + _clip(f"{icon} {task.label}{detail}", inner).ljust(inner) + " │"
+            )
         if state.agents:
             lines.append("├" + "─" * (width - 2) + "┤")
             for name, status in sorted(state.agents.items()):
-                lines.append("│ " + _clip(f"{name:14} {status}", inner).ljust(inner) + " │")
+                lines.append(
+                    "│ " + _clip(f"{name:14} {status}", inner).ljust(inner) + " │"
+                )
         lines.append("│ " + _clip(f"Tokens: {state.tokens}", inner).ljust(inner) + " │")
         lines.append("╰" + "─" * (width - 2) + "╯")
         if self.ansi:

@@ -143,7 +143,10 @@ class IncrementalRepositoryIndex:
             return False
         if any(part in _IGNORED_DIRS for part in relative.parts):
             return False
-        if resolved == self.state_path.resolve() or stat.st_size > _MAX_INDEX_FILE_BYTES:
+        if (
+            resolved == self.state_path.resolve()
+            or stat.st_size > _MAX_INDEX_FILE_BYTES
+        ):
             return False
         return resolved.suffix.lower() in _SOURCE_EXTENSIONS
 
@@ -208,7 +211,9 @@ class IncrementalRepositoryIndex:
             return [
                 Symbol(relative, node.name, type(node).__name__.lower(), node.lineno)
                 for node in ast.walk(tree)
-                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                if isinstance(
+                    node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+                )
             ]
         try:
             text = raw.decode("utf-8")

@@ -41,7 +41,9 @@ def _value_contains_url_credentials(value: str) -> bool:
     return parsed.username is not None or parsed.password is not None
 
 
-def sanitized_subprocess_env(allow_variable: str = "JARVIS_COMMAND_ENV_ALLOW") -> dict[str, str]:
+def sanitized_subprocess_env(
+    allow_variable: str = "JARVIS_COMMAND_ENV_ALLOW",
+) -> dict[str, str]:
     """Return the host environment minus credentials by default.
 
     ``allow_variable`` names a comma-separated, explicit user override for\n    variables that a trusted child process genuinely needs.

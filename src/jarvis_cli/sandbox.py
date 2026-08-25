@@ -49,12 +49,8 @@ class SandboxPolicy:
             allowed_hosts=tuple(
                 str(host).casefold() for host in hosts if str(host).strip()
             ),
-            readonly_paths=tuple(
-                str(item) for item in filesystem.get("readonly", [])
-            ),
-            writable_paths=tuple(
-                str(item) for item in filesystem.get("writable", [])
-            ),
+            readonly_paths=tuple(str(item) for item in filesystem.get("readonly", [])),
+            writable_paths=tuple(str(item) for item in filesystem.get("writable", [])),
         )
 
     def validate_network_args(self, argv: list[str]) -> None:
@@ -137,7 +133,9 @@ def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str]
     return [*command, *argv]
 
 
-def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+def _macos_sandbox(
+    policy: SandboxPolicy, root: str, argv: list[str]
+) -> list[str] | None:
     if not shutil.which("sandbox-exec"):
         return None
     # sandbox-exec does not provide a safe hostname allowlist primitive. Treat

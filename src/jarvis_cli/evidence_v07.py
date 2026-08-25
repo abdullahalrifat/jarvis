@@ -12,7 +12,9 @@ from jarvis_core import summarize_tool_result as core_summarize_tool_result
 from . import efficiency_runtime
 
 _INSTALLED = False
-_DIGESTS: ContextVar[set[str] | None] = ContextVar("jarvis_v07_tool_digests", default=None)
+_DIGESTS: ContextVar[set[str] | None] = ContextVar(
+    "jarvis_v07_tool_digests", default=None
+)
 
 
 def _is_test_command(arguments: dict[str, Any]) -> bool:
@@ -48,7 +50,9 @@ def _exit_failed(result: str) -> bool:
             return int(suffix.strip()) != 0
         except (ValueError, IndexError):
             pass
-    return any(marker in lowered for marker in ("traceback", " tests failed", " failed,"))
+    return any(
+        marker in lowered for marker in ("traceback", " tests failed", " failed,")
+    )
 
 
 def install_evidence_v07() -> None:
@@ -90,8 +94,14 @@ def install_evidence_v07() -> None:
                     state.commands_passed += int(not failed)
             return result
 
-    def per_run_summary(name: str, result: Any, *, max_chars: int = 6000, artifact_store=None):
-        raw = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+    def per_run_summary(
+        name: str, result: Any, *, max_chars: int = 6000, artifact_store=None
+    ):
+        raw = (
+            result
+            if isinstance(result, str)
+            else json.dumps(result, ensure_ascii=False, default=str)
+        )
         digest = hashlib.sha256(raw.encode()).hexdigest()
         seen = _DIGESTS.get()
         if seen is not None and digest in seen:

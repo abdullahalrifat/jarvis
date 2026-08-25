@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+- Pin the CLI to the immutable Jarvis Core 0.9.2 release wheel (SHA-256 `0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130`).
+- Apply repository-wide Black formatting and keep workspace-trust Hook tests isolated.
+- Preserve Jarvis and AI Stack as independent consumers of shared Core contracts.
+
 ## Unreleased — 0.8.1 audit hardening
 
 ### Correctness and release alignment

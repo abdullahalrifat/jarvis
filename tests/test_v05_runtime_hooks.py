@@ -3,6 +3,7 @@ import os
 
 from jarvis_cli.hooks import HookRegistry
 from jarvis_cli.v05_main import main
+from jarvis_cli.workspace_trust import trust_workspace
 
 
 def test_skills_command_lists_project_skill(tmp_path, capsys):
@@ -15,18 +16,27 @@ def test_skills_command_lists_project_skill(tmp_path, capsys):
     assert "review" in capsys.readouterr().out
 
 
-def test_hooks_command_executes_json_contract(tmp_path, capsys):
+def test_hooks_command_executes_json_contract(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config-home"))
     config = tmp_path / ".jarvis"
     config.mkdir()
     script = tmp_path / "hook.py"
-    script.write_text("import json,sys\njson.load(sys.stdin)\nprint(json.dumps({'allow': True, 'add_context':'ok'}))\n")
+    script.write_text(
+        "import json,sys\njson.load(sys.stdin)\nprint(json.dumps({'allow': True, 'add_context':'ok'}))\n"
+    )
     (config / "hooks.toml").write_text(
         f'[[hook]]\nevent="UserPrompt"\ncommand=["python", "{script}"]\nrequired=true\n'
     )
+    trust_workspace(tmp_path)
     previous = os.environ.get("JARVIS_SANDBOX")
     os.environ["JARVIS_SANDBOX"] = "off"
     try:
-        assert main(["hooks", "UserPrompt", "--workspace", str(tmp_path), "--payload", "{}"] ) == 0
+        assert (
+            main(
+                ["hooks", "UserPrompt", "--workspace", str(tmp_path), "--payload", "{}"]
+            )
+            == 0
+        )
     finally:
         if previous is None:
             os.environ.pop("JARVIS_SANDBOX", None)

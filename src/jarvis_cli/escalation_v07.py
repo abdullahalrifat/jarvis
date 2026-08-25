@@ -26,7 +26,13 @@ def _is_local(base_url: str, provider: str) -> bool:
         host = (urlparse(base_url).hostname or "").casefold()
     except Exception:
         host = ""
-    return host in {"localhost", "127.0.0.1", "::1", "ollama", "litellm"} or provider.casefold() in {"ollama", "local"}
+    return host in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "ollama",
+        "litellm",
+    } or provider.casefold() in {"ollama", "local"}
 
 
 def _remote_escalation_config(config):
@@ -36,7 +42,12 @@ def _remote_escalation_config(config):
     opt-in, escalation still activates independent multi-agent verification on
     the current/local model family.
     """
-    if os.getenv("JARVIS_ALLOW_REMOTE_ESCALATION", "0").casefold() not in {"1", "true", "yes", "on"}:
+    if os.getenv("JARVIS_ALLOW_REMOTE_ESCALATION", "0").casefold() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
         return config
     from .profiles import load_profiles, profile_api_key_env
 
@@ -55,7 +66,9 @@ def _remote_escalation_config(config):
     profiles.sort(key=lambda profile: (profile.priority, profile.name), reverse=True)
     profile = profiles[0]
     key_env = profile_api_key_env(profile.name) or (
-        "ANTHROPIC_API_KEY" if profile.provider.casefold() == "anthropic" else "OPENAI_API_KEY"
+        "ANTHROPIC_API_KEY"
+        if profile.provider.casefold() == "anthropic"
+        else "OPENAI_API_KEY"
     )
     api_key = os.getenv(key_env, "")
     if not api_key:
@@ -80,14 +93,23 @@ def install_failure_escalation() -> None:
     def run(task: str, config, **kwargs):
         initial_multi = bool(config.multi_agent)
         result = base_run(task, config, **kwargs)
-        if initial_multi or os.getenv("JARVIS_ESCALATE_ON_FAILURE", "1").casefold() in {"0", "false", "off"}:
+        if initial_multi or os.getenv("JARVIS_ESCALATE_ON_FAILURE", "1").casefold() in {
+            "0",
+            "false",
+            "off",
+        }:
             return result
         evidence = _footer(result)
         confidence = float(evidence.get("evidence_confidence", 1.0) or 0.0)
         tool_failures = int(evidence.get("tool_failures", 0) or 0)
         tests_failed = int(evidence.get("tests_failed", 0) or 0)
         incomplete = "Completion gate: INCOMPLETE" in result
-        if confidence >= 0.58 and tool_failures == 0 and tests_failed == 0 and not incomplete:
+        if (
+            confidence >= 0.58
+            and tool_failures == 0
+            and tests_failed == 0
+            and not incomplete
+        ):
             return result
 
         escalation = replace(config, multi_agent=True)
@@ -101,11 +123,7 @@ def install_failure_escalation() -> None:
             "Treat the first-pass prose as untrusted; verify repository state directly."
         )
         repaired = base_run(repair_task, escalation, **kwargs)
-        return (
-            result
-            + "\n\n--- Automatic escalation triggered ---\n"
-            + repaired
-        )
+        return result + "\n\n--- Automatic escalation triggered ---\n" + repaired
 
     local_agent.run_local_agent = run
     _INSTALLED = True
