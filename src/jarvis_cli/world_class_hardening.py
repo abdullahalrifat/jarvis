@@ -93,19 +93,13 @@ def _fallback_configs(
 
 
 def _bounded_file_list(tools: Any, value: str, limit: int = 500) -> str:
-    """Walk only until the requested result budget is full.
-
-    The old implementation sorted a complete recursive glob before slicing to
-    500 results, which could enumerate hundreds of thousands of generated files.
-    """
+    """Walk only until the requested result budget is full."""
     root = tools._path(value)
     if not root.is_dir():
-        raise tools._api_error(f"Not a directory: {value}") if hasattr(tools, "_api_error") else NotADirectoryError(value)
+        raise NotADirectoryError(value)
     rows: list[str] = []
     for current, dirs, names in os.walk(root):
-        dirs[:] = sorted(
-            item for item in dirs if item not in _IGNORED_DIRS
-        )
+        dirs[:] = sorted(item for item in dirs if item not in _IGNORED_DIRS)
         for name in sorted(names):
             candidate = os.path.join(current, name)
             if not os.path.isfile(candidate):
@@ -114,6 +108,16 @@ def _bounded_file_list(tools: Any, value: str, limit: int = 500) -> str:
             if len(rows) >= limit:
                 return "\n".join(rows)
     return "\n".join(rows)
+
+
+def _require_verified_completion(result: str) -> str:
+    """Do not let a failed independent verifier become SDK/cloud success."""
+    if "Verification (incomplete:" in result:
+        raise RuntimeError(
+            "Independent verification did not pass. The workspace may contain "
+            "unverified changes; inspect evidence/diff before continuing."
+        )
+    return result
 
 
 def install_world_class_hardening() -> None:
@@ -193,21 +197,23 @@ def install_world_class_hardening() -> None:
         )
         effective_verifier = verifier_passed
         if verifier_passed is True and evidence_count == 0:
-            # Absence of a failed check is not successful verification. A
-            # multi-agent verifier may still provide useful review evidence, so
-            # preserve the neutral/unknown contribution instead of forcing zero.
             effective_verifier = None
         score = base_confidence(state, effective_verifier)
         if evidence_count == 0:
             score = min(score, 0.49)
-        if state.mutations > 0 and state.tests_passed == 0 and state.commands_passed == 0:
+        if (
+            state.mutations > 0
+            and state.tests_passed == 0
+            and state.commands_passed == 0
+        ):
             score = min(score, 0.45)
         return score
 
     def run_with_cleanup(task: str, config, **kwargs):
         tools = kwargs.get("tools")
         try:
-            return base_run(task, config, **kwargs)
+            result = base_run(task, config, **kwargs)
+            return _require_verified_completion(result)
         finally:
             if tools is not None:
                 close = getattr(tools, "close", None)
@@ -220,9 +226,8 @@ def install_world_class_hardening() -> None:
     local_agent.run_local_agent = run_with_cleanup
     efficiency_runtime._evidence_confidence = hardened_confidence
 
-    # A browser click can submit a form, start a deployment, change account
-    # state, or trigger another external side effect. Treat it like browser_type:
-    # plan mode denies it and normal mutation policy asks unless pre-approved.
+    # Browser clicks can submit forms, deploy, purchase, or change remote state.
+    # Route them through normal mutation approval and deny them in plan mode.
     proof_runtime._MUTATING_TOOLS.add("browser_click")
 
     _INSTALLED = True
