@@ -195,7 +195,6 @@ def test_job_cancel_dispatches_process_tree_termination(tmp_path, monkeypatch):
     assert store.get(job_id).status == "cancelled"
 
 
-
 def test_fenced_worker_negotiates_client_neutral_protocol_before_claim(tmp_path):
     from jarvis_cli.local_agent import LocalConfig
 
@@ -265,3 +264,51 @@ def test_fenced_worker_rejects_incompatible_server_before_claim(tmp_path):
     }
     with pytest.raises(APIError, match="incompatible"):
         worker.claim()
+
+
+def test_cloud_proof_requires_current_completed_passing_tests():
+    row = {
+        "kind": "test",
+        "subject": "run_command",
+        "status": "passed",
+        "metadata": {"arguments": {"argv": ["pytest", "-q"]}},
+    }
+    records = FencedCloudWorker._verification_records(
+        {"run_id": "run-1", "status": "completed", "records": [row]}
+    )
+    assert len(records) == 1
+    assert records[0].command == "pytest -q"
+    assert records[0].status == "passed"
+
+    with pytest.raises(Exception, match="passing tests"):
+        FencedCloudWorker._verification_records(
+            {
+                "run_id": "run-1",
+                "status": "completed",
+                "records": [{**row, "status": "failed"}],
+            }
+        )
+    with pytest.raises(Exception, match="at least one passing test"):
+        FencedCloudWorker._verification_records(
+            {"run_id": "run-1", "status": "completed", "records": []}
+        )
+
+
+def test_cloud_worker_loads_only_the_requested_run_proof(tmp_path, monkeypatch):
+    monkeypatch.setenv("JARVIS_PROOF_DIR", str(tmp_path / "proofs"))
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    current = proof_path(workspace, "current")
+    current.parent.mkdir(parents=True)
+    current.write_text(
+        '{"run_id":"current","status":"completed","records":[]}',
+        encoding="utf-8",
+    )
+    proof_path(workspace).write_text(
+        '{"run_id":"stale","status":"completed","records":[]}',
+        encoding="utf-8",
+    )
+
+    loaded = FencedCloudWorker._load_local_proof(str(workspace), "current")
+    assert loaded is not None and loaded["run_id"] == "current"
+    assert FencedCloudWorker._load_local_proof(str(workspace), "stale") is None

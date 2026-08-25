@@ -66,7 +66,7 @@ def test_trust_registry_is_user_owned_and_atomic(tmp_path, monkeypatch):
     workspace.mkdir()
     target = trust_workspace(workspace)
     payload = json.loads(target.read_text(encoding="utf-8"))
-    assert payload["version"] == 2
+    assert payload["version"] == 3
     assert payload["workspaces"][0]["path"] == str(workspace.resolve())
     assert len(payload["workspaces"][0]["repository_fingerprint"]) == 64
     assert len(payload["workspaces"][0]["executable_config_digest"]) == 64
@@ -160,7 +160,6 @@ def test_web_redirect_is_validated_before_following(monkeypatch):
         )
 
 
-
 def test_workspace_trust_invalidates_when_executable_config_changes(
     tmp_path, monkeypatch
 ):
@@ -187,3 +186,22 @@ def test_purpose_specific_environment_allowlist(monkeypatch):
     assert env["HOOK_API_KEY"] == "required"
     assert "OTHER_API_KEY" not in env
     assert "JARVIS_HOOK_ENV_ALLOW" not in env
+
+
+def test_workspace_trust_invalidates_when_git_head_changes(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    workspace = tmp_path / "repo"
+    head_ref = workspace / ".git" / "refs" / "heads" / "main"
+    head_ref.parent.mkdir(parents=True)
+    (workspace / ".git" / "config").write_text(
+        '[remote "origin"]\nurl = https://example.test/repo.git\n',
+        encoding="utf-8",
+    )
+    (workspace / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    head_ref.write_text("a" * 40 + "\n", encoding="utf-8")
+
+    trust_workspace(workspace)
+    assert is_workspace_trusted(workspace)
+
+    head_ref.write_text("b" * 40 + "\n", encoding="utf-8")
+    assert not is_workspace_trusted(workspace)

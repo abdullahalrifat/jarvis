@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-TRUST_VERSION = 2
+TRUST_VERSION = 3
 _EXECUTABLE_CONFIG = (
     ".jarvis/hooks.toml",
     ".jarvis/mcp.toml",
@@ -20,9 +20,7 @@ def trust_file() -> Path:
     configured = os.getenv("JARVIS_TRUST_FILE")
     if configured:
         return Path(configured).expanduser().resolve()
-    root = Path(
-        os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
-    ).expanduser()
+    root = Path(os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))).expanduser()
     return root / "jarvis" / "trusted-workspaces.json"
 
 
@@ -35,11 +33,37 @@ def _repository_marker(workspace: Path) -> bytes:
             return b""
         if pointer.startswith("gitdir:"):
             git = (workspace / pointer.split(":", 1)[1].strip()).resolve()
-    config = git / "config"
+
+    parts: list[bytes] = []
+    for name in ("config", "HEAD"):
+        try:
+            parts.append((git / name).read_bytes())
+        except OSError:
+            parts.append(b"<missing>")
+
     try:
-        return config.read_bytes()
+        head = (git / "HEAD").read_text(encoding="utf-8").strip()
     except OSError:
-        return b""
+        head = ""
+    if head.startswith("ref:"):
+        reference = head.split(":", 1)[1].strip()
+        try:
+            parts.append((git / reference).read_bytes())
+        except OSError:
+            try:
+                packed = (git / "packed-refs").read_text(encoding="utf-8")
+            except OSError:
+                packed = ""
+            resolved = next(
+                (
+                    line.split(" ", 1)[0]
+                    for line in packed.splitlines()
+                    if line.endswith(" " + reference)
+                ),
+                "<missing>",
+            )
+            parts.append(resolved.encode())
+    return b"\0".join(parts)
 
 
 def workspace_identity(workspace: str | Path) -> dict[str, str]:
@@ -74,28 +98,39 @@ def _load() -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return empty
-    # Path-only v1 entries intentionally do not migrate: executable project
-    # configuration must be explicitly re-trusted under the content-bound format.
+    # Older entries intentionally do not migrate: repository HEAD and executable
+    # configuration must be explicitly re-trusted under the current format.
     if not isinstance(payload, dict) or payload.get("version") != TRUST_VERSION:
         return empty
     rows = payload.get("workspaces")
     if not isinstance(rows, list):
         return empty
     valid = [
-        item for item in rows
+        item
+        for item in rows
         if isinstance(item, dict)
-        and all(isinstance(item.get(key), str) for key in (
-            "path", "repository_fingerprint", "executable_config_digest"
-        ))
+        and all(
+            isinstance(item.get(key), str)
+            for key in (
+                "path",
+                "repository_fingerprint",
+                "executable_config_digest",
+            )
+        )
     ]
-    return {"version": TRUST_VERSION, "workspaces": sorted(valid, key=lambda x: x["path"])}
+    return {
+        "version": TRUST_VERSION,
+        "workspaces": sorted(valid, key=lambda x: x["path"]),
+    }
 
 
 def _write(payload: dict[str, Any]) -> Path:
     path = trust_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     try:
         os.chmod(tmp, 0o600)
     except OSError:

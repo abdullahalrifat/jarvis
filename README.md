@@ -1,5 +1,10 @@
 # Jarvis CLI
 
+## Current contract line
+
+Jarvis 0.9 uses the provider-neutral Jarvis Core 0.9.1 proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
+
+
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
 The design goal is dependable coding outcomes comparable with mature commercial agents while preserving local control and provider choice. See [ROADMAP.md](ROADMAP.md) and [docs/world-class-readiness.md](docs/world-class-readiness.md) for the evidence-based maturity and parity gaps; the project does not claim production or Claude/Codex equivalence based only on feature count.

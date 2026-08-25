@@ -14,12 +14,11 @@ import time
 from typing import Any
 import uuid
 
+from jarvis_core import ExecutionProof, PROOF_SCHEMA_VERSION, VerificationRecord
+
 from .client import APIError
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .proof_runtime import proof_path
-CLOUD_EXECUTION_PROTOCOL_VERSION = 1
-EXECUTION_PROOF_SCHEMA_VERSION = 1
-
 from .sdk import (
     LegacyCloudWorker,
     LegacyRemoteJarvis,
@@ -28,8 +27,14 @@ from .sdk import (
     _PreparedWorkspace,
 )
 
+CLOUD_EXECUTION_PROTOCOL_VERSION = 1
+EXECUTION_PROOF_SCHEMA_VERSION = PROOF_SCHEMA_VERSION
+_SUCCESS_STATUSES = {"completed", "succeeded", "success"}
 
-def _run_local_child(config, task: str, workspace: str, allow_write: bool, output) -> None:
+
+def _run_local_child(
+    config, task: str, workspace: str, allow_write: bool, output
+) -> None:
     try:
         result = LocalJarvis(config).run(
             task,
@@ -101,16 +106,12 @@ class FencedCloudWorker(LegacyCloudWorker):
             return
         capabilities = self.client.request("GET", "/platform/capabilities")
         protocols = (
-            capabilities.get("protocols", {})
-            if isinstance(capabilities, dict)
-            else {}
+            capabilities.get("protocols", {}) if isinstance(capabilities, dict) else {}
         )
         cloud = protocols.get("cloud_execution", {})
         versions = cloud.get("versions", []) if isinstance(cloud, dict) else []
         proof_versions = (
-            cloud.get("proof_schema_versions", [])
-            if isinstance(cloud, dict)
-            else []
+            cloud.get("proof_schema_versions", []) if isinstance(cloud, dict) else []
         )
         if not isinstance(versions, list) or not isinstance(proof_versions, list):
             raise APIError("remote server returned malformed protocol capabilities")
@@ -132,16 +133,13 @@ class FencedCloudWorker(LegacyCloudWorker):
         config = self.local.config
         key_env = profile_api_key_env(matched.name)
         default_env = (
-            "ANTHROPIC_API_KEY"
-            if matched.provider == "anthropic"
-            else "OPENAI_API_KEY"
+            "ANTHROPIC_API_KEY" if matched.provider == "anthropic" else "OPENAI_API_KEY"
         )
         if key_env:
             api_key = os.getenv(key_env, "")
-        elif (
-            matched.provider == config.provider
-            and matched.base_url.rstrip("/") == config.base_url.rstrip("/")
-        ):
+        elif matched.provider == config.provider and matched.base_url.rstrip(
+            "/"
+        ) == config.base_url.rstrip("/"):
             api_key = config.api_key
         else:
             api_key = os.getenv(default_env, "")
@@ -159,7 +157,9 @@ class FencedCloudWorker(LegacyCloudWorker):
             approval=self.local.approval,
         )
 
-    def _local_for_model(self, requested: str | None, *, task: str = "code") -> LocalJarvis:
+    def _local_for_model(
+        self, requested: str | None, *, task: str = "code"
+    ) -> LocalJarvis:
         requested = (requested or "auto").strip()
         profiles = load_profiles()
         if requested in {"", "auto"}:
@@ -172,7 +172,9 @@ class FencedCloudWorker(LegacyCloudWorker):
             except LookupError:
                 return self.local
             return self._profile_local(matched)
-        matched = next((item for item in profiles.list() if item.name == requested), None)
+        matched = next(
+            (item for item in profiles.list() if item.name == requested), None
+        )
         if matched is not None:
             return self._profile_local(matched)
         return LocalJarvis(
@@ -275,6 +277,47 @@ class FencedCloudWorker(LegacyCloudWorker):
             payload["local_execution"] = local_proof
         return payload
 
+    @staticmethod
+    def _verification_records(
+        local_proof: dict[str, Any],
+    ) -> tuple[VerificationRecord, ...]:
+        if local_proof.get("status") != "completed":
+            raise APIError("local execution proof is not completed")
+        records = local_proof.get("records")
+        if not isinstance(records, list):
+            raise APIError("local execution proof records are malformed")
+
+        verifications: list[VerificationRecord] = []
+        for row in records:
+            if not isinstance(row, dict) or row.get("kind") != "test":
+                continue
+            status = str(row.get("status") or "")
+            if status != "passed":
+                raise APIError("successful cloud completion requires passing tests")
+            metadata = row.get("metadata")
+            arguments = metadata.get("arguments") if isinstance(metadata, dict) else {}
+            argv = arguments.get("argv") if isinstance(arguments, dict) else None
+            command = (
+                " ".join(str(item) for item in argv)
+                if isinstance(argv, list) and argv
+                else str(row.get("subject") or "test")
+            )
+            canonical = json.dumps(
+                row, sort_keys=True, separators=(",", ":"), default=str
+            ).encode()
+            verifications.append(
+                VerificationRecord(
+                    command=command,
+                    status="passed",
+                    exit_code=0,
+                    output_digest=hashlib.sha256(canonical).hexdigest(),
+                )
+            )
+        if not verifications:
+            raise APIError(
+                "successful cloud completion requires at least one passing test record"
+            )
+        return tuple(verifications)
 
     @staticmethod
     def _completion_proof(
@@ -287,13 +330,10 @@ class FencedCloudWorker(LegacyCloudWorker):
         local,
         local_proof: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        """Build the versioned proof envelope accepted by the Server gate."""
+        """Build and validate the Core proof envelope accepted by the Server."""
 
         if not local_proof:
             raise APIError("successful cloud completion requires local execution proof")
-        canonical_local = json.dumps(
-            local_proof, sort_keys=True, separators=(",", ":"), default=str
-        ).encode()
         source = json.dumps(
             prepared.source, sort_keys=True, separators=(",", ":"), default=str
         ).encode()
@@ -301,36 +341,37 @@ class FencedCloudWorker(LegacyCloudWorker):
         artifacts = {}
         if diff:
             artifacts["workspace.diff"] = hashlib.sha256(diff.encode()).hexdigest()
-        return {
-            "schema_version": 1,
-            "task_id": task_id,
-            "lease_id": lease_id,
-            "attempt": max(1, int(attempt)),
-            "workspace_digest": hashlib.sha256(source).hexdigest(),
-            "route": str(local.config.provider),
-            "model": str(local.config.model),
-            "mutation_digest": hashlib.sha256(diff.encode()).hexdigest(),
-            "verifications": [
-                {
-                    "command": "jarvis local execution proof",
-                    "status": "passed",
-                    "exit_code": 0,
-                    "output_digest": hashlib.sha256(canonical_local).hexdigest(),
-                }
-            ],
-            "artifact_hashes": artifacts,
-        }
-
+        try:
+            proof = ExecutionProof(
+                task_id=task_id,
+                lease_id=lease_id,
+                attempt=max(1, int(attempt)),
+                workspace_digest=hashlib.sha256(source).hexdigest(),
+                route=str(local.config.provider),
+                model=str(local.config.model),
+                mutation_digest=hashlib.sha256(diff.encode()).hexdigest(),
+                verifications=FencedCloudWorker._verification_records(local_proof),
+                artifact_hashes=artifacts,
+            )
+            proof.validate(task_id=task_id, lease_id=lease_id)
+        except (TypeError, ValueError) as exc:
+            raise APIError(f"local execution proof is invalid: {exc}") from exc
+        return proof.to_dict()
 
     @staticmethod
-    def _load_local_proof(workspace: str) -> dict[str, Any] | None:
-        target = proof_path(workspace)
+    def _load_local_proof(workspace: str, run_id: str | None) -> dict[str, Any] | None:
+        if not run_id:
+            return None
+        target = proof_path(workspace, run_id)
         if not target.is_file():
             return None
         try:
-            return json.loads(target.read_text(encoding="utf-8"))
+            proof = json.loads(target.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
+        if not isinstance(proof, dict) or proof.get("run_id") != run_id:
+            return None
+        return proof
 
     @staticmethod
     def _stop_child(child: mp.Process) -> None:
@@ -422,12 +463,15 @@ class FencedCloudWorker(LegacyCloudWorker):
                 result_queue.join_thread()
             if child_result.get("error"):
                 raise APIError(str(child_result["error"]))
+            child_status = str(child_result.get("status") or "failed").casefold()
+            if child_status not in _SUCCESS_STATUSES:
+                raise APIError(f"local cloud execution did not succeed: {child_status}")
             result = SDKResult(
                 status=str(child_result.get("status") or "completed"),
                 result=child_result.get("result"),
                 run_id=child_result.get("run_id"),
             )
-            local_proof = self._load_local_proof(str(prepared.path))
+            local_proof = self._load_local_proof(str(prepared.path), result.run_id)
             if lease_lost.is_set() or cancelled.is_set():
                 raise APIError("cloud execution lost its lease before verification")
 
