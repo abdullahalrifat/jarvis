@@ -14,6 +14,7 @@ from .proof_runtime import install_proof_runtime
 from .routing_v07 import install_v07_routing
 from .runtime_hooks import install_runtime_hooks
 from .speculation_v07 import install_safe_speculation
+from .world_class_hardening import install_world_class_hardening
 
 _INSTALLED = False
 
@@ -62,4 +63,5 @@ def install_platform_runtime() -> None:
     local_agent.LocalTools = TelemetryTools
     local_agent.ModelProvider = TelemetryProvider
     install_proof_runtime()
+    install_world_class_hardening()
     _INSTALLED = True
