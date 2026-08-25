@@ -14,7 +14,7 @@ def _profile(name, provider, model, base_url):
     )
 
 
-def test_same_model_on_different_endpoint_is_distinct_inference_identity(tmp_path):
+def test_same_model_on_different_endpoint_is_retained_as_fallback(tmp_path, monkeypatch):
     base = LocalConfig(
         provider="openai",
         model="coder",
@@ -22,14 +22,26 @@ def test_same_model_on_different_endpoint_is_distinct_inference_identity(tmp_pat
         base_url="http://127.0.0.1:4000/v1",
         workspace=tmp_path,
     )
-    remote = LocalConfig(
-        provider="openai",
-        model="coder",
-        api_key="remote-key",
-        base_url="https://api.example.test/v1",
-        workspace=tmp_path,
+    remote = _profile(
+        "remote-coder",
+        "openai",
+        "coder",
+        "https://api.example.test/v1",
     )
-    assert world_class_hardening._endpoint_identity(base) != world_class_hardening._endpoint_identity(remote)
+    monkeypatch.setenv("OPENAI_API_KEY", "remote-key")
+    monkeypatch.setattr(
+        "jarvis_cli.profiles.profile_api_key_env", lambda _name: None
+    )
+    configs = world_class_hardening._fallback_configs(
+        base,
+        {remote.name: remote},
+        [remote.name],
+    )
+    assert len(configs) == 1
+    assert configs[0].model == base.model
+    assert configs[0].base_url == "https://api.example.test/v1"
+    assert configs[0].api_key == "remote-key"
+    assert world_class_hardening._endpoint_identity(base) != world_class_hardening._endpoint_identity(configs[0])
 
 
 def test_profile_key_never_reuses_primary_key_across_provider(tmp_path, monkeypatch):
