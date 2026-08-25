@@ -108,13 +108,22 @@ def _load() -> dict[str, Any]:
     if not isinstance(rows, list):
         return empty
     valid = [
-        item for item in rows
+        item
+        for item in rows
         if isinstance(item, dict)
-        and all(isinstance(item.get(key), str) for key in (
-            "path", "repository_fingerprint", "executable_config_digest"
-        ))
+        and all(
+            isinstance(item.get(key), str)
+            for key in (
+                "path",
+                "repository_fingerprint",
+                "executable_config_digest",
+            )
+        )
     ]
-    return {"version": TRUST_VERSION, "workspaces": sorted(valid, key=lambda x: x["path"])}
+    return {
+        "version": TRUST_VERSION,
+        "workspaces": sorted(valid, key=lambda x: x["path"]),
+    }
 
 
 def _write(payload: dict[str, Any]) -> Path:
