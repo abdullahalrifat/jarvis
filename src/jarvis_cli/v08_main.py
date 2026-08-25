@@ -84,8 +84,9 @@ def _parser() -> argparse.ArgumentParser:
 
     trust = subs.add_parser("trust")
     trust.add_argument("--workspace", default=".")
-    trust.add_argument("--revoke", action="store_true")
-    trust.add_argument("--status", action="store_true")
+    trust_mode = trust.add_mutually_exclusive_group()
+    trust_mode.add_argument("--revoke", action="store_true")
+    trust_mode.add_argument("--status", action="store_true")
 
     dashboard = subs.add_parser("dashboard")
     dashboard.add_argument("--workspace", default=".")
@@ -175,7 +176,9 @@ def _permissions(args: argparse.Namespace) -> int:
                 "deny": sorted(policy.deny),
                 "ignored_project_allow": sorted(policy.ignored_project_allow),
                 "default": "ask for mutations; allow read-only",
-                "project_policy": "restrict-only; repository allow entries cannot broaden privileges",
+                "project_policy": (
+                    "restrict-only; repository allow entries cannot broaden privileges"
+                ),
                 "plan_mode": "all mutations denied",
             },
             indent=2,
