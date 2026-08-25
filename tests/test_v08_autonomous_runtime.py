@@ -195,7 +195,6 @@ def test_job_cancel_dispatches_process_tree_termination(tmp_path, monkeypatch):
     assert store.get(job_id).status == "cancelled"
 
 
-
 def test_fenced_worker_negotiates_client_neutral_protocol_before_claim(tmp_path):
     from jarvis_cli.local_agent import LocalConfig
 
@@ -310,5 +309,6 @@ def test_cloud_worker_loads_only_the_requested_run_proof(tmp_path, monkeypatch):
         encoding="utf-8",
     )
 
-    assert FencedCloudWorker._load_local_proof(str(workspace), "current")["run_id"] == "current"
+    loaded = FencedCloudWorker._load_local_proof(str(workspace), "current")
+    assert loaded is not None and loaded["run_id"] == "current"
     assert FencedCloudWorker._load_local_proof(str(workspace), "stale") is None
