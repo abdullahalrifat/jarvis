@@ -8,20 +8,17 @@ from threading import Lock
 from typing import Any
 
 from .client import APIError
-from .mcp import (
-    HTTPMCPClient,
-    MCPClient,
-    default_mcp_config_path,
-    load_mcp_config,
-    oauth_token,
-)
+from .mcp import HTTPMCPClient, MCPClient, load_mcp_config, oauth_token
 
 _clients: dict[str, MCPClient | HTTPMCPClient] = {}
 _lock = Lock()
 
 
 def configured_client(alias: str, path: str | Path | None = None):
-    configs = load_mcp_config(path or default_mcp_config_path())
+    # No explicit path means the composed runtime may merge installed plugin
+    # MCP descriptors with user configuration. An explicit path remains an
+    # isolated caller-selected registry.
+    configs = load_mcp_config(path) if path is not None else load_mcp_config()
     config = configs.get(alias)
     if config is None:
         raise APIError(f"MCP server alias is not configured: {alias}")
