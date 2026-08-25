@@ -67,9 +67,7 @@ class LocalJarvis:
 
         config = self.config
         if workspace is not None:
-            config = replace(
-                config, workspace=Path(workspace).expanduser().resolve()
-            )
+            config = replace(config, workspace=Path(workspace).expanduser().resolve())
         if allow_write is not None:
             config = replace(config, allow_edits=allow_write)
         if not config.workspace.is_dir():
@@ -85,7 +83,9 @@ class LocalJarvis:
 
         run_id = last_run_id()
         if not run_id:
-            raise APIError("local execution completed without a run-scoped proof identity")
+            raise APIError(
+                "local execution completed without a run-scoped proof identity"
+            )
         return SDKResult(status="completed", result=result, run_id=run_id)
 
 
@@ -259,11 +259,7 @@ class LegacyCloudWorker:
     @staticmethod
     def _git_hosts() -> set[str]:
         raw = os.getenv("JARVIS_CLOUD_GIT_ALLOW_HOSTS", "")
-        return {
-            value.strip().casefold()
-            for value in raw.split(",")
-            if value.strip()
-        }
+        return {value.strip().casefold() for value in raw.split(",") if value.strip()}
 
     @staticmethod
     def _safe_task_id(value: Any) -> str:
@@ -345,7 +341,9 @@ class LegacyCloudWorker:
         parsed = urlparse(repository_url)
         host = (parsed.hostname or "").casefold()
         if parsed.scheme != "https" or not host:
-            raise PermissionError("cloud Git workspace requires an https repository URL")
+            raise PermissionError(
+                "cloud Git workspace requires an https repository URL"
+            )
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise PermissionError(
                 "cloud Git repository URL must not embed credentials, query, or fragment data"
@@ -359,12 +357,16 @@ class LegacyCloudWorker:
                 + host
                 + "; configure JARVIS_CLOUD_GIT_ALLOW_HOSTS"
             )
-        root = Path(
-            os.getenv(
-                "JARVIS_CLOUD_WORKSPACE_ROOT",
-                str(Path.home() / ".local/state/jarvis/cloud-workspaces"),
+        root = (
+            Path(
+                os.getenv(
+                    "JARVIS_CLOUD_WORKSPACE_ROOT",
+                    str(Path.home() / ".local/state/jarvis/cloud-workspaces"),
+                )
             )
-        ).expanduser().resolve()
+            .expanduser()
+            .resolve()
+        )
         root.mkdir(parents=True, exist_ok=True)
         target = (root / safe_task_id).resolve()
         if target == root:
