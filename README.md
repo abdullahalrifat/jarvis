@@ -33,13 +33,14 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.1 pins the exact reviewed Jarvis Core 0.9.2 source commit:
+Jarvis 0.9.1 pins the immutable Jarvis Core 0.9.2 release wheel:
 
 ```text
-af3fcd5052dd6d5c15606302dcc7bd9f687fca78
+https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.9.2/jarvis_agent_core-0.9.2-py3-none-any.whl
+SHA-256 0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130
 ```
 
-The immutable source pin keeps installation reproducible while Core 0.9.2 is being released. After the release exists, this pin can be replaced with the verified wheel and checksum.
+The checksum-verified release asset keeps clean installations reproducible without a mutable branch or a Core checkout.
 
 ## Connect a model
 
