@@ -278,7 +278,6 @@ class FencedCloudWorker(LegacyCloudWorker):
             payload["local_execution"] = local_proof
         return payload
 
-
     @staticmethod
     def _verification_records(
         local_proof: dict[str, Any],
@@ -361,7 +360,9 @@ class FencedCloudWorker(LegacyCloudWorker):
         return proof.to_dict()
 
     @staticmethod
-    def _load_local_proof(workspace: str, run_id: str | None) -> dict[str, Any] | None:
+    def _load_local_proof(
+        workspace: str, run_id: str | None
+    ) -> dict[str, Any] | None:
         if not run_id:
             return None
         target = proof_path(workspace, run_id)
