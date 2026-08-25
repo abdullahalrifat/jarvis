@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 _SENSITIVE_MARKERS = (
     "API_KEY",
@@ -10,6 +11,7 @@ _SENSITIVE_MARKERS = (
     "AUTHORIZATION",
     "CREDENTIAL",
     "PASSWORD",
+    "PRIVATE_KEY",
     "SECRET",
     "TOKEN",
 )
@@ -18,11 +20,25 @@ _SENSITIVE_EXACT = {
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
     "AZURE_CLIENT_SECRET",
+    "DATABASE_URL",
     "GOOGLE_APPLICATION_CREDENTIALS",
     "GITHUB_TOKEN",
     "GH_TOKEN",
+    "POSTGRES_URL",
+    "REDIS_URL",
+    "SENTRY_DSN",
     "SSH_AUTH_SOCK",
 }
+
+
+def _value_contains_url_credentials(value: str) -> bool:
+    if "://" not in value:
+        return False
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    return parsed.username is not None or parsed.password is not None
 
 
 def sanitized_subprocess_env() -> dict[str, str]:
@@ -39,8 +55,10 @@ def sanitized_subprocess_env() -> dict[str, str]:
     result: dict[str, str] = {}
     for name, value in os.environ.items():
         upper = name.upper()
-        sensitive = upper in _SENSITIVE_EXACT or any(
-            marker in upper for marker in _SENSITIVE_MARKERS
+        sensitive = (
+            upper in _SENSITIVE_EXACT
+            or any(marker in upper for marker in _SENSITIVE_MARKERS)
+            or _value_contains_url_credentials(value)
         )
         if sensitive and name not in allowed:
             continue
