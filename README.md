@@ -1,33 +1,31 @@
 # Jarvis CLI
 
-Jarvis is the primary product: a standalone coding and research agent that runs
-on your computer while inference can run on any OpenAI-compatible remote GPU
-endpoint. Docker, Server, PostgreSQL, Redis, and Qdrant are not required for
-normal local work.
+Jarvis is a local-first coding and research agent. Repository tools execute on
+the developer's computer; inference can run through a local model server or a
+configured remote provider. Docker, PostgreSQL, Redis and AI Stack Server are
+not required for normal local work.
 
-Use an open-weight model served by Hugging Face Inference Endpoints, vLLM, TGI,
-LiteLLM, or a trusted local endpoint. Anthropic Messages compatibility remains
-optional; Jarvis does not require a commercial model subscription.
+The current stable CLI line is **0.8.1** and consumes the immutable public
+`jarvis-agent-core` **0.8.0** release wheel.
 
-## Choose Jarvis or Server
+## Product boundaries
 
-| Need | Use |
+| Need | Product |
 | --- | --- |
-| Read, review, edit, and test a checkout on this computer | **Jarvis** |
-| Keep code and tools local while inference runs remotely | **Jarvis** |
-| One developer, interactive terminal work, or local automation | **Jarvis** |
-| Work that survives client disconnects | **Server** |
-| Shared users, queues, policy, documents, and audit history | **Server** |
-| Telegram, WhatsApp, web, or mobile clients | **Server** |
-| Repositories mounted only in a remote environment | **Server** |
+| Read, edit, test and review a checkout on this computer | **Jarvis** |
+| Keep code/tools local while inference runs remotely | **Jarvis** |
+| Interactive terminal work, local jobs and local teams | **Jarvis** |
+| Work that survives client disconnects or runs on remote workers | **AI Stack Server** |
+| Shared queues, central policy, durable channels/documents/audit | **AI Stack Server** |
+| Portable typed contracts used by both products | **Jarvis Core** |
 
-Server mode is explicit through `jarvis run`. See the
-[Server guide](https://github.com/abdullahalrifat/ai-stack/blob/main/server/README.md)
-and [product architecture](https://github.com/abdullahalrifat/ai-stack/blob/main/docs/product-architecture.md).
+Jarvis remains useful without Server and without a paid model subscription.
+OpenAI-compatible endpoints such as local LiteLLM/vLLM/TGI/Ollama gateways can
+be used alongside optional Anthropic profiles.
 
 ## Install
 
-Python 3.10 or newer is required.
+Python 3.10+ is required.
 
 ```bash
 git clone https://github.com/abdullahalrifat/jarvis.git
@@ -36,103 +34,180 @@ pipx install .
 jarvis --version
 ```
 
-The package metadata pins the exact Core 0.2.0 release artifact. Pip downloads
-that public wheel automatically and verifies its SHA-256 during installation.
+Package metadata pins this verified Core release artifact:
 
-Jarvis installs the separately released
-[jarvis-agent-core v0.2.0](https://github.com/abdullahalrifat/jarvis-core/releases/tag/v0.2.0)
-wheel directly from GitHub with a verified SHA-256. A clean `pipx install .`
-therefore does not depend on PyPI or require a separate Core bootstrap step.
+```text
+jarvis-agent-core 0.8.0
+SHA-256 d9569b69385e58a681ea01e900eb81c395d3f202a09a92878eb82bf4d4b8618a
+```
+
+The Core wheel is downloaded from the immutable GitHub Release. PyPI is not
+required for the Core dependency.
 
 ## Connect a model
 
 ```bash
 export JARVIS_PROVIDER=openai
-export JARVIS_BASE_URL=https://your-endpoint.example/v1
-export JARVIS_MODEL=your-org/your-coding-model
-export JARVIS_API_KEY=your-secret
+export JARVIS_BASE_URL=http://127.0.0.1:4000/v1
+export JARVIS_MODEL=coder
+export JARVIS_API_KEY=local-secret
 
 jarvis model-doctor
 cd /path/to/repository
-jarvis "review this repository and fix the highest-impact issue"
+jarvis "review this repository and fix the highest-impact defect"
 ```
 
-For a trusted endpoint that deliberately has no authentication, pass
-`--no-api-key`. Never expose an unauthenticated model endpoint publicly.
-`model-doctor` checks authentication, response shape, usage reporting, and
-native tool calling. A prose-only chat endpoint cannot drive the coding agent.
+For a trusted local endpoint that intentionally has no authentication, use
+`--no-api-key`. Do not expose an unauthenticated model endpoint publicly.
 
-A local endpoint uses the same contract:
+Named profiles support different providers, endpoints, credentials and model
+capabilities. Adaptive routing can assign different profiles to explorer,
+implementer, verifier and risk roles. See [docs/models.md](docs/models.md).
 
-```bash
-export JARVIS_BASE_URL=http://127.0.0.1:8001/v1
-export JARVIS_MODEL=local-coding-model
-jarvis --no-api-key "explain this codebase"
-```
-
-Named profiles and `--model auto` are documented in
-[docs/models.md](docs/models.md).
-
-## Daily use
+## Core workflows
 
 ```bash
+# interactive/local work
 jarvis
-jarvis "review auth.py for security defects"
+jarvis "explain the authentication flow"
 jarvis local --read-only "review this repository"
-jarvis local --max-steps 40 --timeout 300 "implement and verify the change"
-jarvis local --accept-edits --accept-commands "implement and test the change"
-jarvis local --file notes.txt "summarize and verify this document"
+jarvis local --multi-agent "implement and independently verify this change"
+jarvis local --accept-edits --accept-commands "fix and test this bug"
+
+# sessions and evidence
+jarvis sessions
+jarvis session-resume SESSION_ID
+jarvis session-fork SESSION_ID --name experiment
+jarvis trace ~/.local/state/jarvis/traces/SESSION_ID.jsonl
+jarvis proof --workspace .
+jarvis dashboard --workspace .
+
+# repository intelligence and optimization
+jarvis repo-map
+jarvis optimize context "fix the cache invalidation bug" --workspace .
+jarvis optimize policy "migrate the public API" --workspace .
+jarvis optimize routes --category code
+
+# safety/review
+jarvis permissions --workspace .
+jarvis undo
+
+# cloud execution through optional Server
+jarvis cloud submit "fix the bug" --repository-url https://github.com/org/repo.git --git-ref main
+jarvis cloud status TASK_ID
+jarvis cloud cancel TASK_ID
 ```
 
-Jarvis loads root `AGENTS.md` instructions. Its local agent can list and read
-bounded files, search text, inspect Git state and diffs, apply checked unified
-patches, run constrained shell-free commands, build a repository map, plan,
-implement, verify, review, search the web, fetch public pages, and call
-administrator-selected MCP tools. Paths and symlinks cannot escape the
-workspace. Edits and commands require confirmation by default.
+## What is implemented now
 
-The model receives prompts and selected tool results, not direct filesystem or
-process access. Local tools remain on the user's computer.
+### Agent and model runtime
 
-## Search, sessions, traces, and evaluations
+- bounded local tool-calling loop;
+- OpenAI-compatible Chat Completions and Anthropic Messages adapters;
+- canonical provider-safe transcript checkpoint/resume;
+- provider profiles, health/fallback and empirical route calibration;
+- token budgets, context compaction and content-addressed tool artifacts;
+- adaptive single-agent vs multi-agent execution;
+- heterogeneous explorer/implementer/verifier/risk routing;
+- verifier isolation, evidence confidence, failure memory and bounded escalation;
+- native OpenAI/Anthropic image message construction and PDF/text attachments.
 
-Configure a self-hosted SearXNG endpoint for current answers:
+### Repository engineering
+
+- bounded file/search/Git tools and transactional unified patch application;
+- per-hunk review/undo foundations;
+- persistent repository graph and persistent LSP processes;
+- repository map enriched with symbols, imports, tests, recent Git touches and
+  bounded live LSP diagnostics;
+- impact-aware verification, patch-scope guard and patch minimization;
+- isolated task worktrees and parallel team task boards;
+- background jobs, standard UTC cron and process-tree cancellation.
+
+### Safety and extensibility
+
+- read-only plan mode;
+- fail-closed OS/network sandbox policy when isolation cannot be enforced;
+- deterministic user allow/ask/deny policy with restrict-only repository policy;
+- run-scoped redacted proof ledger outside the Git workspace;
+- deny-by-default MCP registry and persistent MCP lifecycle;
+- hierarchical instructions, durable memory, lazy Skills and lifecycle Hooks;
+- capability-scoped plugin packages;
+- optional Playwright browser verification with deny-by-default network access;
+- OpenTelemetry plus JSONL trace fallback.
+
+### Optional distributed execution
+
+With AI Stack Server, Jarvis supports reviewed remote Runs, portable Git cloud
+workspaces, idempotent submissions, attempt-scoped lease fencing, killable cloud
+execution, stale-result rejection, model/profile propagation and durable
+cancellation.
+
+## Important current limitations
+
+Jarvis is advanced, but the project does **not** claim proven Claude Code/Codex
+parity yet. The current audit identified these important gaps:
+
+- local model generation is request/response rather than a fully steerable
+  token/event stream;
+- agent commands do not yet expose persistent PTY/process attach/stdin tools;
+- the persistent LSP library has a richer surface than the normal agent tool
+  schema exposes;
+- the structural graph is strongest for Python and needs multi-language native
+  parsing for large polyglot repositories;
+- browser screenshots are not yet automatically fed back as native vision
+  evidence and external side-effect policy needs continued hardening;
+- hard wall-clock/currency/change-scope budgets are not yet unified with token
+  budgets;
+- adversarial/real-repository benchmarks exist but are not yet sufficient to
+  make a measured commercial-parity claim;
+- TypeScript SDK and native Windows AppContainer isolation are not complete.
+
+The full dated analysis and acceptance gates are in
+[docs/world-class-gap-analysis.md](docs/world-class-gap-analysis.md). The
+[ROADMAP](ROADMAP.md) intentionally distinguishes integrated features from
+production-ready and measured ones.
+
+## Security model
+
+Repository files, web pages, MCP output, browser pages and retrieved documents
+are untrusted input. They cannot broaden permissions.
+
+- filesystem paths are constrained to the workspace;
+- mutating Git commands are not available through generic `run_command`;
+- edits and commands ask by default unless trusted user policy pre-approves;
+- repository permission files may only restrict, never grant privileges;
+- plan mode denies mutations;
+- restrictive sandbox/network policy fails closed if the OS cannot enforce it;
+- MCP tools are denied unless configured policy permits them;
+- provider credentials stay out of cloud task payloads;
+- proof/traces redact common secret forms and omit large content bodies.
+
+Browser typing and clicking are treated as side effects by the v0.9 hardening
+line and therefore enter the mutation approval path.
+
+## Web evidence
+
+Configure SearXNG for current public information:
 
 ```bash
 export JARVIS_SEARCH_URL=https://search.example.com
-jarvis "find current primary sources and give me a cited answer"
 jarvis web-search "latest open-weight coding models" --limit 8
 ```
 
-SearXNG can aggregate whichever engines its administrator enables, including
-Google, Bing, or Brave; Jarvis does not require a paid search API. Search and
-page content is bounded and labeled untrusted, source URLs are preserved, and
-private/local network fetches are rejected. Search improves access to current
-information but does not guarantee that every answer is correct; verify
-high-stakes claims with primary sources.
+Search/fetched content is bounded, labeled untrusted and retains source URLs.
+Private/local network fetches are rejected by the web fetch policy. Search is
+evidence acquisition, not a guarantee of correctness.
 
-```bash
-jarvis sessions
-jarvis session-show SESSION_ID
-jarvis trace ~/.local/state/jarvis/traces/SESSION_ID.jsonl
-jarvis repo-map
-jarvis undo
-jarvis models --require tool_calling
-jarvis eval evals/smoke.json
-jarvis mcp-tools "python -m your_mcp_server"
-```
+See [docs/web-search.md](docs/web-search.md) and [docs/mcp.md](docs/mcp.md).
 
-These commands are covered in [docs/operations.md](docs/operations.md),
-[docs/web-search.md](docs/web-search.md), and [docs/mcp.md](docs/mcp.md).
-
-## Optional Server mode
+## Optional AI Stack Server
 
 ```bash
 export JARVIS_SERVER_URL=https://agent.example.com
 export JARVIS_SERVER_API_KEY=your-server-key
 
 jarvis doctor
-jarvis run "analyze the uploaded portfolio" --detach
+jarvis run "analyze this project" --detach
 jarvis list
 jarvis show RUN_ID
 jarvis resume RUN_ID
@@ -141,100 +216,24 @@ jarvis approve RUN_ID
 jarvis discard RUN_ID
 ```
 
-Server mode supports durable conversations, detached runs, event replay,
-cancellation, reviewable sandbox changes, stdin, and text/JSON/JSONL output.
+Server is documented in
+[AI Stack Server](https://github.com/abdullahalrifat/ai-stack/blob/main/server/README.md)
+and its
+[product architecture](https://github.com/abdullahalrifat/ai-stack/blob/main/docs/product-architecture.md).
 
-## Capability boundary
-
-Implemented now:
-
-- standalone bounded agent loop with guarded repository tools;
-- remote or local open-model inference and capability-aware profiles;
-- token budgets, context compaction, artifacts, and selective multi-agent mode;
-- web evidence with citations and SSRF/prompt-injection boundaries;
-- local session records, redacted traces, repository maps, attachments, undo,
-  MCP foundations, and replayable evaluation cases;
-- explicit durable Server mode.
-
-Not yet complete:
-
-- resuming a local transcript into a continued agent conversation;
-- session rename, fork, archive, delete, and interactive search;
-- image/PDF attachments and multimodal tool flow;
-- per-file/per-hunk diff approval and a complete undo ledger;
-- full MCP lifecycle/configuration, hooks, and signed plugins;
-- hierarchical instruction/memory policy and OS keyring integration;
-- provider failover/circuit breakers and benchmark-driven route optimization;
-- signed standalone binaries, secure updater, SBOM, and OS sandbox profiles.
-
-See [ROADMAP.md](ROADMAP.md). “Claude-like” means dependable comparable
-outcomes, not copying another product or requiring a paid provider.
-
-## Development
+## Development and validation
 
 ```bash
-python -m pytest
+python -m pip install -e . -r requirements.txt
+black --check --diff src tests
+ruff check src tests --select E9,F63,F7,F82
+pytest -q --cov=. --cov-report=term-missing --cov-fail-under=70
 python -m build
 ```
 
-Run the selective Explorer → Implementer → Verifier workflow with:
+Release candidates additionally require clean-wheel installation, provider/model
+smoke tests where credentials are configured, coordinated Core compatibility,
+and cross-repository Server/Postgres validation.
 
-```bash
-jarvis local --multi-agent "implement and verify this change"
-```
-
-Jarvis and Server share behavior through `jarvis-agent-core`; they share the
-versioned Server protocol contract without sharing tool implementations or
-storage policy.
-
-
-## World-class runtime (0.3 preview)
-
-The coordinated 0.3 release adds durable session continuation, provider fallback and circuit breaking, evidence contracts, transactional hunk review, benchmark-calibrated model routing, multimodal attachments, persistent policy-controlled MCP, hierarchical instructions and expiring memory, and hardened standalone distribution.
-
-Common workflows:
-
-```bash
-jarvis sessions
-jarvis session-resume SESSION_ID
-jarvis session-fork SESSION_ID --name experiment
-jarvis session-rename SESSION_ID "release investigation"
-jarvis session-archive SESSION_ID
-jarvis local --file report.pdf --file "screenshots/*.png" "verify the findings"
-jarvis self-update
-```
-
-Security defaults are deliberate: MCP tools require explicit permission, secrets use the operating-system keyring when persistence is requested, self-update verifies SHA-256 checksums, and supported platform sandboxes can disable network access for commands. The temporary Core dependency is pinned to an immutable public commit while 0.3 is under review; it will be replaced with the signed 0.3 release wheel before this feature set is marked stable.
-
-
-## Runtime hardening in 0.3.1
-
-Local sessions checkpoint the complete canonical transcript after every model
-and tool turn. Resuming preserves tool-call IDs and converts the transcript to
-the selected provider, so a session can safely continue after a tool call or
-switch between OpenAI-compatible and Anthropic profiles.
-
-Each fallback profile may set its own credential source:
-
-```toml
-[models.local]
-provider = "openai"
-model = "coder"
-base_url = "http://127.0.0.1:4000/v1"
-api_key_env = "LOCAL_LITELLM_KEY"
-
-[models.claude]
-provider = "anthropic"
-model = "claude-sonnet-4-5"
-base_url = "https://api.anthropic.com"
-api_key_env = "ANTHROPIC_API_KEY"
-```
-
-Image attachments are sent as native OpenAI image URL parts or Anthropic base64
-image blocks; they are no longer exposed to the model as base64 text. PDF text
-extraction remains available through the `multimodal` extra.
-
-MCP configuration lives at `~/.config/jarvis/mcp.toml` (or
-`JARVIS_MCP_CONFIG`). Clients are cached for the process lifetime and every
-tool is denied unless its policy explicitly sets `allow = true`. Remote MCP
-endpoints require HTTPS except for localhost.
+The current project goal is **measured dependable outcomes**, not superficial
+feature parity. See [ROADMAP.md](ROADMAP.md).
