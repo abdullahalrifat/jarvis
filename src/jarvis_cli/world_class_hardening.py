@@ -12,6 +12,8 @@ import json
 import os
 from typing import Any, Iterable
 
+from .client import APIError
+
 
 _INSTALLED = False
 _IGNORED_DIRS = {
@@ -113,7 +115,7 @@ def _bounded_file_list(tools: Any, value: str, limit: int = 500) -> str:
 def _require_verified_completion(result: str) -> str:
     """Do not let a failed independent verifier become SDK/cloud success."""
     if "Verification (incomplete:" in result:
-        raise RuntimeError(
+        raise APIError(
             "Independent verification did not pass. The workspace may contain "
             "unverified changes; inspect evidence/diff before continuing."
         )
