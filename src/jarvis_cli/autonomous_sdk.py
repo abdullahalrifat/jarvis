@@ -112,6 +112,8 @@ class FencedCloudWorker(LegacyCloudWorker):
             if isinstance(cloud, dict)
             else []
         )
+        if not isinstance(versions, list) or not isinstance(proof_versions, list):
+            raise APIError("remote server returned malformed protocol capabilities")
         if (
             CLOUD_EXECUTION_PROTOCOL_VERSION not in versions
             or EXECUTION_PROOF_SCHEMA_VERSION not in proof_versions
