@@ -16,7 +16,13 @@ import uuid
 from .client import APIError
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
 from .proof_runtime import proof_path
-from .sdk import CloudWorker, LocalJarvis, RemoteJarvis, SDKResult, _PreparedWorkspace
+from .sdk import (
+    LegacyCloudWorker,
+    LegacyRemoteJarvis,
+    LocalJarvis,
+    SDKResult,
+    _PreparedWorkspace,
+)
 
 
 def _run_local_child(config, task: str, workspace: str, allow_write: bool, output) -> None:
@@ -37,7 +43,7 @@ def _run_local_child(config, task: str, workspace: str, allow_write: bool, outpu
         output.put({"status": "failed", "error": str(exc)[:8000]})
 
 
-class AutonomousRemoteJarvis(RemoteJarvis):
+class AutonomousRemoteJarvis(LegacyRemoteJarvis):
     def submit_cloud(
         self,
         task: str,
@@ -75,7 +81,7 @@ class AutonomousRemoteJarvis(RemoteJarvis):
         return self.client.request("POST", f"/platform/cloud/tasks/{task_id}/cancel")
 
 
-class FencedCloudWorker(CloudWorker):
+class FencedCloudWorker(LegacyCloudWorker):
     """External worker with lease fencing, cancellable execution, and proof reporting."""
 
     def _profile_local(self, matched) -> LocalJarvis:
