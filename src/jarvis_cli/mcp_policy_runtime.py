@@ -6,15 +6,17 @@ from collections.abc import Callable
 from typing import Any
 
 from .client import APIError
-from .mcp import load_mcp_config
 
 _INSTALLED = False
 
 
 def _permission(server: str, tool_name: str):
-    # The composed runtime may merge installed plugin MCP descriptors into the
-    # no-argument registry; user configuration retains precedence.
-    config = load_mcp_config().get(server)
+    # Resolve the module function at call time. Plugin runtime intentionally
+    # patches mcp.load_mcp_config to merge installed plugin descriptors; an
+    # import-by-value here would silently bypass that composition.
+    from . import mcp
+
+    config = mcp.load_mcp_config().get(server)
     if config is None:
         raise APIError(f"MCP server alias is not configured: {server}")
     permissions = {item.tool: item for item in config.permissions}
