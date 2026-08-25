@@ -32,7 +32,9 @@ EXECUTION_PROOF_SCHEMA_VERSION = PROOF_SCHEMA_VERSION
 _SUCCESS_STATUSES = {"completed", "succeeded", "success"}
 
 
-def _run_local_child(config, task: str, workspace: str, allow_write: bool, output) -> None:
+def _run_local_child(
+    config, task: str, workspace: str, allow_write: bool, output
+) -> None:
     try:
         result = LocalJarvis(config).run(
             task,
@@ -104,16 +106,12 @@ class FencedCloudWorker(LegacyCloudWorker):
             return
         capabilities = self.client.request("GET", "/platform/capabilities")
         protocols = (
-            capabilities.get("protocols", {})
-            if isinstance(capabilities, dict)
-            else {}
+            capabilities.get("protocols", {}) if isinstance(capabilities, dict) else {}
         )
         cloud = protocols.get("cloud_execution", {})
         versions = cloud.get("versions", []) if isinstance(cloud, dict) else []
         proof_versions = (
-            cloud.get("proof_schema_versions", [])
-            if isinstance(cloud, dict)
-            else []
+            cloud.get("proof_schema_versions", []) if isinstance(cloud, dict) else []
         )
         if not isinstance(versions, list) or not isinstance(proof_versions, list):
             raise APIError("remote server returned malformed protocol capabilities")
@@ -135,16 +133,13 @@ class FencedCloudWorker(LegacyCloudWorker):
         config = self.local.config
         key_env = profile_api_key_env(matched.name)
         default_env = (
-            "ANTHROPIC_API_KEY"
-            if matched.provider == "anthropic"
-            else "OPENAI_API_KEY"
+            "ANTHROPIC_API_KEY" if matched.provider == "anthropic" else "OPENAI_API_KEY"
         )
         if key_env:
             api_key = os.getenv(key_env, "")
-        elif (
-            matched.provider == config.provider
-            and matched.base_url.rstrip("/") == config.base_url.rstrip("/")
-        ):
+        elif matched.provider == config.provider and matched.base_url.rstrip(
+            "/"
+        ) == config.base_url.rstrip("/"):
             api_key = config.api_key
         else:
             api_key = os.getenv(default_env, "")
@@ -162,7 +157,9 @@ class FencedCloudWorker(LegacyCloudWorker):
             approval=self.local.approval,
         )
 
-    def _local_for_model(self, requested: str | None, *, task: str = "code") -> LocalJarvis:
+    def _local_for_model(
+        self, requested: str | None, *, task: str = "code"
+    ) -> LocalJarvis:
         requested = (requested or "auto").strip()
         profiles = load_profiles()
         if requested in {"", "auto"}:
@@ -175,7 +172,9 @@ class FencedCloudWorker(LegacyCloudWorker):
             except LookupError:
                 return self.local
             return self._profile_local(matched)
-        matched = next((item for item in profiles.list() if item.name == requested), None)
+        matched = next(
+            (item for item in profiles.list() if item.name == requested), None
+        )
         if matched is not None:
             return self._profile_local(matched)
         return LocalJarvis(
@@ -360,9 +359,7 @@ class FencedCloudWorker(LegacyCloudWorker):
         return proof.to_dict()
 
     @staticmethod
-    def _load_local_proof(
-        workspace: str, run_id: str | None
-    ) -> dict[str, Any] | None:
+    def _load_local_proof(workspace: str, run_id: str | None) -> dict[str, Any] | None:
         if not run_id:
             return None
         target = proof_path(workspace, run_id)
@@ -474,9 +471,7 @@ class FencedCloudWorker(LegacyCloudWorker):
                 result=child_result.get("result"),
                 run_id=child_result.get("run_id"),
             )
-            local_proof = self._load_local_proof(
-                str(prepared.path), result.run_id
-            )
+            local_proof = self._load_local_proof(str(prepared.path), result.run_id)
             if lease_lost.is_set() or cancelled.is_set():
                 raise APIError("cloud execution lost its lease before verification")
 
