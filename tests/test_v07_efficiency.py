@@ -50,9 +50,9 @@ def test_dynamic_escalation_is_selective(monkeypatch):
     assert should_multi_agent(
         "investigate an intermittent production authentication migration across multiple distributed modules with concurrent database changes"
     )
-    monkeypatch.setenv("JARVIS_TOKEN_PRESSURE", "1")
+    monkeypatch.setenv("JARVIS_TOKEN_PRESSURE", "0.5")
     assert should_speculate(
-        "investigate why an intermittent distributed authentication failure occurs"
+        "investigate an intermittent production authentication migration across multiple distributed modules with concurrent database changes"
     )
 
 
