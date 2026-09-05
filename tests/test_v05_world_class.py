@@ -51,7 +51,7 @@ def test_skill_registry_loads_metadata_lazily_and_selects(tmp_path):
     assert "rollback" in registry.get("postgres-migration").body
 
 
-def test_hooks_can_add_context_and_deny(tmp_path):
+def test_hooks_can_add_context_and_deny(tmp_path, monkeypatch):
     hook_dir = tmp_path / ".jarvis"
     hook_dir.mkdir()
     script = tmp_path / "hook.py"
@@ -61,18 +61,12 @@ def test_hooks_can_add_context_and_deny(tmp_path):
     (hook_dir / "hooks.toml").write_text(
         f'[[hook]]\nevent="UserPrompt"\ncommand=["python", "{script}"]\ntimeout=5\nrequired=true\n'
     )
-    old = os.environ.get("JARVIS_SANDBOX")
-    os.environ["JARVIS_SANDBOX"] = "off"
-    try:
-        registry = HookRegistry(tmp_path)
-        assert registry.enforce("UserPrompt", {"allow": True}) == "checked"
-        with pytest.raises(PermissionError):
-            registry.enforce("UserPrompt", {"allow": False})
-    finally:
-        if old is None:
-            os.environ.pop("JARVIS_SANDBOX", None)
-        else:
-            os.environ["JARVIS_SANDBOX"] = old
+    monkeypatch.setenv("JARVIS_SANDBOX", "off")
+    monkeypatch.setenv("JARVIS_TRUST_WORKSPACE", "true")
+    registry = HookRegistry(tmp_path)
+    assert registry.enforce("UserPrompt", {"allow": True}) == "checked"
+    with pytest.raises(PermissionError):
+        registry.enforce("UserPrompt", {"allow": False})
 
 
 def test_sandbox_network_allowlist(tmp_path):
