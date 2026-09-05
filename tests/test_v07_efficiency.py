@@ -45,11 +45,12 @@ def test_context_compiler_prefers_matching_symbols_and_tests(tmp_path):
     assert "test_auth.py" in payload["impact_tests"]
 
 
-def test_dynamic_escalation_is_selective():
+def test_dynamic_escalation_is_selective(monkeypatch):
     assert not should_multi_agent("explain this constants file")
     assert should_multi_agent(
         "investigate an intermittent production authentication migration across multiple distributed modules with concurrent database changes"
     )
+    monkeypatch.setenv("JARVIS_TOKEN_PRESSURE", "1")
     assert should_speculate(
         "investigate why an intermittent distributed authentication failure occurs"
     )
