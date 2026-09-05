@@ -48,7 +48,7 @@ def test_context_compiler_prefers_matching_symbols_and_tests(tmp_path):
 def test_dynamic_escalation_is_selective():
     assert not should_multi_agent("explain this constants file")
     assert should_multi_agent(
-        "investigate an intermittent production authentication migration across multiple modules"
+        "investigate an intermittent production authentication migration across multiple distributed modules with concurrent database changes"
     )
     assert should_speculate(
         "investigate why an intermittent distributed authentication failure occurs"
