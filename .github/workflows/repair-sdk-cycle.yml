@@ -1,0 +1,72 @@
+name: Repair SDK cycle
+
+on:
+  push:
+    branches: ["fix/ci-speculative-test"]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ci-speculative-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Repair lazy SDK boundary
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/jarvis_cli/sdk.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''# Import the hardened implementations only when callers opt into the SDK.  Keeping
+          # this at the SDK boundary makes ``import jarvis_cli`` safe for packaging and
+          # version discovery even when runtime dependencies have not been installed yet.
+          from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
+
+          RemoteJarvis = AutonomousRemoteJarvis
+          CloudWorker = FencedCloudWorker'''
+          new = '''# Resolve hardened SDK implementations lazily. ``autonomous_sdk`` subclasses
+          # the legacy classes above, so importing it eagerly here creates a cycle when
+          # the console entry point imports ``v08_main`` from a clean wheel.
+          def __getattr__(name: str):
+              if name in {"AutonomousRemoteJarvis", "FencedCloudWorker", "RemoteJarvis", "CloudWorker"}:
+                  from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
+
+                  return {
+                      "AutonomousRemoteJarvis": AutonomousRemoteJarvis,
+                      "FencedCloudWorker": FencedCloudWorker,
+                      "RemoteJarvis": AutonomousRemoteJarvis,
+                      "CloudWorker": FencedCloudWorker,
+                  }[name]
+              raise AttributeError(name)
+
+
+          __all__ = [
+              "SDKResult",
+              "LocalJarvis",
+              "LegacyRemoteJarvis",
+              "LegacyCloudWorker",
+              "RemoteJarvis",
+              "CloudWorker",
+              "AutonomousRemoteJarvis",
+              "FencedCloudWorker",
+          ]'''
+          if old not in text:
+              raise SystemExit("expected SDK export block not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+      - name: Commit repair and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/jarvis_cli/sdk.py .github/workflows/repair-sdk-cycle.yml
+          git commit -m "fix: break SDK autonomous import cycle"
+          git rm .github/workflows/repair-sdk-cycle.yml
+          git commit -m "chore: remove one-off SDK repair workflow"
+          git push origin HEAD:fix/ci-speculative-test
