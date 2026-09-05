@@ -41,6 +41,7 @@ def _install_demo_plugin(tmp_path, monkeypatch):
 
 def test_plugin_command_discovery_and_cli_execution(tmp_path, monkeypatch, capsys):
     root = _install_demo_plugin(tmp_path, monkeypatch)
+    monkeypatch.setenv("JARVIS_SANDBOX", "off")
     (root / "commands").mkdir()
     (root / "commands" / "echo.json").write_text(
         json.dumps(
