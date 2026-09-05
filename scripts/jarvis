@@ -14,5 +14,10 @@ done
 script_dir="$(cd -- "$(dirname -- "${script_path}")" && pwd)"
 jarvis_dir="$(cd -- "${script_dir}/.." && pwd)"
 
+if [[ "${1:-}" == "--version" || "${1:-}" == "-V" ]]; then
+  PYTHONPATH="${jarvis_dir}/src${PYTHONPATH:+:${PYTHONPATH}}" python3 -c 'from jarvis_cli import __version__; print(__version__)'
+  exit 0
+fi
+
 export PYTHONPATH="${jarvis_dir}/src${PYTHONPATH:+:${PYTHONPATH}}"
 exec python3 -m jarvis_cli "$@"
