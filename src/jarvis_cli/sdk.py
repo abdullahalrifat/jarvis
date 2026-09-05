@@ -583,7 +583,12 @@ class LegacyCloudWorker:
 # the legacy classes above, so importing it eagerly here creates a cycle when
 # the console entry point imports ``v08_main`` from a clean wheel.
 def __getattr__(name: str):
-    if name in {"AutonomousRemoteJarvis", "FencedCloudWorker", "RemoteJarvis", "CloudWorker"}:
+    if name in {
+        "AutonomousRemoteJarvis",
+        "FencedCloudWorker",
+        "RemoteJarvis",
+        "CloudWorker",
+    }:
         from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 
         return {
