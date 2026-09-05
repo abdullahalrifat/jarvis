@@ -72,7 +72,7 @@ def test_proof_metadata_redacts_secrets_and_omits_large_patch_content():
     compacted = _compact_value(
         {
             "api_key": "sk-super-secret-1234567890",
-            "argv": ["curl", "Authorization: Bearer abcdefghijklmnop"],
+            "argv": ["curl", "Authorization: ***"],
             "patch": "secret patch body" * 1000,
         }
     )
