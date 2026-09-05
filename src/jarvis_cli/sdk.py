@@ -579,10 +579,30 @@ class LegacyCloudWorker:
                 time.sleep(self.poll_seconds)
 
 
-# Import the hardened implementations only when callers opt into the SDK.  Keeping
-# this at the SDK boundary makes ``import jarvis_cli`` safe for packaging and
-# version discovery even when runtime dependencies have not been installed yet.
-from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
+# Resolve hardened SDK implementations lazily. ``autonomous_sdk`` subclasses
+# the legacy classes above, so importing it eagerly here creates a cycle when
+# the console entry point imports ``v08_main`` from a clean wheel.
+def __getattr__(name: str):
+    if name in {
+        "AutonomousRemoteJarvis",
+        "FencedCloudWorker",
+        "RemoteJarvis",
+        "CloudWorker",
+    }:
+        from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 
-RemoteJarvis = AutonomousRemoteJarvis
-CloudWorker = FencedCloudWorker
+        return {
+            "AutonomousRemoteJarvis": AutonomousRemoteJarvis,
+            "FencedCloudWorker": FencedCloudWorker,
+            "RemoteJarvis": AutonomousRemoteJarvis,
+            "CloudWorker": FencedCloudWorker,
+        }[name]
+    raise AttributeError(name)
+
+
+__all__ = [
+    "SDKResult",
+    "LocalJarvis",
+    "LegacyRemoteJarvis",
+    "LegacyCloudWorker",
+]
