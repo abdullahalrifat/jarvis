@@ -140,12 +140,18 @@ def build_repository_map(root: str | Path, *, max_files: int = 2_000) -> dict[st
             item["lsp"] = {"persistent": True, "error": str(exc)[:500]}
         remaining -= 1
 
+    graph_imports = {
+        item["path"]: list(item.get("imports", []))
+        for item in snapshot["files"]
+        if item.get("imports")
+    }
     result = {
         **snapshot,
         "graph": {
             "persistent": True,
             "database": str(graph.db_path),
             "recent_git_changes": recent,
+            "imports": graph_imports,
         },
         "skills": skill_meta,
         "index": {
