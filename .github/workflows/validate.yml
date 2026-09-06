@@ -15,7 +15,12 @@ jobs:
       matrix:
         python-version: ["3.10", "3.12", "3.13"]
     steps:
+      # GitHub normally checks out refs/pull/<n>/merge for pull_request runs.
+      # That synthetic ref can lag the PR head when the merge ref is stale.
+      # Validate the exact PR head instead; pushes continue to use github.sha.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
