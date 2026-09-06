@@ -20,6 +20,9 @@ def test_redact_text_handles_bearer_before_assignment_patterns():
 def test_redact_text_preserves_placeholder_authorization():
     value = "Authorization: *** token=secret-value sk-123456789012"
     redacted = redact_text(value)
+    assert "***" in redacted
+    assert "secret-value" not in redacted
+    assert "sk-123456789012" not in redacted
     assert redacted == "Authorization: *** token=[REDACTED] [REDACTED_KEY]"
 
 
