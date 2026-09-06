@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 TERMINAL = {"completed", "failed", "cancelled", "timed_out", "kill_failed"}
 
 
