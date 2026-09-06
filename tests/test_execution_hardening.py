@@ -20,9 +20,6 @@ def test_redact_text_handles_bearer_before_assignment_patterns():
 def test_redact_text_preserves_placeholder_authorization():
     value = "Authorization: *** token=secret-value sk-123456789012"
     redacted = redact_text(value)
-    assert "***" in redacted
-    assert "secret-value" not in redacted
-    assert "sk-123456789012" not in redacted
     assert redacted == "Authorization: *** token=[REDACTED] [REDACTED_KEY]"
 
 
@@ -73,3 +70,31 @@ def test_managed_process_streams_and_completes(tmp_path: Path):
     assert process.status == "completed"
     assert process.exit_code == 0
     assert "ok" in process.snapshot()["output"]
+
+
+def test_managed_process_redacts_masked_and_unmasked_credentials(tmp_path: Path):
+    process = ManagedProcess(
+        (
+            "python3",
+            "-c",
+            "print('Authorization: *** token=secret-value sk-123456789012')",
+        ),
+        tmp_path,
+        timeout=10,
+    ).start()
+    for _ in range(100):
+        if process.status in {
+            "completed",
+            "failed",
+            "cancelled",
+            "timed_out",
+            "kill_failed",
+        }:
+            break
+        import time
+
+        time.sleep(0.02)
+    output = process.snapshot()["output"]
+    assert "Authorization: ***" in output
+    assert "secret-value" not in output
+    assert "sk-123456789012" not in output
