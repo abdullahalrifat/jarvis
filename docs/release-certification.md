@@ -1,6 +1,6 @@
 # Jarvis release certification
 
-Current coordinated line: Jarvis 0.9.1 with Jarvis Core 0.9.2.
+Current coordinated line: Jarvis 0.9.2 with Jarvis Core 0.9.4.
 
 ## Automated gates
 
@@ -8,7 +8,7 @@ Current coordinated line: Jarvis 0.9.1 with Jarvis Core 0.9.2.
 - black and critical Ruff checks;
 - pytest with the 70% coverage floor;
 - package build and clean-wheel installation;
-- immutable Core 0.9.2 checksum verification;
+- immutable Core 0.9.4 checksum verification;
 - cross-repository Core protocol conformance.
 
 ## Evidence and completion
