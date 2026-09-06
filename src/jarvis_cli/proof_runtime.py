@@ -27,7 +27,15 @@ _RUN: ContextVar[dict[str, Any] | None] = ContextVar("jarvis_v08_proof", default
 _LAST_RUN_ID: ContextVar[str | None] = ContextVar("jarvis_last_run_id", default=None)
 _MUTATING_TOOLS = {"apply_patch", "write_file", "edit_file", "browser_type"}
 _READONLY_GIT = {"status", "diff", "log", "show", "branch", "rev-parse", "ls-files"}
-_SECRET_KEYS = {"api_key", "apikey", "authorization", "cookie", "password", "secret", "token"}
+_SECRET_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+}
 _CONTENT_KEYS = {"body", "content", "patch", "text"}
 _SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;]+)"
@@ -45,7 +53,9 @@ def _redact_text(value: str) -> str:
     # Bearer credentials must be removed first: an assignment regex must never
     # get an opportunity to preserve the credential value in another form.
     value = _BEARER.sub("Bearer [REDACTED]", value)
-    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
+    value = _SECRET_ASSIGNMENT.sub(
+        lambda match: f"{match.group(1)}=[REDACTED]", value
+    )
     return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
 
 
@@ -69,7 +79,11 @@ def _compact_value(value: Any, *, key: str = "") -> Any:
         if lowered in _CONTENT_KEYS:
             return {"sha256": digest, "length": len(value), "content_omitted": True}
         if len(redacted) > 2000:
-            return {"sha256": digest, "length": len(value), "preview": redacted[:800] + "...[truncated]"}
+            return {
+                "sha256": digest,
+                "length": len(value),
+                "preview": redacted[:800] + "...[truncated]",
+            }
         return redacted
     return value
 
@@ -84,8 +98,15 @@ def _compact_detail(value: str) -> str:
 
 def proof_root(workspace: str | Path) -> Path:
     configured = os.getenv("JARVIS_PROOF_DIR")
-    base = Path(configured).expanduser() if configured else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local/state")) / "jarvis/proofs"
-    identity = hashlib.sha256(str(Path(workspace).expanduser().resolve()).encode()).hexdigest()[:20]
+    base = (
+        Path(configured).expanduser()
+        if configured
+        else Path(os.getenv("XDG_STATE_HOME", Path.home() / ".local/state"))
+        / "jarvis/proofs"
+    )
+    identity = hashlib.sha256(
+        str(Path(workspace).expanduser().resolve()).encode()
+    ).hexdigest()[:20]
     return base / identity
 
 
@@ -97,7 +118,9 @@ def trusted_permissions_path() -> Path:
     configured = os.getenv("JARVIS_PERMISSIONS_FILE")
     if configured:
         return Path(configured).expanduser().resolve()
-    config_root = Path(os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))).expanduser()
+    config_root = Path(
+        os.getenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    ).expanduser()
     return config_root / "jarvis" / "permissions.toml"
 
 
@@ -127,7 +150,9 @@ def _write_proof(state: dict[str, Any]) -> Path:
     return target
 
 
-def _record(kind: str, subject: str, status: str, detail: str = "", **metadata: Any) -> None:
+def _record(
+    kind: str, subject: str, status: str, detail: str = "", **metadata: Any
+) -> None:
     state = _RUN.get()
     if state is None:
         return
@@ -178,8 +203,12 @@ class PermissionPolicy:
 
     def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
-        trusted_allow, trusted_ask, trusted_deny = _permission_rules(trusted_permissions_path())
-        project_allow, project_ask, project_deny = _permission_rules(workspace / ".jarvis" / "permissions.toml")
+        trusted_allow, trusted_ask, trusted_deny = _permission_rules(
+            trusted_permissions_path()
+        )
+        project_allow, project_ask, project_deny = _permission_rules(
+            workspace / ".jarvis" / "permissions.toml"
+        )
         self.allow = trusted_allow
         self.ask = trusted_ask | project_ask
         self.deny = trusted_deny | project_deny
@@ -213,35 +242,66 @@ def _completion_audit(state: dict[str, Any]) -> dict[str, Any]:
         subject = str(record.get("subject", ""))
         if kind == "permission" and record.get("metadata", {}).get("mutation"):
             mutated = True
-        if kind in {"test", "tool", "file", "source", "mutation", "command"} and status == "passed":
+        if (
+            kind in {"test", "tool", "file", "source", "mutation", "command"}
+            and status == "passed"
+        ):
             try:
                 proof_kind = ProofKind(kind)
             except ValueError:
                 proof_kind = ProofKind.COMMAND
-            proofs.append(ClaimProof(subject, proof_kind, str(record.get("digest", "")), True, record.get("digest")))
+            proofs.append(
+                ClaimProof(
+                    subject,
+                    proof_kind,
+                    str(record.get("digest", "")),
+                    True,
+                    record.get("digest"),
+                )
+            )
             if kind == "test":
                 verified = True
     requirements: list[CompletionRequirement] = []
     if mutated:
         requirements.extend(
             [
-                CompletionRequirement("apply_patch", (ProofKind.MUTATION, ProofKind.COMMAND)),
-                CompletionRequirement("verification", (ProofKind.TEST, ProofKind.COMMAND)),
+                CompletionRequirement(
+                    "apply_patch", (ProofKind.MUTATION, ProofKind.COMMAND)
+                ),
+                CompletionRequirement(
+                    "verification", (ProofKind.TEST, ProofKind.COMMAND)
+                ),
             ]
         )
     else:
-        requirements.append(CompletionRequirement("evidence", (ProofKind.FILE, ProofKind.SOURCE, ProofKind.COMMAND, ProofKind.TEST)))
-    # Add normalized claims from the concrete records so the gate can reason
-    # about exact tool subjects while retaining the high-level requirements.
+        requirements.append(
+            CompletionRequirement(
+                "evidence",
+                (ProofKind.FILE, ProofKind.SOURCE, ProofKind.COMMAND, ProofKind.TEST),
+            )
+        )
     normalized: list[ClaimProof] = list(proofs)
-    if mutated and any(p.kind in {ProofKind.MUTATION, ProofKind.COMMAND} for p in proofs):
-        normalized.append(ClaimProof("apply_patch", ProofKind.MUTATION, "execution-record", True))
+    if mutated and any(
+        p.kind in {ProofKind.MUTATION, ProofKind.COMMAND} for p in proofs
+    ):
+        normalized.append(
+            ClaimProof("apply_patch", ProofKind.MUTATION, "execution-record", True)
+        )
     if verified:
-        normalized.append(ClaimProof("verification", ProofKind.TEST, "execution-record", True))
+        normalized.append(
+            ClaimProof("verification", ProofKind.TEST, "execution-record", True)
+        )
     if not mutated and proofs:
-        normalized.append(ClaimProof("evidence", proofs[0].kind, "execution-record", True))
+        normalized.append(
+            ClaimProof("evidence", proofs[0].kind, "execution-record", True)
+        )
     audit = EvidenceGate().audit(requirements, normalized)
-    return {"passed": audit.passed, "missing": list(audit.missing), "rejected": list(audit.rejected), "verified_test": verified}
+    return {
+        "passed": audit.passed,
+        "missing": list(audit.missing),
+        "rejected": list(audit.rejected),
+        "verified_test": verified,
+    }
 
 
 def install_proof_runtime() -> None:
@@ -249,6 +309,7 @@ def install_proof_runtime() -> None:
     if _INSTALLED:
         return
     from . import local_agent
+
     base_tools = local_agent.LocalTools
     base_run = local_agent.run_local_agent
 
@@ -266,31 +327,75 @@ def install_proof_runtime() -> None:
             if action == "allow" and mutation:
                 self.config = replace(
                     original_config,
-                    accept_edits=(original_config.accept_edits or name != "run_command"),
-                    accept_commands=(original_config.accept_commands or name == "run_command"),
+                    accept_edits=(
+                        original_config.accept_edits or name != "run_command"
+                    ),
+                    accept_commands=(
+                        original_config.accept_commands or name == "run_command"
+                    ),
                 )
             elif action == "ask" and mutation:
-                preapproved = original_config.accept_commands if name == "run_command" else original_config.accept_edits
+                preapproved = (
+                    original_config.accept_commands
+                    if name == "run_command"
+                    else original_config.accept_edits
+                )
                 if preapproved:
-                    _record("approval", name, "preapproved", "explicit CLI pre-approval")
+                    _record(
+                        "approval", name, "preapproved", "explicit CLI pre-approval"
+                    )
                 else:
+
                     def recording_approval(description: str) -> bool:
                         allowed = bool(original_approval(description))
-                        _record("approval", name, "approved" if allowed else "denied", description)
+                        _record(
+                            "approval",
+                            name,
+                            "approved" if allowed else "denied",
+                            description,
+                        )
                         return allowed
+
                     self.approval = recording_approval
             started = time.monotonic()
             try:
                 result = super().execute(name, arguments)
                 status = "passed"
-                if name == "run_command" and "[exit " in result and "[exit 0]" not in result:
+                if (
+                    name == "run_command"
+                    and "[exit " in result
+                    and "[exit 0]" not in result
+                ):
                     status = "failed"
-                joined = " ".join(str(x).casefold() for x in arguments.get("argv", []))
-                kind = "test" if name == "run_command" and any(marker in joined for marker in ("pytest", " test", "unittest")) else ("mutation" if mutation else "tool")
-                _record(kind, name, status, result[-4000:], arguments=arguments, latency_ms=(time.monotonic() - started) * 1000)
+                joined = " ".join(
+                    str(x).casefold() for x in arguments.get("argv", [])
+                )
+                kind = (
+                    "test"
+                    if name == "run_command"
+                    and any(
+                        marker in joined for marker in ("pytest", " test", "unittest")
+                    )
+                    else ("mutation" if mutation else "tool")
+                )
+                _record(
+                    kind,
+                    name,
+                    status,
+                    result[-4000:],
+                    arguments=arguments,
+                    latency_ms=(time.monotonic() - started) * 1000,
+                )
                 return result
             except BaseException as exc:
-                _record("tool", name, "failed", str(exc), arguments=arguments, latency_ms=(time.monotonic() - started) * 1000)
+                _record(
+                    "tool",
+                    name,
+                    "failed",
+                    str(exc),
+                    arguments=arguments,
+                    latency_ms=(time.monotonic() - started) * 1000,
+                )
                 raise
             finally:
                 self.config = original_config
@@ -319,8 +424,16 @@ def install_proof_runtime() -> None:
             state["completion_audit"] = audit
             if not audit["passed"]:
                 state["status"] = "incomplete"
-                _record("completion", "agent", "incomplete", json.dumps(audit, sort_keys=True))
-                raise APIError("Completion evidence gate failed: " + json.dumps(audit, sort_keys=True))
+                _record(
+                    "completion",
+                    "agent",
+                    "incomplete",
+                    json.dumps(audit, sort_keys=True),
+                )
+                raise APIError(
+                    "Completion evidence gate failed: "
+                    + json.dumps(audit, sort_keys=True)
+                )
             _record("completion", "agent", "completed", result[-4000:])
             state["status"] = "completed"
             return result
