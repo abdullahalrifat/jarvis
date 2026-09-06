@@ -22,7 +22,7 @@ from typing import Any
 
 TERMINAL = {"completed", "failed", "cancelled", "timed_out", "kill_failed"}
 
-_REDACTION_PLACEHOLDER = "\x00JARVIS_REDACTION_PLACEHOLDER\x00"
+_REDACTION_PLACEHOLDER = "\x00***\x00"
 
 
 def redact_text(value: str) -> str:
