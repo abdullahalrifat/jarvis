@@ -17,6 +17,14 @@ def test_redact_text_handles_bearer_before_assignment_patterns():
     assert "Bearer [REDACTED]" in redacted
 
 
+def test_redact_text_preserves_placeholder_authorization():
+    value = "Authorization: *** token=secret-value sk-123456789012"
+    redacted = redact_text(value)
+    assert "***" in redacted
+    assert "secret-value" not in redacted
+    assert "sk-123456789012" not in redacted
+
+
 def test_checkpoint_store_persists_and_increments(tmp_path: Path):
     store = CheckpointStore(tmp_path, "run-1")
     first = store.save([{"role": "user", "content": "hello"}], "abc")
