@@ -4,6 +4,7 @@ A benchmark case names an existing checkout, task, verification command and
 optional metadata. The harness records exact git revisions and verification
 results so routing calibration can consume retained, reproducible outcomes.
 """
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,9 @@ class BenchmarkResult:
 
 
 def _git(root: Path, *argv: str) -> str:
-    result = subprocess.run(["git", *argv], cwd=root, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        ["git", *argv], cwd=root, text=True, capture_output=True, check=False
+    )
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or f"git {' '.join(argv)} failed")
     return result.stdout.strip()
@@ -51,9 +54,13 @@ def run_case(case: BenchmarkCase, agent: Callable[[str, Path], str]) -> Benchmar
     verification_output: list[str] = []
     passed = True
     for command in case.verification:
-        result = subprocess.run(command.split(), cwd=root, text=True, capture_output=True, check=False)
+        result = subprocess.run(
+            command.split(), cwd=root, text=True, capture_output=True, check=False
+        )
         output = (result.stdout + result.stderr).strip()
-        verification_output.append(f"$ {command}\n{output}\n[exit {result.returncode}]")
+        verification_output.append(
+            f"$ {command}\n{output}\n[exit {result.returncode}]"
+        )
         if result.returncode:
             passed = False
             break
