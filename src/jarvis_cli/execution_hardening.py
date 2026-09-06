@@ -32,8 +32,8 @@ def redact_text(value: str) -> str:
         value,
     )
     value = re.sub(
-        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;*]+)",
-        lambda m: f"{m.group(1)}=[REDACTED]",
+        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)([^\s,;*]+)",
+        lambda m: f"{m.group(1)}{m.group(2)}[REDACTED]",
         value,
     )
     value = re.sub(r"\bsk-[A-Za-z0-9_-]{12,}\b", "[REDACTED_KEY]", value)
@@ -102,177 +102,160 @@ class CheckpointStore:
             return checkpoint
 
     def latest(self) -> Checkpoint | None:
-        path = self.directory / "latest.json"
+        latest = self.directory / "latest.json"
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            return Checkpoint(
-                id=str(payload["id"]),
-                sequence=int(payload["sequence"]),
-                created_at=float(payload["created_at"]),
-                messages=tuple(payload["messages"]),
-                workspace_revision=payload.get("workspace_revision"),
-            )
-        except (OSError, ValueError, TypeError, KeyError):
+            payload = json.loads(latest.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
             return None
+        return Checkpoint(
+            id=str(payload["id"]),
+            sequence=int(payload["sequence"]),
+            created_at=float(payload["created_at"]),
+            messages=tuple(payload.get("messages", ())),
+            workspace_revision=payload.get("workspace_revision"),
+        )
 
 
-@dataclass
 class SteeringChannel:
-    """Thread-safe live control channel for an active execution."""
+    """Thread-safe bounded control channel for live execution steering."""
 
-    _cancelled: bool = False
-    _instructions: list[str] = field(default_factory=list)
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    def __init__(self, max_pending: int = 32) -> None:
+        if max_pending < 1:
+            raise ValueError("max_pending must be positive")
+        self._max_pending = max_pending
+        self._commands: list[str] = []
+        self._cancelled = False
+        self._lock = threading.Lock()
 
-    def steer(self, instruction: str) -> None:
-        instruction = instruction.strip()
-        if not instruction or len(instruction) > 16_000:
-            raise ValueError("steering instruction must be 1..16000 characters")
+    def steer(self, command: str) -> None:
+        command = command.strip()
+        if not command:
+            raise ValueError("steering command must not be empty")
         with self._lock:
-            self._instructions.append(instruction)
+            if self._cancelled:
+                return
+            if len(self._commands) >= self._max_pending:
+                self._commands.pop(0)
+            self._commands.append(command)
+
+    def drain(self) -> tuple[str, ...]:
+        with self._lock:
+            commands = tuple(self._commands)
+            self._commands.clear()
+            return commands
 
     def cancel(self) -> None:
         with self._lock:
             self._cancelled = True
+            self._commands.clear()
 
     def cancelled(self) -> bool:
         with self._lock:
             return self._cancelled
 
-    def drain(self) -> tuple[str, ...]:
-        with self._lock:
-            items = tuple(self._instructions)
-            self._instructions.clear()
-            return items
 
-
-@dataclass
 class ManagedProcess:
-    """Non-blocking process with bounded streaming output and safe cancellation."""
+    """Non-blocking subprocess lifecycle with bounded terminal states."""
 
-    argv: tuple[str, ...]
-    cwd: Path
-    timeout: float = 300.0
-    max_output: int = 30_000
-    process: subprocess.Popen[str] | None = None
-    status: str = "created"
-    output: str = ""
-    exit_code: int | None = None
-    started_at: float | None = None
-    finished_at: float | None = None
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    def __init__(
+        self,
+        command: tuple[str, ...],
+        cwd: Path,
+        timeout: float | None = None,
+    ) -> None:
+        if not command:
+            raise ValueError("command must not be empty")
+        self.command = command
+        self.cwd = cwd
+        self.timeout = timeout
+        self.process: subprocess.Popen[str] | None = None
+        self.status = "pending"
+        self.exit_code: int | None = None
+        self._output: list[str] = []
+        self._lock = threading.Lock()
+        self._reader: threading.Thread | None = None
+        self._watcher: threading.Thread | None = None
+        self._started_at: float | None = None
 
     def start(self) -> "ManagedProcess":
-        if not self.argv:
-            raise ValueError("argv cannot be empty")
-        if self.process is not None:
-            raise RuntimeError("process already started")
-        self.process = subprocess.Popen(
-            list(self.argv),
-            cwd=self.cwd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            start_new_session=True,
-            shell=False,
-            env={
-                "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
-                "HOME": "/tmp/jarvis",
-                "LANG": "C.UTF-8",
-                "LC_ALL": "C.UTF-8",
-                "PYTHONUNBUFFERED": "1",
-            },
-        )
-        self.started_at = time.monotonic()
-        self.status = "running"
-        threading.Thread(
-            target=self._read_output,
-            daemon=True,
-            name="jarvis-process-output",
-        ).start()
-        threading.Thread(
-            target=self._watch,
-            daemon=True,
-            name="jarvis-process-watch",
-        ).start()
+        with self._lock:
+            if self.process is not None:
+                raise RuntimeError("process already started")
+            self.cwd.mkdir(parents=True, exist_ok=True)
+            self.process = subprocess.Popen(
+                self.command,
+                cwd=self.cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                start_new_session=(os.name != "nt"),
+            )
+            self.status = "running"
+            self._started_at = time.monotonic()
+            self._reader = threading.Thread(target=self._read_output, daemon=True)
+            self._watcher = threading.Thread(target=self._watch, daemon=True)
+            self._reader.start()
+            self._watcher.start()
         return self
 
     def _read_output(self) -> None:
-        assert self.process is not None
-        stream = self.process.stdout
-        if stream is None:
+        process = self.process
+        if process is None or process.stdout is None:
             return
-        try:
-            for line in iter(stream.readline, ""):
-                with self._lock:
-                    self.output = (self.output + line)[-self.max_output :]
-        finally:
-            stream.close()
+        for line in process.stdout:
+            with self._lock:
+                self._output.append(line)
 
     def _watch(self) -> None:
-        assert self.process is not None
-        deadline = (self.started_at or time.monotonic()) + self.timeout
-        timed_out = False
-        while self.process.poll() is None:
-            if time.monotonic() >= deadline:
-                timed_out = True
-                self.cancel("timeout")
-                break
-            time.sleep(0.05)
-        try:
-            self.process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            self._kill_group()
+        process = self.process
+        if process is None:
+            return
+        while process.poll() is None:
+            if (
+                self.timeout is not None
+                and self._started_at is not None
+                and time.monotonic() - self._started_at >= self.timeout
+            ):
+                self.terminate(timeout=True)
+                return
+            time.sleep(0.01)
+        code = process.returncode
         with self._lock:
-            self.exit_code = self.process.returncode
-            if self.status not in {"cancelled", "kill_failed"}:
-                self.status = (
-                    "timed_out"
-                    if timed_out
-                    else ("completed" if self.exit_code == 0 else "failed")
-                )
-            self.finished_at = time.monotonic()
+            self.exit_code = code
+            if self.status == "running":
+                self.status = "completed" if code == 0 else "failed"
 
-    def _kill_group(self) -> bool:
-        assert self.process is not None
-        if self.process.poll() is not None:
-            return True
+    def terminate(self, timeout: bool = False) -> None:
+        process = self.process
+        if process is None:
+            return
         try:
-            os.killpg(self.process.pid, signal.SIGKILL)
-            self.process.wait(timeout=2)
-            return True
-        except (ProcessLookupError, subprocess.TimeoutExpired, OSError):
-            return False
-
-    def cancel(self, reason: str = "operator") -> bool:
-        if self.process is None or self.process.poll() is not None:
-            return True
-        try:
-            os.killpg(self.process.pid, signal.SIGTERM)
-            self.process.wait(timeout=2)
+            if process.poll() is None:
+                if os.name != "nt":
+                    os.killpg(process.pid, signal.SIGTERM)
+                else:
+                    process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    if os.name != "nt":
+                        os.killpg(process.pid, signal.SIGKILL)
+                    else:
+                        process.kill()
+                    process.wait(timeout=2)
             with self._lock:
-                self.status = "cancelled"
-            return True
-        except subprocess.TimeoutExpired:
-            killed = self._kill_group()
+                self.exit_code = process.returncode
+                self.status = "timed_out" if timeout else "cancelled"
+        except (OSError, subprocess.TimeoutExpired):
             with self._lock:
-                self.status = "cancelled" if killed else "kill_failed"
-            return killed
-        except (ProcessLookupError, OSError):
-            with self._lock:
-                self.status = "cancelled"
-            return True
+                self.status = "kill_failed"
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
-                "argv": list(self.argv),
-                "cwd": str(self.cwd),
+                "command": self.command,
                 "status": self.status,
-                "output": redact_text(self.output),
                 "exit_code": self.exit_code,
-                "started_at": self.started_at,
-                "finished_at": self.finished_at,
+                "output": "".join(self._output),
             }
