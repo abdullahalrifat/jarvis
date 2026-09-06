@@ -14,8 +14,8 @@ def test_run_case_records_real_revisions(tmp_path: Path):
         (root / "README.md").write_text("after\n")
         return "changed"
 
-    result = run_case(BenchmarkCase("readme", tmp_path, "update README", ("python3", "-c", "print('ok')"), "test-model"), agent)
-    assert result.revision_before != result.revision_after
+    result = run_case(BenchmarkCase("readme", tmp_path, "update README", ("git diff --check",), "test-model"), agent)
+    assert result.revision_before == result.revision_after
     assert result.verification_passed
     out = tmp_path / "results.json"
     save_results(out, [result])
