@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -16,29 +19,56 @@ jobs:
         python-version: ["3.10", "3.12", "3.13"]
     steps:
       # GitHub normally checks out refs/pull/<n>/merge for pull_request runs.
-      # That synthetic ref can lag the PR head when the merge ref is stale.
-      # Validate the exact PR head instead; pushes continue to use github.sha.
+      # Validate the exact PR head so the test tree cannot come from a stale
+      # synthetic merge ref.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          clean: true
+          fetch-depth: 1
+
+      - name: Verify checkout integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+          test -f tests/test_execution_hardening.py
+          grep -q 'Authorization: Bearer abcdefghijklmnop' tests/test_execution_hardening.py
+          grep -q 'test_redact_text_preserves_placeholder_authorization' tests/test_execution_hardening.py
+          if grep -q 'assert "\\*\\*\\*" in redacted' tests/test_execution_hardening.py; then
+            echo 'Stale redaction assertion found in checkout' >&2
+            exit 1
+          fi
+          echo "Validated checkout: $actual"
+          sha256sum tests/test_execution_hardening.py
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+
       - name: Install Jarvis and development dependencies
-        run: python -m pip install -e . -r requirements.txt
+        run: python -m pip install --no-cache-dir -e . -r requirements.txt
+
       - name: Verify coordinated Core
         run: |
           python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.9.4'"
+
+      - name: Verify imported checkout sources
+        run: |
+          python -c "import jarvis_cli.execution_hardening as m; print(m.__file__)"
+          python -c "from pathlib import Path; p=Path('tests/test_execution_hardening.py').read_text(); assert 'Authorization: Bearer abcdefghijklmnop' in p"
+
       - run: black --check --diff src tests
       - run: ruff check src tests --select E9,F63,F7,F82
-      - run: pytest -q --cov=. --cov-report=term-missing --cov-fail-under=70
+      - run: pytest -q --cache-clear -p no:cacheprovider --cov=. --cov-report=term-missing --cov-fail-under=70
       - run: python -m build
       - name: Clean wheel installation
         if: matrix.python-version == '3.12'
         run: |
           python -m venv /tmp/jarvis-clean-install
-          /tmp/jarvis-clean-install/bin/python -m pip install dist/*.whl
+          /tmp/jarvis-clean-install/bin/python -m pip install --no-cache-dir dist/*.whl
           /tmp/jarvis-clean-install/bin/jarvis --version
           /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.9.4'"
           /tmp/jarvis-clean-install/bin/python -c "from jarvis_cli.sdk import CloudWorker; assert CloudWorker.__name__ == 'FencedCloudWorker'"
