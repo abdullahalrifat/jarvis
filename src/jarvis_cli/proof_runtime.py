@@ -53,9 +53,7 @@ def _redact_text(value: str) -> str:
     # Bearer credentials must be removed first: an assignment regex must never
     # get an opportunity to preserve the credential value in another form.
     value = _BEARER.sub("Bearer [REDACTED]", value)
-    value = _SECRET_ASSIGNMENT.sub(
-        lambda match: f"{match.group(1)}=[REDACTED]", value
-    )
+    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
     return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
 
 
@@ -367,9 +365,7 @@ def install_proof_runtime() -> None:
                     and "[exit 0]" not in result
                 ):
                     status = "failed"
-                joined = " ".join(
-                    str(x).casefold() for x in arguments.get("argv", [])
-                )
+                joined = " ".join(str(x).casefold() for x in arguments.get("argv", []))
                 kind = (
                     "test"
                     if name == "run_command"
