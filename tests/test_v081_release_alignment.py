@@ -2,8 +2,8 @@ from pathlib import Path
 import subprocess
 import sys
 
-CORE_VERSION = "0.9.2"
-CORE_SHA256 = "0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130"
+CORE_VERSION = "0.9.4"
+CORE_SHA256 = "0a78bcf9601a5e521059855b8b53501f118320f67ce939d24f15993acb774bd6"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -47,4 +47,4 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.9.1"
+    assert result.stdout.strip() == "0.9.2"
