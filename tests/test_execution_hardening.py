@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from jarvis_cli.execution_hardening import CheckpointStore, ManagedProcess, SteeringChannel, redact_text
+from jarvis_cli.execution_hardening import (
+    CheckpointStore,
+    ManagedProcess,
+    SteeringChannel,
+    redact_text,
+)
 
 
 def test_redact_text_handles_bearer_before_assignment_patterns():
@@ -35,11 +40,20 @@ def test_steering_channel_drains_and_cancels():
 
 
 def test_managed_process_streams_and_completes(tmp_path: Path):
-    process = ManagedProcess(("python3", "-c", "print('ok')"), tmp_path, timeout=10).start()
+    process = ManagedProcess(
+        ("python3", "-c", "print('ok')"), tmp_path, timeout=10
+    ).start()
     for _ in range(100):
-        if process.status in {"completed", "failed", "cancelled", "timed_out", "kill_failed"}:
+        if process.status in {
+            "completed",
+            "failed",
+            "cancelled",
+            "timed_out",
+            "kill_failed",
+        }:
             break
         import time
+
         time.sleep(0.02)
     assert process.status == "completed"
     assert process.exit_code == 0
