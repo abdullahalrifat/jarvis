@@ -16,7 +16,7 @@ import subprocess
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -33,12 +33,12 @@ def redact_text(value: str) -> str:
 
     def redact_assignment(match: re.Match[str]) -> str:
         secret = match.group(3)
-        if secret == "***":
+        if secret == "***" or secret.casefold() == "bearer":
             return match.group(0)
         return f"{match.group(1)}{match.group(2)}[REDACTED]"
 
     value = re.sub(
-        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)([^\s,;]+)",
+        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)((?!bearer\b)[^\s,;]+)",
         redact_assignment,
         value,
     )
