@@ -5,6 +5,7 @@ installable. Checkpoints are append-safe snapshots; steering is a bounded,
 thread-safe control channel; ManagedProcess provides non-blocking output and
 process-group cancellation with deterministic terminal states.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,7 +27,11 @@ def redact_text(value: str) -> str:
     """Redact bearer, assignment-style and common provider credentials."""
     import re
 
-    value = re.sub(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}", "Bearer [REDACTED]", value)
+    value = re.sub(
+        r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}",
+        "Bearer [REDACTED]",
+        value,
+    )
     value = re.sub(
         r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;]+)",
         lambda m: f"{m.group(1)}=[REDACTED]",
@@ -63,7 +68,9 @@ class CheckpointStore:
         except (OSError, ValueError, TypeError):
             return 0
 
-    def save(self, messages: list[dict[str, Any]], workspace_revision: str | None = None) -> Checkpoint:
+    def save(
+        self, messages: list[dict[str, Any]], workspace_revision: str | None = None
+    ) -> Checkpoint:
         with self._lock:
             self._sequence += 1
             checkpoint = Checkpoint(
@@ -83,11 +90,15 @@ class CheckpointStore:
             }
             target = self.directory / f"{checkpoint.sequence:08d}-{checkpoint.id}.json"
             temporary = target.with_suffix(".tmp")
-            temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            temporary.write_text(
+                json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+            )
             os.replace(temporary, target)
             latest = self.directory / "latest.json"
             latest_tmp = latest.with_suffix(".tmp")
-            latest_tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            latest_tmp.write_text(
+                json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+            )
             os.replace(latest_tmp, latest)
             return checkpoint
 
@@ -177,8 +188,16 @@ class ManagedProcess:
         )
         self.started_at = time.monotonic()
         self.status = "running"
-        threading.Thread(target=self._read_output, daemon=True, name="jarvis-process-output").start()
-        threading.Thread(target=self._watch, daemon=True, name="jarvis-process-watch").start()
+        threading.Thread(
+            target=self._read_output,
+            daemon=True,
+            name="jarvis-process-output",
+        ).start()
+        threading.Thread(
+            target=self._watch,
+            daemon=True,
+            name="jarvis-process-watch",
+        ).start()
         return self
 
     def _read_output(self) -> None:
@@ -210,7 +229,11 @@ class ManagedProcess:
         with self._lock:
             self.exit_code = self.process.returncode
             if self.status not in {"cancelled", "kill_failed"}:
-                self.status = "timed_out" if timed_out else ("completed" if self.exit_code == 0 else "failed")
+                self.status = (
+                    "timed_out"
+                    if timed_out
+                    else ("completed" if self.exit_code == 0 else "failed")
+                )
             self.finished_at = time.monotonic()
 
     def _kill_group(self) -> bool:
