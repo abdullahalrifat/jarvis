@@ -22,25 +22,28 @@ from typing import Any
 
 TERMINAL = {"completed", "failed", "cancelled", "timed_out", "kill_failed"}
 
-_REDACTION_PLACEHOLDER = "\x00***\x00"
-
 
 def redact_text(value: str) -> str:
-    """Redact bearer, assignment-style and common provider credentials."""
-    # Preserve values that are already masked by an upstream logging layer.
-    value = value.replace("***", _REDACTION_PLACEHOLDER)
+    """Redact credentials while preserving values already masked as ``***``."""
     value = re.sub(
         r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}",
         "Bearer [REDACTED]",
         value,
     )
+
+    def redact_assignment(match: re.Match[str]) -> str:
+        secret = match.group(3)
+        if secret == "***":
+            return match.group(0)
+        return f"{match.group(1)}{match.group(2)}[REDACTED]"
+
     value = re.sub(
-        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)([^\s,;*]+)",
-        lambda m: f"{m.group(1)}{m.group(2)}[REDACTED]",
+        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)([^\s,;]+)",
+        redact_assignment,
         value,
     )
     value = re.sub(r"\bsk-[A-Za-z0-9_-]{12,}\b", "[REDACTED_KEY]", value)
-    return value.replace(_REDACTION_PLACEHOLDER, "***")
+    return value
 
 
 @dataclass(frozen=True)
