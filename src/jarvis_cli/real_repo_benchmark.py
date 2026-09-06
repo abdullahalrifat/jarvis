@@ -58,9 +58,7 @@ def run_case(case: BenchmarkCase, agent: Callable[[str, Path], str]) -> Benchmar
             command.split(), cwd=root, text=True, capture_output=True, check=False
         )
         output = (result.stdout + result.stderr).strip()
-        verification_output.append(
-            f"$ {command}\n{output}\n[exit {result.returncode}]"
-        )
+        verification_output.append(f"$ {command}\n{output}\n[exit {result.returncode}]")
         if result.returncode:
             passed = False
             break
