@@ -38,7 +38,7 @@ _SECRET_KEYS = {
 }
 _CONTENT_KEYS = {"body", "content", "patch", "text"}
 _SECRET_ASSIGNMENT = re.compile(
-    r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;]+)"
+    r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b(\s*[:=]\s*)([^\s,;]+)"
 )
 _BEARER = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}")
 _PROVIDER_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b")
@@ -50,10 +50,17 @@ def _digest(payload: Any) -> str:
 
 
 def _redact_text(value: str) -> str:
-    # Bearer credentials must be removed first: an assignment regex must never
-    # get an opportunity to preserve the credential value in another form.
+    # Redact bearer credentials before generic assignments. Already-masked
+    # placeholders must survive the generic assignment pass unchanged.
     value = _BEARER.sub("Bearer [REDACTED]", value)
-    value = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
+
+    def redact_assignment(match: re.Match[str]) -> str:
+        secret = match.group(3)
+        if secret == "***":
+            return match.group(0)
+        return f"{match.group(1)}{match.group(2)}[REDACTED]"
+
+    value = _SECRET_ASSIGNMENT.sub(redact_assignment, value)
     return _PROVIDER_KEY.sub("[REDACTED_KEY]", value)
 
 
@@ -248,13 +255,22 @@ def _completion_audit(state: dict[str, Any]) -> dict[str, Any]:
                 proof_kind = ProofKind(kind)
             except ValueError:
                 proof_kind = ProofKind.COMMAND
+            claim = (
+                "verification"
+                if kind == "test"
+                else "apply_patch"
+                if kind == "mutation"
+                else subject
+            )
+            digest = str(record.get("digest", ""))
             proofs.append(
                 ClaimProof(
-                    subject,
+                    claim,
                     proof_kind,
-                    str(record.get("digest", "")),
+                    digest,
                     True,
-                    record.get("digest"),
+                    digest,
+                    independent_key=digest,
                 )
             )
             if kind == "test":
@@ -278,22 +294,19 @@ def _completion_audit(state: dict[str, Any]) -> dict[str, Any]:
                 (ProofKind.FILE, ProofKind.SOURCE, ProofKind.COMMAND, ProofKind.TEST),
             )
         )
-    normalized: list[ClaimProof] = list(proofs)
-    if mutated and any(
-        p.kind in {ProofKind.MUTATION, ProofKind.COMMAND} for p in proofs
-    ):
-        normalized.append(
-            ClaimProof("apply_patch", ProofKind.MUTATION, "execution-record", True)
-        )
-    if verified:
-        normalized.append(
-            ClaimProof("verification", ProofKind.TEST, "execution-record", True)
-        )
     if not mutated and proofs:
-        normalized.append(
-            ClaimProof("evidence", proofs[0].kind, "execution-record", True)
+        first = proofs[0]
+        proofs.append(
+            ClaimProof(
+                "evidence",
+                first.kind,
+                first.reference,
+                first.verified,
+                first.digest,
+                independent_key=first.independent_key,
+            )
         )
-    audit = EvidenceGate().audit(requirements, normalized)
+    audit = EvidenceGate().audit_independent(requirements, proofs)
     return {
         "passed": audit.passed,
         "missing": list(audit.missing),
