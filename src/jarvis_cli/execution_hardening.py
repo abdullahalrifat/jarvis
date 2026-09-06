@@ -32,7 +32,7 @@ def redact_text(value: str) -> str:
         value,
     )
     value = re.sub(
-        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;]+)",
+        r"(?i)\b(api[_-]?key|token|password|secret|authorization|cookie)\b\s*[:=]\s*([^\s,;*]+)",
         lambda m: f"{m.group(1)}=[REDACTED]",
         value,
     )
