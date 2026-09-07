@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tomli>=2; python_version < '3.11'",
-    "jarvis-agent-core @ https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.9.4/jarvis_agent_core-0.9.4-py3-none-any.whl#sha256=0a78bcf9601a5e521059855b8b53501f118320f67ce939d24f15993acb774bd6",
+    "jarvis-agent-core @ https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.9.5/jarvis_agent_core-0.9.5-py3-none-any.whl",
 ]
 dynamic = ["version"]
 
@@ -19,13 +19,8 @@ secure = ["keyring>=25,<26"]
 browser = ["playwright>=1.55,<2"]
 telemetry = ["opentelemetry-api>=1.36,<2", "opentelemetry-sdk>=1.36,<2", "opentelemetry-exporter-otlp>=1.36,<2"]
 all = [
-    "pypdf>=6,<7",
-    "Pillow>=12,<13",
-    "keyring>=25,<26",
-    "playwright>=1.55,<2",
-    "opentelemetry-api>=1.36,<2",
-    "opentelemetry-sdk>=1.36,<2",
-    "opentelemetry-exporter-otlp>=1.36,<2",
+    "pypdf>=6,<7", "Pillow>=12,<13", "keyring>=25,<26", "playwright>=1.55,<2",
+    "opentelemetry-api>=1.36,<2", "opentelemetry-sdk>=1.36,<2", "opentelemetry-exporter-otlp>=1.36,<2",
 ]
 
 [project.scripts]
@@ -41,4 +36,4 @@ version = {attr = "jarvis_cli.__version__"}
 testpaths = ["tests"]
 pythonpath = ["src"]
 cache_dir = "/tmp/jarvis-cli-pytest-cache"
-addopts = "--strict-markers"
+addopts = ["--strict-markers"]
