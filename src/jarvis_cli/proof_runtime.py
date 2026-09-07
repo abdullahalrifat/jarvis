@@ -56,7 +56,7 @@ def _redact_text(value: str) -> str:
 
     def redact_assignment(match: re.Match[str]) -> str:
         secret = match.group(3)
-        if secret == "***":
+        if secret == "***" or secret.casefold() == "bearer":
             return match.group(0)
         return f"{match.group(1)}{match.group(2)}[REDACTED]"
 
