@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import statistics
 import subprocess
 import time
@@ -108,8 +109,15 @@ def validate_repository(workspace: str | Path, expected_revision: str | None = N
         raise ValueError(f"Not a usable Git repository: {root}") from exc
     if detected != root:
         raise ValueError(f"Workspace is not the repository root: {root}")
-    if expected_revision and not _git(root, "merge-base", "--is-ancestor", expected_revision, head) is None:
-        pass
+    if expected_revision:
+        try:
+            revision = _git(root, "rev-parse", expected_revision)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise ValueError(f"Benchmark revision is not available: {expected_revision}") from exc
+        if revision != head:
+            raise ValueError(
+                f"Repository is not pinned to benchmark revision {expected_revision}: {head}"
+            )
     return root
 
 
@@ -124,14 +132,26 @@ def snapshot_repository(workspace: Path) -> RepositorySnapshot:
 def run_verification(workspace: Path, commands: Sequence[str]) -> tuple[bool, tuple[str, ...]]:
     failures: list[str] = []
     for command in commands:
-        result = subprocess.run(
-            command,
-            cwd=workspace,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
+        try:
+            argv = shlex.split(command)
+        except ValueError as exc:
+            failures.append(f"verification:{command}:invalid_command:{exc}")
+            continue
+        if not argv:
+            failures.append(f"verification:{command}:empty_command")
+            continue
+        try:
+            result = subprocess.run(
+                argv,
+                cwd=workspace,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            failures.append(f"verification:{command}:{type(exc).__name__}:{exc}")
+            continue
         if result.returncode != 0:
             detail = (result.stdout + "\n" + result.stderr).strip()[-2000:]
             failures.append(f"verification:{command}:exit={result.returncode}:{detail}")
@@ -194,9 +214,7 @@ def run_real_repository_benchmark(
             if forbidden.casefold() in lowered:
                 failures.append(f"forbidden:{forbidden}")
         after = snapshot_repository(workspace)
-        incorrect_completion = (
-            _completion_claimed(output) and not verification_passed
-        )
+        incorrect_completion = _completion_claimed(output) and not verification_passed
         if incorrect_completion:
             failures.append("incorrect_completion")
         metrics.setdefault("latency_seconds", latency)
