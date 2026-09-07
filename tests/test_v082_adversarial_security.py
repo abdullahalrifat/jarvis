@@ -65,8 +65,8 @@ def test_secret_canaries_are_removed_from_all_untrusted_text(adversarial_cases):
     assert "Bearer canary-token-1234567890" not in redacted
     assert "Bearer [REDACTED]" in redacted
 
-    compacted = _compact_value({"content": hostile})
-    assert compacted["content_omitted"] is True
+    compacted = _compact_value({"patch": {"content": hostile}})
+    assert compacted["patch"]["content_omitted"] is True
     assert "CANARY_PASSWORD_1234567890" not in json.dumps(compacted)
     assert "CANARY_COOKIE_1234567890" not in json.dumps(compacted)
     assert "sk-proj-CANARY1234567890" not in json.dumps(compacted)
@@ -151,7 +151,7 @@ def test_project_hook_injection_requires_explicit_trust(tmp_path, monkeypatch):
     hook = workspace / ".jarvis" / "hooks.toml"
     hook.parent.mkdir()
     hook.write_text(
-        '[[hook]]\nevent="SessionStart"\ncommand=["python", "-c", "print("CANARY_HOOK_2aa8")"]\n',
+        '[[hook]]\nevent="SessionStart"\ncommand=["python", "-c", "print(\'CANARY_HOOK_2aa8\')"]\n',
         encoding="utf-8",
     )
     assert HookRegistry(workspace).hooks == []
@@ -189,7 +189,7 @@ def test_attachment_injection_is_content_not_execution(tmp_path):
     context, descriptors = attachment_context(tmp_path, ["README.txt"])
     assert "BEGIN ATTACHMENT" in context
     assert "CANARY_ATTACHMENT_6bd0" in context
-    assert descriptors[0].path.name == "README.txt"
+    assert descriptors[0] == "README.txt"
     assert not (tmp_path / "CANARY_ATTACHMENT_6bd0").exists()
 
 
