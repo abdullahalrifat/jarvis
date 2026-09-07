@@ -15,14 +15,10 @@ def _git_repo(path):
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"], cwd=path, check=True
     )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"], cwd=path, check=True
-    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
     (path / "README.md").write_text("fixture\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "fixture"], cwd=path, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "fixture"], cwd=path, check=True)
     return subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=path, text=True
     ).strip()
@@ -47,7 +43,10 @@ def test_verification_commands_are_shell_free_and_fail_closed(tmp_path):
     report = run_real_repository_benchmark(
         [case],
         {"safe": tmp_path},
-        lambda _case, _workspace: {"output": "completed", "metrics": {"tool_calls": 2}},
+        lambda _case, _workspace: {
+            "output": "completed",
+            "metrics": {"tool_calls": 2},
+        },
     )
     assert report["passed"] == 1
     assert report["incorrect_completion_rate"] == 0
