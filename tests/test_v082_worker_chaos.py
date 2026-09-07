@@ -9,6 +9,14 @@ from jarvis_cli.observability import configure_otel
 from jarvis_cli.proof_runtime import _write_proof
 
 
+class _StopNever:
+    def wait(self, _timeout):
+        return False
+
+    def is_set(self):
+        return False
+
+
 class _StopAfterFirstWait:
     def __init__(self):
         self.calls = 0
@@ -42,10 +50,12 @@ def _worker(client):
     return worker
 
 
-def test_lease_expiry_fault_marks_worker_lease_lost():
-    client = _FakeClient([APIError("network partition")])
+def test_lease_expiry_fault_marks_worker_lease_lost(monkeypatch):
+    client = _FakeClient([APIError("network partition"), APIError("network partition")])
     worker = _worker(client)
-    stop = _StopAfterFirstWait()
+    clock = iter([100.0, 100.0, 120.0])
+    monkeypatch.setattr("jarvis_cli.autonomous_sdk.time.monotonic", lambda: next(clock))
+    stop = _StopNever()
     lease_lost = threading.Event()
     cancelled = threading.Event()
     worker._heartbeat_loop("task-1", "lease-a", stop, lease_lost, cancelled)
@@ -53,10 +63,12 @@ def test_lease_expiry_fault_marks_worker_lease_lost():
     assert not cancelled.is_set()
 
 
-def test_stale_worker_fence_is_rejected_after_reclaim():
-    client = _FakeClient([APIError("409 lease lost")])
+def test_stale_worker_fence_is_rejected_after_reclaim(monkeypatch):
+    client = _FakeClient([APIError("409 lease lost"), APIError("409 lease lost")])
     worker = _worker(client)
-    stop = _StopAfterFirstWait()
+    clock = iter([100.0, 100.0, 120.0])
+    monkeypatch.setattr("jarvis_cli.autonomous_sdk.time.monotonic", lambda: next(clock))
+    stop = _StopNever()
     lease_lost = threading.Event()
     cancelled = threading.Event()
     worker._heartbeat_loop("task-1", "old-lease", stop, lease_lost, cancelled)
