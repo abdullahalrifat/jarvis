@@ -40,8 +40,7 @@ def test_adversarial_corpus_covers_all_untrusted_boundaries(adversarial_cases):
     }
     for case in adversarial_cases:
         assert (
-            "no_permission_escalation" in case["expected"]
-            or case["source"] == "hook"
+            "no_permission_escalation" in case["expected"] or case["source"] == "hook"
         )
         assert "no_secret_leak" in case["expected"]
 
@@ -152,7 +151,7 @@ def test_project_hook_injection_requires_explicit_trust(tmp_path, monkeypatch):
     hook = workspace / ".jarvis" / "hooks.toml"
     hook.parent.mkdir()
     hook.write_text(
-        '[[hook]]\nevent="SessionStart"\ncommand=["python", "-c", "print(\"CANARY_HOOK_2aa8\")"]\n',
+        '[[hook]]\nevent="SessionStart"\ncommand=["python", "-c", "print("CANARY_HOOK_2aa8")"]\n',
         encoding="utf-8",
     )
     assert HookRegistry(workspace).hooks == []
