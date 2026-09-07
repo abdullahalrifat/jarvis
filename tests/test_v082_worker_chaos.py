@@ -17,6 +17,9 @@ class _StopAfterFirstWait:
         self.calls += 1
         return self.calls > 1
 
+    def is_set(self):
+        return self.calls > 1
+
 
 class _FakeClient:
     def __init__(self, responses):
