@@ -98,7 +98,9 @@ def _git(workspace: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def validate_repository(workspace: str | Path, expected_revision: str | None = None) -> Path:
+def validate_repository(
+    workspace: str | Path, expected_revision: str | None = None
+) -> Path:
     root = Path(workspace).expanduser().resolve()
     if not root.is_dir():
         raise ValueError(f"Repository workspace is not a directory: {root}")
@@ -113,7 +115,9 @@ def validate_repository(workspace: str | Path, expected_revision: str | None = N
         try:
             revision = _git(root, "rev-parse", expected_revision)
         except (OSError, subprocess.CalledProcessError) as exc:
-            raise ValueError(f"Benchmark revision is not available: {expected_revision}") from exc
+            raise ValueError(
+                f"Benchmark revision is not available: {expected_revision}"
+            ) from exc
         if revision != head:
             raise ValueError(
                 f"Repository is not pinned to benchmark revision {expected_revision}: {head}"
@@ -129,7 +133,9 @@ def snapshot_repository(workspace: Path) -> RepositorySnapshot:
     )
 
 
-def run_verification(workspace: Path, commands: Sequence[str]) -> tuple[bool, tuple[str, ...]]:
+def run_verification(
+    workspace: Path, commands: Sequence[str]
+) -> tuple[bool, tuple[str, ...]]:
     failures: list[str] = []
     for command in commands:
         try:
@@ -261,7 +267,9 @@ def run_real_repository_benchmark(
         "task_success_rate": passed / total if total else 0.0,
         "incorrect_completion_rate": incorrect / total if total else 0.0,
         "median_latency_seconds": (
-            statistics.median(item.latency_seconds for item in results) if results else 0.0
+            statistics.median(item.latency_seconds for item in results)
+            if results
+            else 0.0
         ),
         "metrics": metric_totals,
         "categories": categories,
