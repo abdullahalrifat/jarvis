@@ -5,9 +5,14 @@ import pytest
 
 from jarvis_cli.attachments import attachment_context
 from jarvis_cli.hooks import HookRegistry
-from jarvis_cli.mcp import HTTPMCPClient
 from jarvis_cli.mcp_policy_runtime import authorize_mcp_call
-from jarvis_cli.proof_runtime import PermissionPolicy, _RUN, _compact_value, _redact_text, _record
+from jarvis_cli.proof_runtime import (
+    PermissionPolicy,
+    _RUN,
+    _compact_value,
+    _redact_text,
+    _record,
+)
 from jarvis_cli.skills import SkillRegistry
 from jarvis_cli.web import _public_url
 from jarvis_cli.workspace_trust import trust_workspace
@@ -125,7 +130,9 @@ read_only = true
     monkeypatch.setenv("JARVIS_MCP_CONFIG", str(config))
     prompts = []
     with pytest.raises(Exception, match="User rejected"):
-        authorize_mcp_call("evil", "read", lambda prompt: prompts.append(prompt) or False)
+        authorize_mcp_call(
+            "evil", "read", lambda prompt: prompts.append(prompt) or False
+        )
     assert prompts == ["Allow MCP tool evil.read (read-only)?"]
 
 
