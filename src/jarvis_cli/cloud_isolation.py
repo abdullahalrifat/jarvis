@@ -26,7 +26,11 @@ class TaskResourceLimits:
             raise ValueError("cloud sandbox cpus must be between 0 and 128")
         if self.pids < 16 or self.pids > 100_000:
             raise ValueError("cloud sandbox pids must be between 16 and 100000")
-        for name, value in (("memory", self.memory), ("disk", self.disk), ("tmpfs", self.tmpfs)):
+        for name, value in (
+            ("memory", self.memory),
+            ("disk", self.disk),
+            ("tmpfs", self.tmpfs),
+        ):
             if not value or any(char in value for char in "\r\n"):
                 raise ValueError(f"cloud sandbox {name} is invalid")
 
@@ -49,8 +53,9 @@ class TaskSandboxPolicy:
             image=os.getenv("JARVIS_CLOUD_SANDBOX_IMAGE", "").strip(),
             network=network,
             egress_network=os.getenv("JARVIS_CLOUD_EGRESS_NETWORK") or None,
-            workspace_read_only=os.getenv("JARVIS_CLOUD_WORKSPACE_READONLY", "0")
-            .casefold()
+            workspace_read_only=os.getenv(
+                "JARVIS_CLOUD_WORKSPACE_READONLY", "0"
+            ).casefold()
             in {"1", "true", "yes"},
             user=os.getenv("JARVIS_CLOUD_SANDBOX_USER", "65532:65532"),
             seccomp=os.getenv("JARVIS_CLOUD_SECCOMP", "default"),
@@ -150,7 +155,9 @@ def build_task_command(
         policy.image,
     ]
     if policy.apparmor_profile:
-        command[command.index("--security-opt", 0) : command.index("--security-opt", 0)] = [
+        command[
+            command.index("--security-opt", 0) : command.index("--security-opt", 0)
+        ] = [
             "--security-opt",
             f"apparmor={policy.apparmor_profile}",
         ]
