@@ -18,7 +18,6 @@ from jarvis_cli.skills import SkillRegistry
 from jarvis_cli.web import _public_url
 from jarvis_cli.workspace_trust import trust_workspace
 
-
 CORPUS = Path(__file__).parents[1] / "benchmarks" / "v0.8.2-adversarial-security.json"
 
 
@@ -40,7 +39,10 @@ def test_adversarial_corpus_covers_all_untrusted_boundaries(adversarial_cases):
         "attachment",
     }
     for case in adversarial_cases:
-        assert "no_permission_escalation" in case["expected"] or case["source"] == "hook"
+        assert (
+            "no_permission_escalation" in case["expected"]
+            or case["source"] == "hook"
+        )
         assert "no_secret_leak" in case["expected"]
 
 
@@ -51,10 +53,10 @@ def test_secret_canaries_are_removed_from_all_untrusted_text(adversarial_cases):
         "password": "CANARY_PASSWORD_1234567890",
         "cookie": "session=CANARY_COOKIE_1234567890",
     }
-    hostile = "\n".join(
-        case["payload"] for case in adversarial_cases
-    ) + "\n" + "\n".join(
-        f"{key}={value}" for key, value in secrets.items()
+    hostile = (
+        "\n".join(case["payload"] for case in adversarial_cases)
+        + "\n"
+        + "\n".join(f"{key}={value}" for key, value in secrets.items())
     )
 
     redacted = _redact_text(hostile)
