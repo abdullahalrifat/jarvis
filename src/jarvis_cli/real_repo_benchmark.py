@@ -187,7 +187,9 @@ def run_case(case: BenchmarkCase, agent: Callable[[str, Path], Any]) -> Benchmar
     before = _git(root, "rev-parse", "HEAD")
     started = time.monotonic()
     response = agent(case.task, root)
-    output = str(response.get("output", "")) if isinstance(response, dict) else str(response)
+    output = (
+        str(response.get("output", "")) if isinstance(response, dict) else str(response)
+    )
     metrics = (
         {
             key: float(value)
