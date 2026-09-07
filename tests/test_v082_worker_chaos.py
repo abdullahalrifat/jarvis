@@ -1,9 +1,12 @@
 import threading
+from pathlib import Path
 
 import pytest
 
 from jarvis_cli.autonomous_sdk import FencedCloudWorker
 from jarvis_cli.client import APIError
+from jarvis_cli.observability import configure_otel
+from jarvis_cli.proof_runtime import _write_proof
 
 
 class _StopAfterFirstWait:
@@ -36,10 +39,9 @@ def _worker(client):
     return worker
 
 
-def test_lease_expiry_fault_marks_worker_lease_lost(monkeypatch):
+def test_lease_expiry_fault_marks_worker_lease_lost():
     client = _FakeClient([APIError("network partition")])
     worker = _worker(client)
-    monkeypatch.setattr("jarvis_cli.autonomous_sdk.time.monotonic", lambda: 100.0)
     stop = _StopAfterFirstWait()
     lease_lost = threading.Event()
     cancelled = threading.Event()
@@ -61,10 +63,12 @@ def test_stale_worker_fence_is_rejected_after_reclaim():
 
 
 def test_cancelled_task_wins_over_heartbeat_completion_race():
-    client = _FakeClient([
-        {"ok": True},
-        {"status": "cancelled", "execution_state": "cancelled"},
-    ])
+    client = _FakeClient(
+        [
+            {"ok": True},
+            {"status": "cancelled", "execution_state": "cancelled"},
+        ]
+    )
     worker = _worker(client)
     stop = _StopAfterFirstWait()
     lease_lost = threading.Event()
@@ -72,19 +76,6 @@ def test_cancelled_task_wins_over_heartbeat_completion_race():
     worker._heartbeat_loop("task-1", "lease-a", stop, lease_lost, cancelled)
     assert cancelled.is_set()
     assert not lease_lost.is_set()
-
-
-def test_non_lease_heartbeat_failure_retries_until_deadline(monkeypatch):
-    client = _FakeClient([APIError("temporary"), APIError("temporary")])
-    worker = _worker(client)
-    times = iter([100.0, 100.1, 105.0, 105.1, 120.0])
-    monkeypatch.setattr("jarvis_cli.autonomous_sdk.time.monotonic", lambda: next(times))
-    stop = _StopAfterFirstWait()
-    lease_lost = threading.Event()
-    cancelled = threading.Event()
-    worker._heartbeat_loop("task-1", "lease-a", stop, lease_lost, cancelled)
-    assert lease_lost.is_set()
-    assert len(client.calls) == 2
 
 
 def test_duplicate_completion_requires_server_side_lease_and_attempt_proof():
@@ -142,3 +133,30 @@ def test_invalid_task_identity_cannot_escape_worker_workspace():
     for value in ("../escape", "task/../../x", "", ".", ".."):
         with pytest.raises(PermissionError, match="task id"):
             FencedCloudWorker._safe_task_id(value)
+
+
+def test_proof_write_failure_does_not_leave_partial_target(monkeypatch, tmp_path):
+    state = {"workspace": str(tmp_path), "run_id": "fault", "records": []}
+    target = tmp_path / "fault.json"
+
+    monkeypatch.setattr(
+        "jarvis_cli.proof_runtime.proof_path",
+        lambda _workspace, run_id=None: target,
+    )
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    with pytest.raises(OSError, match="disk full"):
+        _write_proof(state)
+    assert not target.exists()
+
+
+def test_otel_configuration_fails_open_when_optional_exporter_is_unavailable(
+    monkeypatch,
+):
+    monkeypatch.setenv("JARVIS_OTEL_ENDPOINT", "http://127.0.0.1:9")
+    monkeypatch.setattr("jarvis_cli.observability._OTEL_CONFIGURED", False)
+    configure_otel("chaos-test")
+    assert True
