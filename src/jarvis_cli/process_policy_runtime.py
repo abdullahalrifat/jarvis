@@ -32,7 +32,9 @@ def install_process_policy_runtime() -> None:
         def execute(self, name: str, arguments: dict[str, Any]) -> str:
             if name == "start_background":
                 argv = arguments.get("argv")
-                if not isinstance(argv, list) or not all(isinstance(x, str) for x in argv):
+                if not isinstance(argv, list) or not all(
+                    isinstance(x, str) for x in argv
+                ):
                     raise APIError("start_background argv must be an array of strings.")
                 self._authorize(argv)
                 return str(self._background.start(argv))
@@ -74,9 +76,13 @@ def install_process_policy_runtime() -> None:
                 and len(argv) > 1
                 and argv[1] in local_agent.MUTATING_GIT_SUBCOMMANDS
             ):
-                raise APIError("Mutating Git commands are not allowed through run_command.")
-            if require_approval and not self.config.accept_commands and not self.approval(
-                f"Run command: {shlex.join(argv)}?"
+                raise APIError(
+                    "Mutating Git commands are not allowed through run_command."
+                )
+            if (
+                require_approval
+                and not self.config.accept_commands
+                and not self.approval(f"Run command: {shlex.join(argv)}?")
             ):
                 raise APIError("User rejected the proposed command.")
             try:
