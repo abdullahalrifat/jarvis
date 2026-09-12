@@ -79,7 +79,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           python -m PyInstaller --onefile --name "jarvis-${version}-${{ matrix.platform }}-${{ matrix.arch }}" scripts/binary_entry.py
           cyclonedx-py environment --output-format JSON --output-file "dist/jarvis-${version}-${{ matrix.platform }}-${{ matrix.arch }}.cdx.json"
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/jarvis-*"
       - uses: actions/upload-artifact@v4
@@ -101,7 +101,7 @@ jobs:
           merge-multiple: true
       - name: Create checksums
         run: cd release && sha256sum * > SHA256SUMS
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: "release/*"
       - name: Publish immutable release assets
