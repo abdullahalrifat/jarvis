@@ -49,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
 
     cloud = subs.add_parser("cloud")
     cloud_sub = cloud.add_subparsers(dest="action", required=True)
+
     submit = cloud_sub.add_parser("submit")
     submit.add_argument("task", nargs="+")
     source = submit.add_mutually_exclusive_group(required=True)
@@ -65,19 +66,49 @@ def _parser() -> argparse.ArgumentParser:
     status = cloud_sub.add_parser("status")
     status.add_argument("task_id")
     _remote_options(status)
+
     health = cloud_sub.add_parser("health")
     _remote_options(health)
+
     capabilities = cloud_sub.add_parser("capabilities")
     _remote_options(capabilities)
+
+    inference = cloud_sub.add_parser("inference-status")
+    _remote_options(inference)
+
+    github_issue = cloud_sub.add_parser("github-issue")
+    github_issue.add_argument("owner")
+    github_issue.add_argument("repo")
+    github_issue.add_argument("issue_number", type=int)
+    github_issue.add_argument("--branch", required=True)
+    github_issue.add_argument("--base")
+    github_issue.add_argument("--create-pr", action="store_true")
+    github_issue.add_argument("--title")
+    github_issue.add_argument("--body")
+    _remote_options(github_issue)
+
+    github_review = cloud_sub.add_parser("github-review")
+    github_review.add_argument("owner")
+    github_review.add_argument("repo")
+    github_review.add_argument("number", type=int)
+    _remote_options(github_review)
+
     cancel = cloud_sub.add_parser("cancel")
     cancel.add_argument("task_id")
     _remote_options(cancel)
+
     worker = cloud_sub.add_parser("worker")
     worker.add_argument("--worker-id", required=True)
     worker.add_argument("--once", action="store_true")
     worker.add_argument("--lease-seconds", type=int, default=60)
     _remote_options(worker)
     _provider_options(worker)
+
+    ide = subs.add_parser("ide")
+    ide_sub = ide.add_subparsers(dest="action", required=True)
+    ide_serve = ide_sub.add_parser("serve")
+    ide_serve.add_argument("--workspace", default=".")
+    _provider_options(ide_serve)
 
     proof = subs.add_parser("proof")
     proof.add_argument("--workspace", default=".")
@@ -119,54 +150,64 @@ def _cloud(args: argparse.Namespace) -> int:
             project_id=args.project_id,
             idempotency_key=args.idempotency_key,
         )
-        print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "status":
-        print(
-            json.dumps(
-                remote.cloud_task(args.task_id),
-                indent=2,
-                ensure_ascii=False,
-                default=str,
-            )
+    elif args.action == "status":
+        result = remote.cloud_task(args.task_id)
+    elif args.action == "health":
+        result = remote.client.health()
+    elif args.action == "capabilities":
+        result = remote.client.capabilities()
+    elif args.action == "inference-status":
+        result = remote.client.request("GET", "/engineering/inference/status")
+    elif args.action == "github-issue":
+        result = remote.client.request(
+            "POST",
+            "/engineering/github/issue-bootstrap",
+            json={
+                "owner": args.owner,
+                "repo": args.repo,
+                "issue_number": args.issue_number,
+                "branch": args.branch,
+                "base": args.base,
+                "create_pr": args.create_pr,
+                "title": args.title,
+                "body": args.body,
+            },
         )
-        return 0
-    if args.action == "health":
-        print(
-            json.dumps(
-                remote.client.health(), indent=2, ensure_ascii=False, default=str
-            )
+    elif args.action == "github-review":
+        result = remote.client.request(
+            "GET", f"/engineering/github/pull/{args.owner}/{args.repo}/{args.number}"
         )
-        return 0
-    if args.action == "capabilities":
-        print(
-            json.dumps(
-                remote.client.capabilities(), indent=2, ensure_ascii=False, default=str
-            )
-        )
-        return 0
-    if args.action == "cancel":
-        print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
-        return 0
+    elif args.action == "cancel":
+        result = remote.cancel_cloud(args.task_id)
+    else:
+        from .local_agent import resolve_local_config
 
+        args.task = []
+        config = resolve_local_config(args)
+        worker = FencedCloudWorker(
+            args.server,
+            _key(args),
+            args.worker_id,
+            LocalJarvis(config),
+            lease_seconds=args.lease_seconds,
+        )
+        if args.once:
+            result = worker.run_once()
+            if result is not None:
+                print(json.dumps(result.__dict__, indent=2, default=str))
+            return 0
+        worker.serve_forever()
+        return 0
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+def _ide(args: argparse.Namespace) -> int:
+    from .ide_protocol import local_handler, serve
     from .local_agent import resolve_local_config
 
     args.task = []
-    config = resolve_local_config(args)
-    worker = FencedCloudWorker(
-        args.server,
-        _key(args),
-        args.worker_id,
-        LocalJarvis(config),
-        lease_seconds=args.lease_seconds,
-    )
-    if args.once:
-        result = worker.run_once()
-        if result is not None:
-            print(json.dumps(result.__dict__, indent=2, default=str))
-        return 0
-    worker.serve_forever()
-    return 0
+    return serve(local_handler(LocalJarvis(resolve_local_config(args))))
 
 
 def _proof(args: argparse.Namespace) -> int:
@@ -230,12 +271,14 @@ def _trust(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    commands = {"cloud", "proof", "permissions", "trust", "dashboard"}
+    commands = {"cloud", "ide", "proof", "permissions", "trust", "dashboard"}
     if argv and argv[0] in commands:
         try:
             args = _parser().parse_args(argv)
             if args.command == "cloud":
                 return _cloud(args)
+            if args.command == "ide":
+                return _ide(args)
             if args.command == "proof":
                 return _proof(args)
             if args.command == "permissions":
