@@ -13,12 +13,7 @@ from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
 from .proof_runtime import PermissionPolicy, proof_path, trusted_permissions_path
 from .sdk import LocalJarvis
-from .workspace_trust import (
-    is_workspace_trusted,
-    trust_file,
-    trust_workspace,
-    untrust_workspace,
-)
+from .workspace_trust import is_workspace_trusted, trust_file, trust_workspace, untrust_workspace
 
 
 def _remote_options(parser: argparse.ArgumentParser) -> None:
@@ -44,7 +39,6 @@ def _provider_options(parser: argparse.ArgumentParser) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis-v08", add_help=False)
     subs = parser.add_subparsers(dest="command")
-
     cloud = subs.add_parser("cloud")
     cloud_sub = cloud.add_subparsers(dest="action", required=True)
     submit = cloud_sub.add_parser("submit")
@@ -52,55 +46,26 @@ def _parser() -> argparse.ArgumentParser:
     source = submit.add_mutually_exclusive_group(required=True)
     source.add_argument("--workspace")
     source.add_argument("--repository-url")
-    submit.add_argument("--git-ref")
-    submit.add_argument("--git-commit")
-    submit.add_argument("--write", action="store_true")
-    submit.add_argument("--model", default="auto")
-    submit.add_argument("--project-id")
-    submit.add_argument("--idempotency-key")
+    submit.add_argument("--git-ref"); submit.add_argument("--git-commit"); submit.add_argument("--write", action="store_true")
+    submit.add_argument("--model", default="auto"); submit.add_argument("--project-id"); submit.add_argument("--idempotency-key")
     _remote_options(submit)
-
-    status = cloud_sub.add_parser("status")
-    status.add_argument("task_id")
-    _remote_options(status)
-    health = cloud_sub.add_parser("health")
-    _remote_options(health)
-    capabilities = cloud_sub.add_parser("capabilities")
-    _remote_options(capabilities)
-    inference = cloud_sub.add_parser("inference-status")
-    _remote_options(inference)
-    cancel = cloud_sub.add_parser("cancel")
-    cancel.add_argument("task_id")
-    _remote_options(cancel)
-    worker = cloud_sub.add_parser("worker")
-    worker.add_argument("--worker-id", required=True)
-    worker.add_argument("--once", action="store_true")
-    worker.add_argument("--lease-seconds", type=int, default=60)
-    _remote_options(worker)
-    _provider_options(worker)
-
-    ide = subs.add_parser("ide")
-    ide_sub = ide.add_subparsers(dest="action", required=True)
-    ide_serve = ide_sub.add_parser("serve")
-    ide_serve.add_argument("--workspace", default=".")
-    _provider_options(ide_serve)
-
-    proof = subs.add_parser("proof")
-    proof.add_argument("--workspace", default=".")
-    proof.add_argument("--run-id")
-
-    permissions = subs.add_parser("permissions")
-    permissions.add_argument("--workspace", default=".")
-
-    trust = subs.add_parser("trust")
-    trust.add_argument("--workspace", default=".")
-    trust.add_argument("--revoke", action="store_true")
-    trust.add_argument("--status", action="store_true")
-
-    dashboard = subs.add_parser("dashboard")
-    dashboard.add_argument("--workspace", default=".")
-    dashboard.add_argument("--watch", action="store_true")
-    dashboard.add_argument("--interval", type=float, default=1.0)
+    status = cloud_sub.add_parser("status"); status.add_argument("task_id"); _remote_options(status)
+    health = cloud_sub.add_parser("health"); _remote_options(health)
+    capabilities = cloud_sub.add_parser("capabilities"); _remote_options(capabilities)
+    inference = cloud_sub.add_parser("inference-status"); _remote_options(inference)
+    github_issue = cloud_sub.add_parser("github-issue")
+    github_issue.add_argument("owner"); github_issue.add_argument("repo"); github_issue.add_argument("issue_number", type=int)
+    github_issue.add_argument("--branch", required=True); github_issue.add_argument("--base"); github_issue.add_argument("--create-pr", action="store_true")
+    github_issue.add_argument("--title"); github_issue.add_argument("--body"); _remote_options(github_issue)
+    github_review = cloud_sub.add_parser("github-review")
+    github_review.add_argument("owner"); github_review.add_argument("repo"); github_review.add_argument("number", type=int); _remote_options(github_review)
+    cancel = cloud_sub.add_parser("cancel"); cancel.add_argument("task_id"); _remote_options(cancel)
+    worker = cloud_sub.add_parser("worker"); worker.add_argument("--worker-id", required=True); worker.add_argument("--once", action="store_true"); worker.add_argument("--lease-seconds", type=int, default=60); _remote_options(worker); _provider_options(worker)
+    ide = subs.add_parser("ide"); ide_sub = ide.add_subparsers(dest="action", required=True); ide_serve = ide_sub.add_parser("serve"); ide_serve.add_argument("--workspace", default="."); _provider_options(ide_serve)
+    proof = subs.add_parser("proof"); proof.add_argument("--workspace", default="."); proof.add_argument("--run-id")
+    permissions = subs.add_parser("permissions"); permissions.add_argument("--workspace", default=".")
+    trust = subs.add_parser("trust"); trust.add_argument("--workspace", default="."); trust.add_argument("--revoke", action="store_true"); trust.add_argument("--status", action="store_true")
+    dashboard = subs.add_parser("dashboard"); dashboard.add_argument("--workspace", default="."); dashboard.add_argument("--watch", action="store_true"); dashboard.add_argument("--interval", type=float, default=1.0)
     return parser
 
 
@@ -114,88 +79,54 @@ def _key(args: argparse.Namespace) -> str:
 def _cloud(args: argparse.Namespace) -> int:
     remote = AutonomousRemoteJarvis(args.server, _key(args))
     if args.action == "submit":
-        result = remote.submit_cloud(
-            " ".join(args.task), workspace=args.workspace, repository_url=args.repository_url,
-            git_ref=args.git_ref, git_commit=args.git_commit, allow_write=args.write,
-            model=args.model, project_id=args.project_id, idempotency_key=args.idempotency_key,
-        )
-        print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "status":
-        print(json.dumps(remote.cloud_task(args.task_id), indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "health":
-        print(json.dumps(remote.client.health(), indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "capabilities":
-        print(json.dumps(remote.client.capabilities(), indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "inference-status":
-        print(json.dumps(remote.client.request("GET", "/inference/status"), indent=2, ensure_ascii=False, default=str))
-        return 0
-    if args.action == "cancel":
-        print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
-        return 0
-
-    from .local_agent import resolve_local_config
-
-    args.task = []
-    config = resolve_local_config(args)
-    worker = FencedCloudWorker(args.server, _key(args), args.worker_id, LocalJarvis(config), lease_seconds=args.lease_seconds)
-    if args.once:
-        result = worker.run_once()
-        if result is not None:
-            print(json.dumps(result.__dict__, indent=2, default=str))
-        return 0
-    worker.serve_forever()
+        result = remote.submit_cloud(" ".join(args.task), workspace=args.workspace, repository_url=args.repository_url, git_ref=args.git_ref, git_commit=args.git_commit, allow_write=args.write, model=args.model, project_id=args.project_id, idempotency_key=args.idempotency_key)
+    elif args.action == "status": result = remote.cloud_task(args.task_id)
+    elif args.action == "health": result = remote.client.health()
+    elif args.action == "capabilities": result = remote.client.capabilities()
+    elif args.action == "inference-status": result = remote.client.request("GET", "/engineering/inference/status")
+    elif args.action == "github-issue":
+        result = remote.client.request("POST", "/engineering/github/issue-bootstrap", json={"owner": args.owner, "repo": args.repo, "issue_number": args.issue_number, "branch": args.branch, "base": args.base, "create_pr": args.create_pr, "title": args.title, "body": args.body})
+    elif args.action == "github-review":
+        result = remote.client.request("GET", f"/engineering/github/pull/{args.owner}/{args.repo}/{args.number}")
+    elif args.action == "cancel": result = remote.cancel_cloud(args.task_id)
+    else:
+        from .local_agent import resolve_local_config
+        args.task = []
+        config = resolve_local_config(args)
+        worker = FencedCloudWorker(args.server, _key(args), args.worker_id, LocalJarvis(config), lease_seconds=args.lease_seconds)
+        if args.once:
+            result = worker.run_once()
+            if result is not None: print(json.dumps(result.__dict__, indent=2, default=str))
+            return 0
+        worker.serve_forever(); return 0
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0
 
 
 def _ide(args: argparse.Namespace) -> int:
     from .ide_protocol import local_handler, serve
     from .local_agent import resolve_local_config
-
     args.task = []
-    config = resolve_local_config(args)
-    return serve(local_handler(LocalJarvis(config)))
+    return serve(local_handler(LocalJarvis(resolve_local_config(args))))
 
 
 def _proof(args: argparse.Namespace) -> int:
     target = proof_path(Path(args.workspace).expanduser().resolve(), args.run_id)
-    if not target.is_file():
-        raise FileNotFoundError(f"proof not found: {target}")
-    print(target.read_text(encoding="utf-8"))
-    return 0
+    if not target.is_file(): raise FileNotFoundError(f"proof not found: {target}")
+    print(target.read_text(encoding="utf-8")); return 0
 
 
 def _permissions(args: argparse.Namespace) -> int:
-    workspace = Path(args.workspace).expanduser().resolve()
-    policy = PermissionPolicy(workspace)
-    print(json.dumps({
-        "trusted_file": str(trusted_permissions_path()),
-        "project_file": str(workspace / ".jarvis" / "permissions.toml"),
-        "allow": sorted(policy.allow), "ask": sorted(policy.ask), "deny": sorted(policy.deny),
-        "ignored_project_allow": sorted(policy.ignored_project_allow),
-        "default": "ask for mutations; allow read-only",
-        "project_policy": "restrict-only; repository allow entries cannot broaden privileges",
-        "plan_mode": "all mutations denied",
-    }, indent=2))
-    return 0
+    workspace = Path(args.workspace).expanduser().resolve(); policy = PermissionPolicy(workspace)
+    print(json.dumps({"trusted_file": str(trusted_permissions_path()), "project_file": str(workspace / ".jarvis" / "permissions.toml"), "allow": sorted(policy.allow), "ask": sorted(policy.ask), "deny": sorted(policy.deny), "ignored_project_allow": sorted(policy.ignored_project_allow), "default": "ask for mutations; allow read-only", "project_policy": "restrict-only; repository allow entries cannot broaden privileges", "plan_mode": "all mutations denied"}, indent=2)); return 0
 
 
 def _trust(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).expanduser().resolve()
-    if args.revoke:
-        path = untrust_workspace(workspace); state = False
-    elif args.status:
-        path = trust_file(); state = is_workspace_trusted(workspace)
-    else:
-        path = trust_workspace(workspace); state = True
-    print(json.dumps({
-        "workspace": str(workspace), "trusted": state, "trust_file": str(path),
-        "effect": "project-local executable configuration such as hooks may run" if state else "project-local executable configuration is disabled",
-    }, indent=2))
-    return 0
+    if args.revoke: path = untrust_workspace(workspace); state = False
+    elif args.status: path = trust_file(); state = is_workspace_trusted(workspace)
+    else: path = trust_workspace(workspace); state = True
+    print(json.dumps({"workspace": str(workspace), "trusted": state, "trust_file": str(path), "effect": "project-local executable configuration such as hooks may run" if state else "project-local executable configuration is disabled"}, indent=2)); return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -214,8 +145,6 @@ def main(argv: list[str] | None = None) -> int:
                 else: print(render_dashboard(args.workspace))
                 return 0
         except (APIError, FileNotFoundError, KeyError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 1
-
+            print(f"Error: {exc}", file=sys.stderr); return 1
     from .v071_main import main as previous
     return previous(argv)
