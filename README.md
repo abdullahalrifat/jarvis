@@ -2,9 +2,9 @@
 
 ## Current contract line
 
-Jarvis **0.9.3** consumes the provider-neutral Jarvis Core **0.12.0** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.9.4** consumes the provider-neutral Jarvis Core **0.13.0** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
-Jarvis Core 0.12.0 is now published as an immutable PyPI release; this branch intentionally pins that exact release so the CLI and Core can evolve independently.
+Jarvis Core 0.13.0 is now published as an immutable PyPI release; this branch intentionally pins that exact release so the CLI and Core can evolve independently.
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
@@ -34,9 +34,9 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.3 consumes the published `jarvis-agent-core==0.12.0` package from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.9.4 consumes the published `jarvis-agent-core==0.13.0` package from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
-Core 0.12.0 adds reusable provider normalization helpers alongside the provider-neutral `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelUsage`, and `ToolCall` contracts. Concrete provider adapters remain in the CLI/runtime layer so provider SDKs do not become Core dependencies.
+Core 0.13.0 extends the provider-neutral model contracts with common capability/approval semantics and portable sandbox requirements. Concrete provider adapters and native OS sandbox enforcement remain in the CLI/runtime layer so provider SDKs and platform-specific mechanisms do not become Core dependencies.
 
 ## Connect a model
 

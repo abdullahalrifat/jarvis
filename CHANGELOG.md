@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.4
+
+- Consume the published Jarvis Core 0.13.0 common-brain release.
+- Use the shared Core sandbox-requirements contract while retaining native OS sandbox enforcement in the CLI/runtime layer.
+- Align release and clean-install validation with Core 0.13.0.
+- Refresh release documentation and package metadata for the 0.9.4 patch release.
+
 ## 0.9.3
 
 - Consume the published Jarvis Core 0.12.0 release.
