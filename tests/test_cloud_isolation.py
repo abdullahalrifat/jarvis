@@ -16,7 +16,9 @@ def test_required_isolation_fails_closed_without_image(monkeypatch):
 
 
 def test_egress_requires_dedicated_network():
-    policy = TaskSandboxPolicy(image="jarvis-worker:tested", network="egress", egress_network="bridge")
+    policy = TaskSandboxPolicy(
+        image="jarvis-worker:tested", network="egress", egress_network="bridge"
+    )
     with pytest.raises(IsolationError, match="dedicated"):
         policy.validate()
 
@@ -40,7 +42,9 @@ def test_docker_command_contains_per_task_limits_and_network_isolation(tmp_path)
         network="deny",
         limits=TaskResourceLimits(cpus=1.5, memory="1g", pids=128, disk="4g"),
     )
-    command = build_task_command(["python", "-m", "pytest", "-q"], tmp_path, policy, require_docker=False)
+    command = build_task_command(
+        ["python", "-m", "pytest", "-q"], tmp_path, policy, require_docker=False
+    )
     assert command[:3] == ["docker", "run", "--rm"]
     assert command[command.index("--network") + 1] == "none"
     assert command[command.index("--cpus") + 1] == "1.5"
@@ -59,12 +63,16 @@ def test_egress_command_uses_only_policy_network(tmp_path):
         network="egress",
         egress_network="jarvis-egress-policy",
     )
-    command = build_task_command(["python", "-c", "print(1)"], tmp_path, policy, require_docker=False)
+    command = build_task_command(
+        ["python", "-c", "print(1)"], tmp_path, policy, require_docker=False
+    )
     assert command[command.index("--network") + 1] == "jarvis-egress-policy"
     assert "host" not in command
 
 
 def test_docker_socket_configuration_is_rejected(monkeypatch):
-    monkeypatch.setenv("DOCKER_SOCKET_MOUNT", "/var/run/docker.sock:/var/run/docker.sock")
+    monkeypatch.setenv(
+        "DOCKER_SOCKET_MOUNT", "/var/run/docker.sock:/var/run/docker.sock"
+    )
     with pytest.raises(IsolationError):
         validate_host_boundary()
