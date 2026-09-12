@@ -7,7 +7,9 @@ from jarvis_cli.background_processes import BackgroundProcessManager
 
 def test_background_process_can_start_poll_and_stop(tmp_path: Path):
     manager = BackgroundProcessManager(tmp_path)
-    item = manager.start([sys.executable, "-c", "import time; print('ready'); time.sleep(10)"])
+    item = manager.start(
+        [sys.executable, "-c", "import time; print('ready'); time.sleep(10)"]
+    )
     assert item["id"]
     process_id = str(item["id"])
     deadline = time.time() + 3
