@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-CORE_VERSION = "0.9.5"
+CORE_VERSION = "0.10.1"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
