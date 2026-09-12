@@ -41,7 +41,7 @@ jobs:
           echo "Validated checkout: $actual"
           sha256sum tests/test_execution_hardening.py
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
