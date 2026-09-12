@@ -23,7 +23,9 @@ class ExecutionEvidenceStore:
         item = execution_evidence(
             self.ledger,
             claim=claim,
-            kind=("test" if any(x in argv for x in ("pytest", "unittest")) else "command"),
+            kind=(
+                "test" if any(x in argv for x in ("pytest", "unittest")) else "command"
+            ),
             reference=f"command://{hashlib.sha256(output.encode()).hexdigest()}",
             output=output,
             path=str(self.path),
