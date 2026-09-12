@@ -50,7 +50,8 @@ jobs:
 
       - name: Verify coordinated Core
         run: |
-          python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.12.0'"
+          python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.13.0'"
+          python -c "from jarvis_core import Capability, CapabilityPolicy, SandboxRequirements; assert all((Capability, CapabilityPolicy, SandboxRequirements))"
 
       - name: Verify imported checkout sources
         run: |
@@ -80,5 +81,5 @@ jobs:
           python -m venv /tmp/jarvis-clean-install
           /tmp/jarvis-clean-install/bin/python -m pip install --no-cache-dir dist/*.whl
           /tmp/jarvis-clean-install/bin/jarvis --version
-          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.12.0'"
+          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.13.0'"
           /tmp/jarvis-clean-install/bin/python -c "from jarvis_cli.sdk import CloudWorker; assert CloudWorker.__name__ == 'FencedCloudWorker'"

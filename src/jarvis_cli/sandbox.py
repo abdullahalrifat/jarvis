@@ -10,6 +10,8 @@ import re
 import shutil
 from urllib.parse import urlparse
 
+from jarvis_core import SandboxRequirements
+
 try:
     import tomllib
 except ImportError:  # pragma: no cover
@@ -77,6 +79,17 @@ class SandboxPolicy:
             )
 
 
+def _core_requirements(policy: SandboxPolicy) -> SandboxRequirements:
+    """Translate local policy into the shared Core isolation semantics."""
+    requirements = SandboxRequirements(
+        network="allow" if policy.network == "allow" else "deny",
+        workspace_read_only=bool(policy.readonly_paths) and not policy.writable_paths,
+        non_root=True,
+    )
+    requirements.validate()
+    return requirements
+
+
 def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
     if not shutil.which("bwrap"):
         return None
@@ -90,9 +103,6 @@ def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str]
         "--unshare-uts",
     ]
     if policy.network in {"deny", "allowlist"}:
-        # bubblewrap cannot express hostname allowlists by itself. A configured
-        # allowlist is therefore enforced by argv validation plus a fully
-        # isolated network namespace unless a future proxy transport is used.
         command.append("--unshare-net")
     command.extend(
         [
@@ -138,16 +148,13 @@ def _macos_sandbox(
 ) -> list[str] | None:
     if not shutil.which("sandbox-exec"):
         return None
-    # sandbox-exec does not provide a safe hostname allowlist primitive. Treat
-    # allowlist as deny at the kernel boundary; explicit unrestricted networking
-    # requires network.mode=allow.
     network_rule = (
         "(allow network*)" if policy.network == "allow" else "(deny network*)"
     )
     escaped_root = root.replace('"', '\\"')
     profile = (
         "(version 1) (deny default) (allow process*) (allow file-read*) "
-        f'{network_rule} (allow file-write* (subpath "{escaped_root}"))'
+        + f'{network_rule} (allow file-write* (subpath "{escaped_root}"))'
     )
     return ["sandbox-exec", "-p", profile, *argv]
 
@@ -155,13 +162,9 @@ def _macos_sandbox(
 def sandbox_command(
     argv: list[str], workspace: str | Path, *, purpose: str = "command"
 ) -> list[str]:
-    """Return an OS-isolated command or fail closed for unenforceable policy.
-
-    `mode=off`/`permissive` is an explicit unsafe escape hatch. In the default
-    `auto` mode, a deny/allowlist network policy is never represented as secure
-    when no native sandbox can enforce it.
-    """
+    """Return an OS-isolated command or fail closed for unenforceable policy."""
     policy = SandboxPolicy.load(workspace)
+    _core_requirements(policy)
     policy.validate_network_args(argv)
     if policy.mode in {"off", "false", "0", "permissive"}:
         return argv
@@ -186,5 +189,4 @@ def sandbox_command(
             "Install bubblewrap on Linux, use a supported macOS sandbox, or explicitly set "
             "JARVIS_SANDBOX=permissive/off only if unrestricted process networking is acceptable."
         )
-    # network=allow with auto mode does not claim isolation when none exists.
     return argv
