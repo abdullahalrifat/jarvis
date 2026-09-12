@@ -4,6 +4,8 @@
 
 Jarvis **0.9.3** consumes the provider-neutral Jarvis Core **0.12.0** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
+Jarvis Core 0.12.0 is now published as an immutable PyPI release; this branch intentionally pins that exact release so the CLI and Core can evolve independently.
+
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
 The design goal is dependable coding outcomes comparable with mature commercial agents while preserving local control and provider choice. Feature presence is not treated as proof of Claude/Codex equivalence; the remaining readiness work is tracked below.
@@ -13,7 +15,7 @@ The design goal is dependable coding outcomes comparable with mature commercial 
 | Need | Use |
 | --- | --- |
 | Read, review, edit and test a checkout on this computer | **Jarvis** |
-| Keep code/tools local while inference runs remotely | **Jarvis** |
+| Keep tools/code local while inference runs remotely | **Jarvis** |
 | Interactive terminal work, local automation, worktrees and local jobs | **Jarvis** |
 | Work that survives client disconnects or runs on external workers | **Server** |
 | Shared queues, durable cloud tasks, web/mobile/messaging clients | **Server** |
