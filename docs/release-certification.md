@@ -1,6 +1,6 @@
 # Jarvis release certification
 
-Current coordinated line: Jarvis 0.9.2 with Jarvis Core 0.9.4.
+Current coordinated line: **Jarvis 0.9.2 with Jarvis Core 0.9.5**.
 
 ## Automated gates
 
@@ -8,8 +8,12 @@ Current coordinated line: Jarvis 0.9.2 with Jarvis Core 0.9.4.
 - black and critical Ruff checks;
 - pytest with the 70% coverage floor;
 - package build and clean-wheel installation;
-- immutable Core 0.9.4 checksum verification;
-- cross-repository Core protocol conformance.
+- immutable Core 0.9.5 release/checksum verification;
+- cross-repository Core protocol conformance;
+- real-repository benchmark harness;
+- adversarial prompt-injection and secret-canary regression coverage;
+- long-running worker/lease/heartbeat chaos coverage;
+- per-task sandbox policy validation.
 
 ## Evidence and completion
 
@@ -21,8 +25,8 @@ Run adversarial cases against repository content, web pages, browser content, MC
 
 ## Cloud certification
 
-For Server-backed work, certify lease fencing, stale-worker rejection, cancellation races, worker restart, database/network failures and idempotent submission. Fencing is not equivalent to per-task process isolation.
+For Server-backed work, certify lease fencing, stale-worker rejection, cancellation races, worker restart, database/network failures and idempotent submission. Fencing is not equivalent to per-task process isolation. Shared-host execution requires the consumer-enforced sandbox/resource/egress policy to be enabled and validated.
 
 ## World-class certification
 
-CI passing establishes software-contract health, not model quality or production readiness. Release certification additionally requires retained real-repository benchmarks, red-team results, chaos/soak results, cloud isolation/resource limits and deterministic environment/bootstrap validation.
+CI passing establishes software-contract health, not model quality or universal production readiness. The current release line has executable regression, security, real-repository evaluation and chaos coverage. Remaining certification work is primarily retained longitudinal benchmark results, model-quality measurement across the target local models, full offline/bootstrap reproducibility, backup/restore validation and hardware-specific soak testing.
