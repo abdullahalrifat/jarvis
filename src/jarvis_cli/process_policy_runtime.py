@@ -1,4 +1,5 @@
 """Secret-minimized subprocess execution for agent tools."""
+
 from __future__ import annotations
 
 import shlex
@@ -31,9 +32,7 @@ def install_process_policy_runtime() -> None:
         def execute(self, name: str, arguments: dict[str, Any]) -> str:
             if name == "start_background":
                 argv = arguments.get("argv")
-                if not isinstance(argv, list) or not all(
-                    isinstance(x, str) for x in argv
-                ):
+                if not isinstance(argv, list) or not all(isinstance(x, str) for x in argv):
                     raise APIError("start_background argv must be an array of strings.")
                 self._authorize(argv)
                 return str(self._background.start(argv))
