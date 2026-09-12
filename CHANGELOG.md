@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.9.3
+
+- Consume the published Jarvis Core 0.12.0 release.
+- Use the Core provider normalization API as the canonical model-boundary vocabulary for new provider integrations.
+- Align release and clean-install validation with Core 0.12.0.
+- Refresh release documentation and package metadata for the 0.9.3 patch release.
+
+## 0.9.2
 
 - Align the CLI with the published Jarvis Core 0.11.0 provider-neutral contract line.
 - Document the Core `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelUsage`, and `ToolCall` boundary while keeping concrete provider integrations in the CLI/runtime layer.
@@ -9,37 +16,32 @@
 
 - Pin the CLI to the immutable Jarvis Core 0.9.2 release wheel (SHA-256 `0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130`).
 - Apply repository-wide Black formatting and keep workspace-trust Hook tests isolated.
-- Preserve Jarvis and AI Stack as independent consumers of shared Core contracts.
+- Preserve independent consumers of the shared Core contracts.
 
-## Unreleased — 0.8.1 audit hardening
+## 0.8.1 audit hardening
 
 ### Correctness and release alignment
 
-- Pin Jarvis to the verified immutable `jarvis-agent-core` 0.8.0 GitHub Release wheel (`d9569b69385e58a681ea01e900eb81c395d3f202a09a92878eb82bf4d4b8618a`).
-- Make public Python SDK `RemoteJarvis` and `CloudWorker` resolve to the v0.8 idempotent/fenced implementations while retaining explicit `Legacy*` aliases.
-- Make release tag/version inspection dependency-free instead of importing runtime modules before dependencies are installed.
+- Pin the CLI to the verified immutable Core release artifact.
+- Make public Python SDK `RemoteJarvis` and `CloudWorker` resolve to the idempotent/fenced implementations while retaining explicit legacy aliases.
+- Make release tag/version inspection dependency-free.
 - Add release-alignment and clean-wheel regressions.
 
 ### Security and trust
 
-- Add an explicit user-owned workspace trust registry and `jarvis trust` controls.
+- Add an explicit user-owned workspace trust registry and trust controls.
 - Do not load project-local executable Hooks until the exact workspace is trusted.
-- Enforce MCP `requires_approval` before a configured tool call is sent.
+- Enforce MCP approval before a configured tool call is sent.
 - Harden stdio MCP lifecycle concurrency and prevent stderr-pipe deadlocks.
-- Parse MCP HTTP endpoints structurally; plain HTTP is permitted only for exact loopback hosts.
-- Bound MCP HTTP responses and reject invalid/mismatched JSON-RPC responses.
-- Remove credential-like variables and credential-bearing URLs from agent-run command environments by default; allow explicit operator exceptions with `JARVIS_COMMAND_ENV_ALLOW`.
+- Parse MCP HTTP endpoints structurally and bound responses.
+- Remove credential-like variables and credential-bearing URLs from agent-run command environments by default.
 - Respect `XDG_CONFIG_HOME` for user Hook configuration.
 
 ### Quality and documentation
 
 - Add focused trust/MCP/secret-isolation regressions.
-- Rebaseline the roadmap using FOUNDATION / INTEGRATED / VALIDATED / MEASURED / PRODUCTION-READY rather than treating feature presence as proof.
-- Add a prioritized world-class readiness analysis covering real-repo benchmarks, red-team evaluation, chaos testing, cloud isolation, IDE/PR integration, background processes, checkpoints, live steering and enterprise controls.
-
-### Validation note
-
-The public Core 0.8.0 release wheel and checksum have been independently verified. Private Jarvis GitHub Actions currently fail before runner provisioning, so 0.8.1 remains audit-hardened but not release-certified until the full Python and clean-wheel matrix executes.
+- Rebaseline the roadmap using FOUNDATION / INTEGRATED / VALIDATED / MEASURED / PRODUCTION-READY.
+- Add readiness analysis covering real-repository benchmarks, red-team evaluation, chaos testing, cloud isolation, IDE/PR integration, background processes, checkpoints, live steering and enterprise controls.
 
 ## 0.8.0
 
