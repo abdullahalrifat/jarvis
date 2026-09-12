@@ -2,7 +2,7 @@
 
 ## Current contract line
 
-Jarvis **0.9.2** uses the provider-neutral Jarvis Core **0.9.5** proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
+Jarvis **0.9.2** uses the provider-neutral Jarvis Core **0.10.1** proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
@@ -32,7 +32,7 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.2 consumes the published `jarvis-agent-core==0.9.5` package from PyPI. The dependency is pinned to the Core release line in `pyproject.toml`; the Core release itself is built and published through Trusted Publishing.
+Jarvis 0.9.2 consumes the published `jarvis-agent-core==0.10.1` package from PyPI. The dependency is pinned to the Core release line in `pyproject.toml`; the Core release itself is built and published through Trusted Publishing.
 
 ## Connect a model
 
