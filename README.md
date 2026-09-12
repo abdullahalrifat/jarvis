@@ -2,7 +2,9 @@
 
 ## Current contract line
 
-Jarvis **0.9.2** consumes the provider-neutral Jarvis Core **0.11.0** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
+Jarvis **0.9.3** consumes the provider-neutral Jarvis Core **0.12.0** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+
+Jarvis Core 0.12.0 is now published as an immutable PyPI release; this branch intentionally pins that exact release so the CLI and Core can evolve independently.
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
@@ -13,13 +15,13 @@ The design goal is dependable coding outcomes comparable with mature commercial 
 | Need | Use |
 | --- | --- |
 | Read, review, edit and test a checkout on this computer | **Jarvis** |
-| Keep code/tools local while inference runs remotely | **Jarvis** |
+| Keep tools/code local while inference runs remotely | **Jarvis** |
 | Interactive terminal work, local automation, worktrees and local jobs | **Jarvis** |
 | Work that survives client disconnects or runs on external workers | **Server** |
 | Shared queues, durable cloud tasks, web/mobile/messaging clients | **Server** |
 | Central persistence and multi-worker execution | **Server** |
 
-Server lives in [`ai-stack`](https://github.com/abdullahalrifat/ai-stack). Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
+The optional Server is maintained separately. Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
 
 ## Install
 
@@ -32,9 +34,9 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.2 consumes the published `jarvis-agent-core==0.11.0` package from PyPI. The dependency is pinned to the Core release line in `pyproject.toml`; the Core release itself is built and published through Trusted Publishing.
+Jarvis 0.9.3 consumes the published `jarvis-agent-core==0.12.0` package from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
-Core 0.11.0 adds provider-neutral `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelUsage`, and `ToolCall` contracts. Jarvis keeps concrete provider adapters in the CLI/runtime layer rather than adding provider SDK dependencies to Core. This lets local Ollama/OpenAI-compatible endpoints and hosted providers remain interchangeable without coupling shared agent logic to a vendor SDK.
+Core 0.12.0 adds reusable provider normalization helpers alongside the provider-neutral `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelUsage`, and `ToolCall` contracts. Concrete provider adapters remain in the CLI/runtime layer so provider SDKs do not become Core dependencies.
 
 ## Connect a model
 
@@ -65,7 +67,7 @@ Project-local Hooks require explicit workspace trust. Command execution uses a s
 
 ## Validation status
 
-The repository now contains three complementary v0.8.2 validation layers: an adversarial prompt-injection/secret-canary regression corpus, pinned real-repository benchmark infrastructure, and deterministic long-running worker/chaos coverage for lease, cancellation, proof, telemetry and state-failure races. These are reproducible regression/evaluation suites; they do not by themselves certify model quality, shared-host isolation, or production-scale soak behavior.
+The repository contains adversarial prompt-injection/secret-canary regressions, pinned real-repository benchmark infrastructure, and deterministic long-running worker/chaos coverage for lease, cancellation, proof, telemetry and state-failure races. These are reproducible regression/evaluation suites; they do not by themselves certify model quality, shared-host isolation, or production-scale soak behavior.
 
 ## Remaining readiness work
 
@@ -73,8 +75,8 @@ The remaining gaps are evidence, isolation and developer-experience hardening ra
 
 - run and retain real-repository benchmark results across local and remote models;
 - expand adversarial red-team coverage and replay it across repository/web/MCP/Skills/Hooks/browser inputs;
-- run long-duration distributed soak/chaos campaigns beyond the deterministic unit-level fault contracts;
-- enforce strong per-task container/VM-style isolation with CPU/RAM/PID/disk quotas and explicit egress controls across every shared cloud worker entry point;
+- run long-duration distributed soak/chaos campaigns beyond deterministic unit-level fault contracts;
+- enforce strong per-task container/VM-style isolation with CPU/RAM/PID/disk quotas and explicit egress controls across shared cloud workers;
 - deterministic cloud environment bootstrap/cache identity/invalidation;
 - complete Core EvidenceLedger/EvidenceGate wiring from real execution records;
 - nonblocking in-agent process support for dev servers and long-running tests;
