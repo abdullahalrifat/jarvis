@@ -20,7 +20,12 @@ class BackgroundProcess:
 
 
 class BackgroundProcessManager:
-    def __init__(self, root: Path, max_processes: int = 8, max_output_chars: int = 200_000):
+    def __init__(
+        self,
+        root: Path,
+        max_processes: int = 8,
+        max_output_chars: int = 200_000,
+    ):
         self.root = root
         self.max_processes = max_processes
         self.max_output_chars = max_output_chars
@@ -44,9 +49,13 @@ class BackgroundProcessManager:
                 bufsize=1,
                 start_new_session=True,
             )
-            item = BackgroundProcess(str(uuid.uuid4()), tuple(argv), process.pid, process, [])
+            item = BackgroundProcess(
+                str(uuid.uuid4()), tuple(argv), process.pid, process, []
+            )
             self._items[item.id] = item
-            threading.Thread(target=self._reader, args=(item,), daemon=True).start()
+            threading.Thread(
+                target=self._reader, args=(item,), daemon=True
+            ).start()
             return self.status(item.id)
 
     def _reader(self, item: BackgroundProcess) -> None:
@@ -74,7 +83,9 @@ class BackgroundProcessManager:
                 "output": "".join(item.output)[-self.max_output_chars :],
             }
 
-    def stop(self, process_id: str, grace_seconds: float = 3.0) -> dict[str, object]:
+    def stop(
+        self, process_id: str, grace_seconds: float = 3.0
+    ) -> dict[str, object]:
         with self._lock:
             item = self._items.get(process_id)
             if item is None:
@@ -91,7 +102,10 @@ class BackgroundProcessManager:
 
     def _reap_locked(self) -> None:
         for key, item in list(self._items.items()):
-            if item.process.poll() is not None and len(self._items) > self.max_processes // 2:
+            if (
+                item.process.poll() is not None
+                and len(self._items) > self.max_processes // 2
+            ):
                 self._items.pop(key, None)
 
     def list(self) -> list[dict[str, object]]:
