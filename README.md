@@ -32,12 +32,7 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.2 pins the immutable Jarvis Core 0.9.5 release wheel:
-
-```text
-https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.9.5/jarvis_agent_core-0.9.5-py3-none-any.whl
-SHA-256 af06aa90d00694b9df0681b886e2aeb8445a6236bf69a7f5b64b0948b9c4d17b
-```
+Jarvis 0.9.2 consumes the published `jarvis-agent-core==0.9.5` package from PyPI. The dependency is pinned to the Core release line in `pyproject.toml`; the Core release itself is built and published through Trusted Publishing.
 
 ## Connect a model
 
@@ -85,7 +80,7 @@ These items are tracked as engineering requirements, not silently presented as c
 
 ## Validation status
 
-The current 0.9.2/0.9.5 line validates Jarvis against the immutable Core 0.9.5 release wheel. Cross-repository Core compatibility is validated separately. Passing CI establishes reproducible software behavior for the tested matrix; it does not certify model quality, adversarial robustness or shared-host isolation.
+The current 0.9.2/0.9.5 line validates Jarvis against the published Core 0.9.5 package. Cross-repository Core compatibility is validated separately. Passing CI establishes reproducible software behavior for the tested matrix; it does not certify model quality, adversarial robustness or shared-host isolation.
 
 ## Development
 
