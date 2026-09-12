@@ -1,4 +1,5 @@
 """Bounded background process management for long-running agent commands."""
+
 from __future__ import annotations
 
 import os
@@ -53,9 +54,7 @@ class BackgroundProcessManager:
                 str(uuid.uuid4()), tuple(argv), process.pid, process, []
             )
             self._items[item.id] = item
-            threading.Thread(
-                target=self._reader, args=(item,), daemon=True
-            ).start()
+            threading.Thread(target=self._reader, args=(item,), daemon=True).start()
             return self.status(item.id)
 
     def _reader(self, item: BackgroundProcess) -> None:
@@ -83,9 +82,7 @@ class BackgroundProcessManager:
                 "output": "".join(item.output)[-self.max_output_chars :],
             }
 
-    def stop(
-        self, process_id: str, grace_seconds: float = 3.0
-    ) -> dict[str, object]:
+    def stop(self, process_id: str, grace_seconds: float = 3.0) -> dict[str, object]:
         with self._lock:
             item = self._items.get(process_id)
             if item is None:
