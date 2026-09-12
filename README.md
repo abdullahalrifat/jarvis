@@ -2,7 +2,7 @@
 
 ## Current contract line
 
-Jarvis **0.9.2** uses the provider-neutral Jarvis Core **0.9.4** proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
+Jarvis **0.9.2** uses the provider-neutral Jarvis Core **0.9.5** proof contract. Cloud completion is bound to the exact local run ID and requires real passing test records; Jarvis does not import or require AI Stack.
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
@@ -32,12 +32,7 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.2 pins the immutable Jarvis Core 0.9.4 release wheel:
-
-```text
-https://github.com/abdullahalrifat/jarvis-core/releases/download/v0.9.4/jarvis_agent_core-0.9.4-py3-none-any.whl
-SHA-256 0a78bcf9601a5e521059855b8b53501f118320f67ce939d24f15993acb774bd6
-```
+Jarvis 0.9.2 consumes the published `jarvis-agent-core==0.9.5` package from PyPI. The dependency is pinned to the Core release line in `pyproject.toml`; the Core release itself is built and published through Trusted Publishing.
 
 ## Connect a model
 
@@ -85,7 +80,7 @@ These items are tracked as engineering requirements, not silently presented as c
 
 ## Validation status
 
-The current 0.9.2/0.9.4 line validates Jarvis against the immutable Core 0.9.4 release wheel. Cross-repository Core compatibility is validated separately. Passing CI establishes reproducible software behavior for the tested matrix; it does not certify model quality, adversarial robustness or shared-host isolation.
+The current 0.9.2/0.9.5 line validates Jarvis against the published Core 0.9.5 package. Cross-repository Core compatibility is validated separately. Passing CI establishes reproducible software behavior for the tested matrix; it does not certify model quality, adversarial robustness or shared-host isolation.
 
 ## Development
 

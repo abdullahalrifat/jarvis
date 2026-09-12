@@ -2,25 +2,18 @@ from pathlib import Path
 import subprocess
 import sys
 
-CORE_VERSION = "0.9.4"
-CORE_SHA256 = "0a78bcf9601a5e521059855b8b53501f118320f67ce939d24f15993acb774bd6"
+CORE_VERSION = "0.9.5"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_package_and_ci_pin_same_immutable_core_release():
+def test_package_and_ci_pin_same_core_release():
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     workflow = (REPO_ROOT / ".github/workflows/validate.yml").read_text(
         encoding="utf-8"
     )
 
-    expected_asset = (
-        f"https://github.com/abdullahalrifat/jarvis-core/releases/download/"
-        f"v{CORE_VERSION}/jarvis_agent_core-{CORE_VERSION}-py3-none-any.whl"
-    )
-    assert expected_asset in pyproject
-    assert f"#sha256={CORE_SHA256}" in pyproject
+    assert f'"jarvis-agent-core=={CORE_VERSION}"' in pyproject
     assert workflow.count(f"m.version('jarvis-agent-core') == '{CORE_VERSION}'") == 2
-    assert "jarvis_cli" not in expected_asset
 
 
 def test_release_version_check_does_not_import_runtime_dependencies():
