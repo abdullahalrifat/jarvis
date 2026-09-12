@@ -31,7 +31,9 @@ def install_process_policy_runtime() -> None:
         def execute(self, name: str, arguments: dict[str, Any]) -> str:
             if name == "start_background":
                 argv = arguments.get("argv")
-                if not isinstance(argv, list) or not all(isinstance(x, str) for x in argv):
+                if not isinstance(argv, list) or not all(
+                    isinstance(x, str) for x in argv
+                ):
                     raise APIError("start_background argv must be an array of strings.")
                 self._authorize(argv)
                 return str(self._background.start(argv))
@@ -52,8 +54,14 @@ def install_process_policy_runtime() -> None:
         def _authorize(self, argv: list[str]) -> None:
             if not argv or argv[0] not in local_agent.DEFAULT_ALLOWED_COMMANDS:
                 raise APIError("Command is not in the local allowlist.")
-            if argv[0] == "git" and len(argv) > 1 and argv[1] in local_agent.MUTATING_GIT_SUBCOMMANDS:
-                raise APIError("Mutating Git commands are not allowed through background execution.")
+            if (
+                argv[0] == "git"
+                and len(argv) > 1
+                and argv[1] in local_agent.MUTATING_GIT_SUBCOMMANDS
+            ):
+                raise APIError(
+                    "Mutating Git commands are not allowed through background execution."
+                )
             if not self.config.accept_commands and not self.approval(
                 f"Start background command: {shlex.join(argv)}?"
             ):
@@ -62,7 +70,11 @@ def install_process_policy_runtime() -> None:
         def _command(self, argv: list[str], *, require_approval: bool = False) -> str:
             if not argv or argv[0] not in local_agent.DEFAULT_ALLOWED_COMMANDS:
                 raise APIError("Command is not in the local allowlist.")
-            if argv[0] == "git" and len(argv) > 1 and argv[1] in local_agent.MUTATING_GIT_SUBCOMMANDS:
+            if (
+                argv[0] == "git"
+                and len(argv) > 1
+                and argv[1] in local_agent.MUTATING_GIT_SUBCOMMANDS
+            ):
                 raise APIError("Mutating Git commands are not allowed through run_command.")
             if require_approval and not self.config.accept_commands and not self.approval(
                 f"Run command: {shlex.join(argv)}?"
@@ -91,17 +103,35 @@ def install_process_policy_runtime() -> None:
         "start_background": {
             "name": "start_background",
             "description": "Start an allowlisted long-running command without blocking the agent.",
-            "parameters": {"type": "object", "properties": {"argv": {"type": "array", "items": {"type": "string"}, "minItems": 1}}, "required": ["argv"]},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "argv": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                    }
+                },
+                "required": ["argv"],
+            },
         },
         "poll_background": {
             "name": "poll_background",
             "description": "Read status and bounded output from a background process.",
-            "parameters": {"type": "object", "properties": {"process_id": {"type": "string"}}, "required": ["process_id"]},
+            "parameters": {
+                "type": "object",
+                "properties": {"process_id": {"type": "string"}},
+                "required": ["process_id"],
+            },
         },
         "stop_background": {
             "name": "stop_background",
             "description": "Gracefully stop a background process, escalating to SIGKILL if needed.",
-            "parameters": {"type": "object", "properties": {"process_id": {"type": "string"}}, "required": ["process_id"]},
+            "parameters": {
+                "type": "object",
+                "properties": {"process_id": {"type": "string"}},
+                "required": ["process_id"],
+            },
         },
         "list_background": {
             "name": "list_background",
