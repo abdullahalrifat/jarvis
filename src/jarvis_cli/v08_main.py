@@ -122,13 +122,28 @@ def _cloud(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "status":
-        print(json.dumps(remote.cloud_task(args.task_id), indent=2, ensure_ascii=False, default=str))
+        print(
+            json.dumps(
+                remote.cloud_task(args.task_id),
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        )
         return 0
     if args.action == "health":
-        print(json.dumps(remote.client.health(), indent=2, ensure_ascii=False, default=str))
+        print(
+            json.dumps(
+                remote.client.health(), indent=2, ensure_ascii=False, default=str
+            )
+        )
         return 0
     if args.action == "capabilities":
-        print(json.dumps(remote.client.capabilities(), indent=2, ensure_ascii=False, default=str))
+        print(
+            json.dumps(
+                remote.client.capabilities(), indent=2, ensure_ascii=False, default=str
+            )
+        )
         return 0
     if args.action == "cancel":
         print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
@@ -247,4 +262,5 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     from .v071_main import main as previous
+
     return previous(argv)
