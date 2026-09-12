@@ -13,20 +13,17 @@ def test_repository_launcher_loads_the_cli_from_its_own_package(tmp_path):
         capture_output=True,
         text=True,
     )
-
-    assert result.stdout.strip() == "0.9.4"
+    assert result.stdout.strip() == "0.9.5"
 
 
 def test_installer_manages_only_its_symlink(tmp_path):
     install_dir = tmp_path / "bin"
     env = {**os.environ, "JARVIS_INSTALL_DIR": str(install_dir)}
     installer = CLI_ROOT / "scripts" / "install-jarvis"
-
     subprocess.run([installer], env=env, check=True, capture_output=True, text=True)
     command = install_dir / "jarvis"
     assert command.is_symlink()
     assert command.readlink() == CLI_ROOT / "scripts" / "jarvis"
-
     result = subprocess.run(
         [command, "--version"],
         env=env,
@@ -34,8 +31,7 @@ def test_installer_manages_only_its_symlink(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "0.9.4"
-
+    assert result.stdout.strip() == "0.9.5"
     subprocess.run(
         [installer, "--uninstall"],
         env=env,

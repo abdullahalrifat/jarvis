@@ -9,24 +9,16 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "tomli>=2; python_version < '3.11'",
-    "jarvis-agent-core==0.13.0",
+    "jarvis-agent-core==0.14.0",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 multimodal = ["pypdf>=6,<7", "Pillow>=12,<13"]
 secure = ["keyring>=25,<26"]
-browser = ["playwright>=1.55,<2"]
 telemetry = ["opentelemetry-api>=1.36,<2", "opentelemetry-sdk>=1.36,<2", "opentelemetry-exporter-otlp>=1.36,<2"]
-all = [
-    "pypdf>=6,<7",
-    "Pillow>=12,<13",
-    "keyring>=25,<26",
-    "playwright>=1.55,<2",
-    "opentelemetry-api>=1.36,<2",
-    "opentelemetry-sdk>=1.36,<2",
-    "opentelemetry-exporter-otlp>=1.36,<2",
-]
+browser = ["playwright>=1.55,<2"]
+all = ["pypdf>=6,<7", "Pillow>=12,<13", "keyring>=25,<26", "playwright>=1.55,<2", "opentelemetry-api>=1.36,<2", "opentelemetry-sdk>=1.36,<2", "opentelemetry-exporter-otlp>=1.36,<2"]
 
 [project.scripts]
 jarvis = "jarvis_cli.v08_main:main"

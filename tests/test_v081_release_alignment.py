@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-CORE_VERSION = "0.13.0"
+CORE_VERSION = "0.14.0"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -11,7 +11,6 @@ def test_package_and_ci_pin_same_core_release():
     workflow = (REPO_ROOT / ".github/workflows/validate.yml").read_text(
         encoding="utf-8"
     )
-
     assert f'"jarvis-agent-core=={CORE_VERSION}"' in pyproject
     assert workflow.count(f"m.version('jarvis-agent-core') == '{CORE_VERSION}'") == 2
 
@@ -40,4 +39,4 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.9.4"
+    assert result.stdout.strip() == "0.9.5"
