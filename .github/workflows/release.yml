@@ -42,7 +42,7 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$package_version"
       - run: python -m build
       - run: python -m twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-distributions
           path: dist/
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: "dist/jarvis-*"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/jarvis-*
