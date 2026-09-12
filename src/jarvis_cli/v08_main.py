@@ -22,9 +22,7 @@ from .workspace_trust import (
 
 
 def _remote_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--server", default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000")
-    )
+    parser.add_argument("--server", default=os.getenv("JARVIS_URL", "http://127.0.0.1:8000"))
     parser.add_argument("--server-api-key-env", default="JARVIS_SERVER_API_KEY")
 
 
@@ -69,6 +67,8 @@ def _parser() -> argparse.ArgumentParser:
     _remote_options(health)
     capabilities = cloud_sub.add_parser("capabilities")
     _remote_options(capabilities)
+    inference = cloud_sub.add_parser("inference-status")
+    _remote_options(inference)
     cancel = cloud_sub.add_parser("cancel")
     cancel.add_argument("task_id")
     _remote_options(cancel)
@@ -78,6 +78,12 @@ def _parser() -> argparse.ArgumentParser:
     worker.add_argument("--lease-seconds", type=int, default=60)
     _remote_options(worker)
     _provider_options(worker)
+
+    ide = subs.add_parser("ide")
+    ide_sub = ide.add_subparsers(dest="action", required=True)
+    ide_serve = ide_sub.add_parser("serve")
+    ide_serve.add_argument("--workspace", default=".")
+    _provider_options(ide_serve)
 
     proof = subs.add_parser("proof")
     proof.add_argument("--workspace", default=".")
@@ -109,41 +115,23 @@ def _cloud(args: argparse.Namespace) -> int:
     remote = AutonomousRemoteJarvis(args.server, _key(args))
     if args.action == "submit":
         result = remote.submit_cloud(
-            " ".join(args.task),
-            workspace=args.workspace,
-            repository_url=args.repository_url,
-            git_ref=args.git_ref,
-            git_commit=args.git_commit,
-            allow_write=args.write,
-            model=args.model,
-            project_id=args.project_id,
-            idempotency_key=args.idempotency_key,
+            " ".join(args.task), workspace=args.workspace, repository_url=args.repository_url,
+            git_ref=args.git_ref, git_commit=args.git_commit, allow_write=args.write,
+            model=args.model, project_id=args.project_id, idempotency_key=args.idempotency_key,
         )
         print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "status":
-        print(
-            json.dumps(
-                remote.cloud_task(args.task_id),
-                indent=2,
-                ensure_ascii=False,
-                default=str,
-            )
-        )
+        print(json.dumps(remote.cloud_task(args.task_id), indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "health":
-        print(
-            json.dumps(
-                remote.client.health(), indent=2, ensure_ascii=False, default=str
-            )
-        )
+        print(json.dumps(remote.client.health(), indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "capabilities":
-        print(
-            json.dumps(
-                remote.client.capabilities(), indent=2, ensure_ascii=False, default=str
-            )
-        )
+        print(json.dumps(remote.client.capabilities(), indent=2, ensure_ascii=False, default=str))
+        return 0
+    if args.action == "inference-status":
+        print(json.dumps(remote.client.request("GET", "/inference/status"), indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "cancel":
         print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
@@ -153,13 +141,7 @@ def _cloud(args: argparse.Namespace) -> int:
 
     args.task = []
     config = resolve_local_config(args)
-    worker = FencedCloudWorker(
-        args.server,
-        _key(args),
-        args.worker_id,
-        LocalJarvis(config),
-        lease_seconds=args.lease_seconds,
-    )
+    worker = FencedCloudWorker(args.server, _key(args), args.worker_id, LocalJarvis(config), lease_seconds=args.lease_seconds)
     if args.once:
         result = worker.run_once()
         if result is not None:
@@ -167,6 +149,15 @@ def _cloud(args: argparse.Namespace) -> int:
         return 0
     worker.serve_forever()
     return 0
+
+
+def _ide(args: argparse.Namespace) -> int:
+    from .ide_protocol import local_handler, serve
+    from .local_agent import resolve_local_config
+
+    args.task = []
+    config = resolve_local_config(args)
+    return serve(local_handler(LocalJarvis(config)))
 
 
 def _proof(args: argparse.Namespace) -> int:
@@ -180,87 +171,51 @@ def _proof(args: argparse.Namespace) -> int:
 def _permissions(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).expanduser().resolve()
     policy = PermissionPolicy(workspace)
-    print(
-        json.dumps(
-            {
-                "trusted_file": str(trusted_permissions_path()),
-                "project_file": str(workspace / ".jarvis" / "permissions.toml"),
-                "allow": sorted(policy.allow),
-                "ask": sorted(policy.ask),
-                "deny": sorted(policy.deny),
-                "ignored_project_allow": sorted(policy.ignored_project_allow),
-                "default": "ask for mutations; allow read-only",
-                "project_policy": "restrict-only; repository allow entries cannot broaden privileges",
-                "plan_mode": "all mutations denied",
-            },
-            indent=2,
-        )
-    )
+    print(json.dumps({
+        "trusted_file": str(trusted_permissions_path()),
+        "project_file": str(workspace / ".jarvis" / "permissions.toml"),
+        "allow": sorted(policy.allow), "ask": sorted(policy.ask), "deny": sorted(policy.deny),
+        "ignored_project_allow": sorted(policy.ignored_project_allow),
+        "default": "ask for mutations; allow read-only",
+        "project_policy": "restrict-only; repository allow entries cannot broaden privileges",
+        "plan_mode": "all mutations denied",
+    }, indent=2))
     return 0
 
 
 def _trust(args: argparse.Namespace) -> int:
     workspace = Path(args.workspace).expanduser().resolve()
     if args.revoke:
-        path = untrust_workspace(workspace)
-        state = False
+        path = untrust_workspace(workspace); state = False
     elif args.status:
-        path = trust_file()
-        state = is_workspace_trusted(workspace)
+        path = trust_file(); state = is_workspace_trusted(workspace)
     else:
-        path = trust_workspace(workspace)
-        state = True
-    print(
-        json.dumps(
-            {
-                "workspace": str(workspace),
-                "trusted": state,
-                "trust_file": str(path),
-                "effect": (
-                    "project-local executable configuration such as hooks may run"
-                    if state
-                    else "project-local executable configuration is disabled"
-                ),
-            },
-            indent=2,
-        )
-    )
+        path = trust_workspace(workspace); state = True
+    print(json.dumps({
+        "workspace": str(workspace), "trusted": state, "trust_file": str(path),
+        "effect": "project-local executable configuration such as hooks may run" if state else "project-local executable configuration is disabled",
+    }, indent=2))
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    commands = {"cloud", "proof", "permissions", "trust", "dashboard"}
+    commands = {"cloud", "ide", "proof", "permissions", "trust", "dashboard"}
     if argv and argv[0] in commands:
         try:
             args = _parser().parse_args(argv)
-            if args.command == "cloud":
-                return _cloud(args)
-            if args.command == "proof":
-                return _proof(args)
-            if args.command == "permissions":
-                return _permissions(args)
-            if args.command == "trust":
-                return _trust(args)
+            if args.command == "cloud": return _cloud(args)
+            if args.command == "ide": return _ide(args)
+            if args.command == "proof": return _proof(args)
+            if args.command == "permissions": return _permissions(args)
+            if args.command == "trust": return _trust(args)
             if args.command == "dashboard":
-                if args.watch:
-                    watch_dashboard(args.workspace, args.interval)
-                else:
-                    print(render_dashboard(args.workspace))
+                if args.watch: watch_dashboard(args.workspace, args.interval)
+                else: print(render_dashboard(args.workspace))
                 return 0
-        except (
-            APIError,
-            FileNotFoundError,
-            KeyError,
-            OSError,
-            PermissionError,
-            RuntimeError,
-            TimeoutError,
-            ValueError,
-        ) as exc:
+        except (APIError, FileNotFoundError, KeyError, OSError, PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
     from .v071_main import main as previous
-
     return previous(argv)
