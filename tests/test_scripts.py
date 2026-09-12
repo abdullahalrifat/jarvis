@@ -24,7 +24,19 @@ def test_installer_manages_only_its_symlink(tmp_path):
     command = install_dir / "jarvis"
     assert command.is_symlink()
     assert command.readlink() == CLI_ROOT / "scripts" / "jarvis"
-    result = subprocess.run([command, "--version"], env=env, check=True, capture_output=True, text=True)
+    result = subprocess.run(
+        [command, "--version"],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     assert result.stdout.strip() == "0.9.5"
-    subprocess.run([installer, "--uninstall"], env=env, check=True, capture_output=True, text=True)
+    subprocess.run(
+        [installer, "--uninstall"],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     assert not command.exists()
