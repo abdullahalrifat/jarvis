@@ -1,0 +1,9 @@
+{
+  "version": "0.8.2",
+  "purpose": "Pinned real-repository evaluation cases. Checkouts are supplied separately and must exactly match revision before execution.",
+  "cases": [
+    {"name": "requests-auth", "repository": "psf/requests", "revision": "v2.32.5", "category": "issue-resolution", "task": "Fix an authentication-related regression while preserving existing public API behavior.", "verification": ["python -m pytest tests/test_auth.py -q"], "metadata": {"language": "python", "size": "medium"}},
+    {"name": "flask-routing", "repository": "pallets/flask", "revision": "3.1.0", "category": "bug-fix", "task": "Diagnose and fix a routing regression without changing unrelated framework behavior.", "verification": ["python -m pytest tests/test_basic.py -q"], "metadata": {"language": "python", "size": "medium"}},
+    {"name": "httpx-client", "repository": "encode/httpx", "revision": "0.28.1", "category": "regression", "task": "Resolve a client behavior regression and add a focused regression test.", "verification": ["python -m pytest tests -q"], "metadata": {"language": "python", "size": "medium"}}
+  ]
+}
