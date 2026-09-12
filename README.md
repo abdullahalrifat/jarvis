@@ -61,14 +61,18 @@ Repository content, web pages, browser content, MCP responses and model output a
 
 Project-local Hooks require explicit workspace trust. Command execution uses a sanitized environment and mutations follow deterministic allow/ask/deny policy. MCP tools are deny-by-default and `requires_approval` is enforced before transport dispatch.
 
+## Validation status
+
+The repository now contains three complementary v0.8.2 validation layers: an adversarial prompt-injection/secret-canary regression corpus, pinned real-repository benchmark infrastructure, and deterministic long-running worker/chaos coverage for lease, cancellation, proof, telemetry and state-failure races. These are reproducible regression/evaluation suites; they do not by themselves certify model quality, shared-host isolation, or production-scale soak behavior.
+
 ## Remaining readiness work
 
 The remaining gaps are evidence, isolation and developer-experience hardening rather than missing command wrappers:
 
-- retained real-repository issue-resolution benchmarks across local and remote models;
-- prompt-injection and secret-canary red-team suites across repository/web/MCP/Skills/Hooks/browser inputs;
-- long-running chaos/soak tests for restart, partition, lease, cancellation and state-failure races;
-- strong per-task container/VM-style isolation with CPU/RAM/PID/disk quotas and explicit egress controls for shared cloud workers;
+- run and retain real-repository benchmark results across local and remote models;
+- expand adversarial red-team coverage and replay it across repository/web/MCP/Skills/Hooks/browser inputs;
+- run long-duration distributed soak/chaos campaigns beyond the deterministic unit-level fault contracts;
+- enforce strong per-task container/VM-style isolation with CPU/RAM/PID/disk quotas and explicit egress controls across every shared cloud worker entry point;
 - deterministic cloud environment bootstrap/cache identity/invalidation;
 - complete Core EvidenceLedger/EvidenceGate wiring from real execution records;
 - nonblocking in-agent process support for dev servers and long-running tests;
@@ -77,10 +81,6 @@ The remaining gaps are evidence, isolation and developer-experience hardening ra
 - TypeScript SDK, native Windows sandbox, central enterprise policy and signed plugin publisher trust.
 
 These items are tracked as engineering requirements, not silently presented as completed capabilities.
-
-## Validation status
-
-The current 0.9.2/0.9.5 line validates Jarvis against the published Core 0.9.5 package. Cross-repository Core compatibility is validated separately. Passing CI establishes reproducible software behavior for the tested matrix; it does not certify model quality, adversarial robustness or shared-host isolation.
 
 ## Development
 
