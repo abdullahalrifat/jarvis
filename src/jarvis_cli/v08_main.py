@@ -65,6 +65,10 @@ def _parser() -> argparse.ArgumentParser:
     status = cloud_sub.add_parser("status")
     status.add_argument("task_id")
     _remote_options(status)
+    health = cloud_sub.add_parser("health")
+    _remote_options(health)
+    capabilities = cloud_sub.add_parser("capabilities")
+    _remote_options(capabilities)
     cancel = cloud_sub.add_parser("cancel")
     cancel.add_argument("task_id")
     _remote_options(cancel)
@@ -118,14 +122,13 @@ def _cloud(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "status":
-        print(
-            json.dumps(
-                remote.cloud_task(args.task_id),
-                indent=2,
-                ensure_ascii=False,
-                default=str,
-            )
-        )
+        print(json.dumps(remote.cloud_task(args.task_id), indent=2, ensure_ascii=False, default=str))
+        return 0
+    if args.action == "health":
+        print(json.dumps(remote.client.health(), indent=2, ensure_ascii=False, default=str))
+        return 0
+    if args.action == "capabilities":
+        print(json.dumps(remote.client.capabilities(), indent=2, ensure_ascii=False, default=str))
         return 0
     if args.action == "cancel":
         print(json.dumps(remote.cancel_cloud(args.task_id), indent=2))
@@ -152,10 +155,7 @@ def _cloud(args: argparse.Namespace) -> int:
 
 
 def _proof(args: argparse.Namespace) -> int:
-    target = proof_path(
-        Path(args.workspace).expanduser().resolve(),
-        args.run_id,
-    )
+    target = proof_path(Path(args.workspace).expanduser().resolve(), args.run_id)
     if not target.is_file():
         raise FileNotFoundError(f"proof not found: {target}")
     print(target.read_text(encoding="utf-8"))
@@ -247,5 +247,4 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     from .v071_main import main as previous
-
     return previous(argv)
