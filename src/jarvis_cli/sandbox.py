@@ -37,7 +37,9 @@ class SandboxPolicy:
         network = sandbox.get("network", {}) if isinstance(sandbox, dict) else {}
         filesystem = sandbox.get("filesystem", {}) if isinstance(sandbox, dict) else {}
         mode = os.getenv("JARVIS_SANDBOX", str(sandbox.get("mode", "auto"))).lower()
-        network_mode = os.getenv("JARVIS_NETWORK", str(network.get("mode", "deny"))).lower()
+        network_mode = os.getenv(
+            "JARVIS_NETWORK", str(network.get("mode", "deny"))
+        ).lower()
         hosts = network.get("allow", [])
         if mode not in {"auto", "required", "off", "permissive", "false", "0"}:
             raise ValueError("sandbox mode must be auto, required, permissive, or off")
@@ -46,7 +48,9 @@ class SandboxPolicy:
         return cls(
             mode=mode,
             network=network_mode,
-            allowed_hosts=tuple(str(host).casefold() for host in hosts if str(host).strip()),
+            allowed_hosts=tuple(
+                str(host).casefold() for host in hosts if str(host).strip()
+            ),
             readonly_paths=tuple(str(item) for item in filesystem.get("readonly", [])),
             writable_paths=tuple(str(item) for item in filesystem.get("writable", [])),
         )
@@ -64,12 +68,15 @@ class SandboxPolicy:
         if self.network == "deny":
             raise PermissionError("Network access is denied by Jarvis sandbox policy")
         denied = [
-            host for host in hosts
+            host
+            for host in hosts
             if host not in self.allowed_hosts
             and not any(host.endswith("." + allowed) for allowed in self.allowed_hosts)
         ]
         if denied:
-            raise PermissionError("Network host is not allowlisted: " + ", ".join(sorted(denied)))
+            raise PermissionError(
+                "Network host is not allowlisted: " + ", ".join(sorted(denied))
+            )
 
 
 def _core_requirements(policy: SandboxPolicy) -> SandboxRequirements:
@@ -86,31 +93,75 @@ def _core_requirements(policy: SandboxPolicy) -> SandboxRequirements:
 def _linux_bwrap(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
     if not shutil.which("bwrap"):
         return None
-    command = ["bwrap", "--die-with-parent", "--new-session", "--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts"]
+    command = [
+        "bwrap",
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-ipc",
+        "--unshare-uts",
+    ]
     if policy.network in {"deny", "allowlist"}:
         command.append("--unshare-net")
-    command.extend(["--ro-bind", "/", "/", "--bind", root, root, "--chdir", root, "--proc", "/proc", "--dev", "/dev"])
+    command.extend(
+        [
+            "--ro-bind",
+            "/",
+            "/",
+            "--bind",
+            root,
+            root,
+            "--chdir",
+            root,
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+        ]
+    )
     for item in policy.readonly_paths:
-        resolved = str((Path(item).expanduser() if Path(item).is_absolute() else Path(root) / item).resolve())
+        resolved = str(
+            (
+                Path(item).expanduser()
+                if Path(item).is_absolute()
+                else Path(root) / item
+            ).resolve()
+        )
         if Path(resolved).exists():
             command.extend(["--ro-bind", resolved, resolved])
     for item in policy.writable_paths:
-        resolved = str((Path(item).expanduser() if Path(item).is_absolute() else Path(root) / item).resolve())
+        resolved = str(
+            (
+                Path(item).expanduser()
+                if Path(item).is_absolute()
+                else Path(root) / item
+            ).resolve()
+        )
         if Path(resolved).exists():
             command.extend(["--bind", resolved, resolved])
     return [*command, *argv]
 
 
-def _macos_sandbox(policy: SandboxPolicy, root: str, argv: list[str]) -> list[str] | None:
+def _macos_sandbox(
+    policy: SandboxPolicy, root: str, argv: list[str]
+) -> list[str] | None:
     if not shutil.which("sandbox-exec"):
         return None
-    network_rule = "(allow network*)" if policy.network == "allow" else "(deny network*)"
+    network_rule = (
+        "(allow network*)" if policy.network == "allow" else "(deny network*)"
+    )
     escaped_root = root.replace('"', '\\"')
-    profile = "(version 1) (deny default) (allow process*) (allow file-read*) " + f'{network_rule} (allow file-write* (subpath "{escaped_root}"))'
+    profile = (
+        "(version 1) (deny default) (allow process*) (allow file-read*) "
+        + f'{network_rule} (allow file-write* (subpath "{escaped_root}"))'
+    )
     return ["sandbox-exec", "-p", profile, *argv]
 
 
-def sandbox_command(argv: list[str], workspace: str | Path, *, purpose: str = "command") -> list[str]:
+def sandbox_command(
+    argv: list[str], workspace: str | Path, *, purpose: str = "command"
+) -> list[str]:
     """Return an OS-isolated command or fail closed for unenforceable policy."""
     policy = SandboxPolicy.load(workspace)
     _core_requirements(policy)
