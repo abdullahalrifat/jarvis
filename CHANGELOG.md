@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Align the CLI with the published Jarvis Core 0.11.0 provider-neutral contract line.
+- Document the Core `ModelProvider`, `ModelRequest`, `ModelResponse`, `ModelUsage`, and `ToolCall` boundary while keeping concrete provider integrations in the CLI/runtime layer.
+
 ## 0.9.1
 
 - Pin the CLI to the immutable Jarvis Core 0.9.2 release wheel (SHA-256 `0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130`).
