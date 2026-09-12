@@ -1,4 +1,5 @@
 """Persist command/test observations as Core-compatible evidence records."""
+
 from __future__ import annotations
 
 import hashlib
@@ -17,21 +18,13 @@ class ExecutionEvidenceStore:
         self.ledger = EvidenceLedger()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def record_command(
-        self, argv: list[str], output: str, exit_code: int
-    ) -> Evidence:
+    def record_command(self, argv: list[str], output: str, exit_code: int) -> Evidence:
         claim = f"command {' '.join(argv)} exited with {exit_code}"
         item = execution_evidence(
             self.ledger,
             claim=claim,
-            kind=(
-                "test"
-                if any(x in argv for x in ("pytest", "unittest"))
-                else "command"
-            ),
-            reference=(
-                f"command://{hashlib.sha256(output.encode()).hexdigest()}"
-            ),
+            kind=("test" if any(x in argv for x in ("pytest", "unittest")) else "command"),
+            reference=f"command://{hashlib.sha256(output.encode()).hexdigest()}",
             output=output,
             path=str(self.path),
             verified=exit_code == 0,
