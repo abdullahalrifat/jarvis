@@ -45,8 +45,6 @@ def configure_otel(service: str = "jarvis-cli") -> None:
         )
         trace.set_tracer_provider(provider)
     except Exception:
-        # JSONL tracing remains available when optional OTel packages or the
-        # exporter configuration are unavailable.
         pass
     _OTEL_CONFIGURED = True
 
@@ -62,6 +60,8 @@ class RouteObservation:
     output_tokens: int = 0
     tool_failures: int = 0
     incorrect_completion: bool = False
+    source: str = "benchmark"
+    recorded_at: float = 0.0
 
 
 class CalibrationStore:
@@ -77,15 +77,23 @@ class CalibrationStore:
         if not self.path.is_file():
             return []
         try:
-            return [
-                RouteObservation(**row)
-                for row in json.loads(self.path.read_text(encoding="utf-8"))
-            ]
+            rows = json.loads(self.path.read_text(encoding="utf-8"))
+            observations = []
+            for row in rows:
+                row = dict(row)
+                row.setdefault("source", "benchmark")
+                row.setdefault("recorded_at", 0.0)
+                observations.append(RouteObservation(**row))
+            return observations
         except (OSError, ValueError, TypeError):
             return []
 
     def record(self, observation: RouteObservation) -> None:
         rows = self.load()
+        if not observation.recorded_at:
+            observation = RouteObservation(
+                **{**asdict(observation), "recorded_at": time()}
+            )
         rows.append(observation)
         rows = rows[-5000:]
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,19 +103,30 @@ class CalibrationStore:
         )
         temporary.replace(self.path)
 
-    def utility(self, route: str, category: str) -> tuple[float, int] | None:
-        rows = [
+    def _rows(self, route: str, category: str) -> list[RouteObservation]:
+        return [
             row
             for row in self.load()
             if row.route == route and row.category in {category, "general", "*"}
         ]
+
+    def utility(self, route: str, category: str) -> tuple[float, int] | None:
+        rows = self._rows(route, category)
         if not rows:
             return None
-        success = fmean(1.0 if row.success else 0.0 for row in rows)
-        quality = fmean(max(0.0, min(1.0, row.score)) for row in rows)
-        incorrect = fmean(1.0 if row.incorrect_completion else 0.0 for row in rows)
-        latency = fmean(max(0.0, row.latency_ms) for row in rows)
-        failures = fmean(max(0, row.tool_failures) for row in rows)
+        # Recent observations matter more, while keeping old measurements useful.
+        now = time()
+        weighted = []
+        for row in rows:
+            age_days = max(0.0, (now - row.recorded_at) / 86400) if row.recorded_at else 3650
+            weight = 0.5 ** (age_days / 30.0)
+            weighted.append((row, weight))
+        total_weight = sum(weight for _, weight in weighted) or 1.0
+        success = sum((1.0 if row.success else 0.0) * weight for row, weight in weighted) / total_weight
+        quality = sum(max(0.0, min(1.0, row.score)) * weight for row, weight in weighted) / total_weight
+        incorrect = sum((1.0 if row.incorrect_completion else 0.0) * weight for row, weight in weighted) / total_weight
+        latency = sum(max(0.0, row.latency_ms) * weight for row, weight in weighted) / total_weight
+        failures = sum(max(0, row.tool_failures) * weight for row, weight in weighted) / total_weight
         utility = (
             success * 55
             + quality * 35
@@ -115,24 +134,74 @@ class CalibrationStore:
             - min(latency / 1000, 30) * 0.2
             - failures * 2
         )
+        # Real workloads are allowed to calibrate, but not from one lucky run.
         if len(rows) < 3:
             utility -= (3 - len(rows)) * 4
         return utility, len(rows)
 
-    def leaderboard(self, category: str) -> list[dict[str, Any]]:
+    def record_real_workload(
+        self,
+        *,
+        route: str,
+        category: str,
+        success: bool,
+        score: float,
+        latency_ms: float,
+        tool_failures: int = 0,
+        incorrect_completion: bool = False,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
+        """Record an observed production/local run for automatic route calibration."""
+        self.record(
+            RouteObservation(
+                route=route,
+                category=category,
+                success=success,
+                score=score,
+                latency_ms=latency_ms,
+                tool_failures=tool_failures,
+                incorrect_completion=incorrect_completion,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                source="real_workload",
+                recorded_at=time(),
+            )
+        )
+
+    def leaderboard(self, category: str, *, source: str | None = None) -> list[dict[str, Any]]:
         routes = sorted({row.route for row in self.load()})
         values: list[dict[str, Any]] = []
         for route in routes:
-            scored = self.utility(route, category)
-            if scored:
-                values.append(
-                    {"route": route, "utility": scored[0], "samples": scored[1]}
+            rows = self._rows(route, category)
+            if source:
+                rows = [row for row in rows if row.source == source]
+            if not rows:
+                continue
+            # Temporarily score the selected source subset using the same formula.
+            all_rows = self.load
+            original = all_rows
+            if source:
+                selected = rows
+                now = time()
+                weighted = []
+                for row in selected:
+                    age_days = max(0.0, (now - row.recorded_at) / 86400) if row.recorded_at else 3650
+                    weighted.append((row, 0.5 ** (age_days / 30.0)))
+                total = sum(weight for _, weight in weighted) or 1.0
+                utility = (
+                    sum((1.0 if r.success else 0.0) * w for r, w in weighted) / total * 55
+                    + sum(max(0.0, min(1.0, r.score)) * w for r, w in weighted) / total * 35
+                    - sum((1.0 if r.incorrect_completion else 0.0) * w for r, w in weighted) / total * 50
+                    - min(sum(max(0.0, r.latency_ms) * w for r, w in weighted) / total / 1000, 30) * 0.2
+                    - sum(max(0, r.tool_failures) * w for r, w in weighted) / total * 2
                 )
-        return sorted(
-            values,
-            key=lambda item: (item["utility"], item["samples"]),
-            reverse=True,
-        )
+                scored = (utility, len(selected))
+            else:
+                scored = self.utility(route, category)
+            if scored:
+                values.append({"route": route, "utility": scored[0], "samples": scored[1], "source": source or "all"})
+        return sorted(values, key=lambda item: (item["utility"], item["samples"]), reverse=True)
 
 
 class Telemetry:
