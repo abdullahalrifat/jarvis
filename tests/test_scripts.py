@@ -13,7 +13,7 @@ def test_repository_launcher_loads_the_cli_from_its_own_package(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "0.9.6"
+    assert result.stdout.strip() == "0.9.7"
 
 
 def test_installer_manages_only_its_symlink(tmp_path):
@@ -31,7 +31,7 @@ def test_installer_manages_only_its_symlink(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "0.9.6"
+    assert result.stdout.strip() == "0.9.7"
     subprocess.run(
         [installer, "--uninstall"],
         env=env,
