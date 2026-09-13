@@ -6,7 +6,6 @@ from typing import Any
 
 from .browser_agent import install_browser_tools
 from .efficiency_runtime import install_efficiency_runtime
-from .efficiency_v09 import install_efficiency_v09
 from .escalation_v07 import install_failure_escalation
 from .evidence_v07 import install_evidence_v07
 from .mcp_policy_runtime import install_mcp_policy_runtime
@@ -30,7 +29,6 @@ def install_platform_runtime() -> None:
     install_runtime_hooks()
     install_browser_tools()
     install_efficiency_runtime()
-    install_efficiency_v09()
     install_safe_speculation()
     install_patch_guard()
     install_evidence_v07()
