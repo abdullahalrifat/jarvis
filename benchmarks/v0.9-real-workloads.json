@@ -1,0 +1,12 @@
+{
+  "workload_source": "real-jarvis-development",
+  "version": "0.9",
+  "cases": [
+    {"id": "ci-triage", "task": "ci-triage", "prompt": "Diagnose a failing CI job and propose the smallest safe fix."},
+    {"id": "provider-architecture", "task": "provider-architecture", "prompt": "Review provider routing architecture and identify unnecessary cloud inference."},
+    {"id": "release-readiness", "task": "release-readiness", "prompt": "Review release readiness, version alignment, packaging and CI evidence."},
+    {"id": "pr-review", "task": "pr-review", "prompt": "Review a pull request for correctness, regressions, tests and documentation."},
+    {"id": "documentation", "task": "documentation", "prompt": "Align README, changelog and package documentation with the current implementation."},
+    {"id": "efficiency", "task": "efficiency", "prompt": "Find opportunities to reduce context, tokens, latency and unnecessary model escalation."}
+  ]
+}
