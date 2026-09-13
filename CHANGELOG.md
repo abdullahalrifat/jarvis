@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.7
+
+- Consume the published Jarvis Core 0.16.0 empirical calibration release.
+- Add the real Jarvis workload efficiency benchmark corpus and task-level evaluation guidance.
+- Align dependency, CI and clean-wheel validation with Core 0.16.0.
+- Document the Jarvis -> AI Stack -> provider/model ownership boundary for empirical routing evidence.
+
 ## 0.9.6
 
 - Consume the published Jarvis Core 0.15.0 common-brain release.
