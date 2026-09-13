@@ -100,6 +100,39 @@ def test_calibration_prefers_successful_route(tmp_path):
     assert board[0]["route"] == "safe"
 
 
+def test_real_workload_record_is_marked_and_visible(tmp_path):
+    store = CalibrationStore(tmp_path / "routes.json")
+    store.record_real_workload(
+        route="local-small",
+        category="real-efficiency",
+        success=True,
+        score=0.9,
+        latency_ms=250,
+        tool_failures=0,
+    )
+    rows = store.load()
+    assert rows[-1].source == "real_workload"
+    assert rows[-1].recorded_at > 0
+    assert store.leaderboard("real-efficiency", source="real_workload")[0]["route"] == "local-small"
+
+
+def test_legacy_calibration_rows_remain_compatible(tmp_path):
+    path = tmp_path / "routes.json"
+    path.write_text(
+        json.dumps(
+            [{
+                "route": "legacy",
+                "category": "code",
+                "success": True,
+                "score": 1.0,
+                "latency_ms": 100,
+            }]
+        )
+    )
+    rows = CalibrationStore(path).load()
+    assert rows[0].source == "benchmark"
+
+
 def test_browser_tool_surface_is_native_and_bounded():
     names = {item["name"] for item in BROWSER_TOOL_SCHEMAS}
     assert {
