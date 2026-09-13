@@ -2,26 +2,11 @@
 
 ## Current contract line
 
-Jarvis **0.9.4** consumes the provider-neutral Jarvis Core **0.13.0** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.9.6** consumes the provider-neutral Jarvis Core **0.15.0** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
-Jarvis Core 0.13.0 is now published as an immutable PyPI release; this branch intentionally pins that exact release so the CLI and Core can evolve independently.
+Jarvis Core 0.15.0 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require Docker, PostgreSQL, Redis, Qdrant, or the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
-
-The design goal is dependable coding outcomes comparable with mature commercial agents while preserving local control and provider choice. Feature presence is not treated as proof of Claude/Codex equivalence; the remaining readiness work is tracked below.
-
-## Jarvis versus Server
-
-| Need | Use |
-| --- | --- |
-| Read, review, edit and test a checkout on this computer | **Jarvis** |
-| Keep tools/code local while inference runs remotely | **Jarvis** |
-| Interactive terminal work, local automation, worktrees and local jobs | **Jarvis** |
-| Work that survives client disconnects or runs on external workers | **Server** |
-| Shared queues, durable cloud tasks, web/mobile/messaging clients | **Server** |
-| Central persistence and multi-worker execution | **Server** |
-
-The optional Server is maintained separately. Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
+Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
 ## Install
 
@@ -34,9 +19,13 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.4 consumes the published `jarvis-agent-core==0.13.0` package from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.9.6 consumes `jarvis-agent-core==0.15.0` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
-Core 0.13.0 extends the provider-neutral model contracts with common capability/approval semantics and portable sandbox requirements. Concrete provider adapters and native OS sandbox enforcement remain in the CLI/runtime layer so provider SDKs and platform-specific mechanisms do not become Core dependencies.
+## Token-efficient runtime
+
+Core 0.15.0 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets and adaptive routing. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency accounting remains reusable across local and remote providers without adding provider SDKs to Core.
+
+Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and task signals.
 
 ## Connect a model
 
@@ -51,40 +40,20 @@ cd /path/to/repository
 jarvis "review this repository and fix the highest-impact issue"
 ```
 
-For a deliberately unauthenticated trusted local endpoint, use `--no-api-key`. `model-doctor` verifies endpoint/authentication behavior and native tool calling; a prose-only chat endpoint cannot drive the coding loop.
-
 Named profiles, fallback and automatic measured routing are documented in [docs/models.md](docs/models.md).
+
+## Jarvis versus Server
+
+| Need | Use |
+| --- | --- |
+| Local repository work, interactive terminal, local automation | **Jarvis** |
+| Durable cloud tasks, shared queues and external workers | **Server** |
+
+Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
 
 ## Implemented runtime
 
-The current runtime includes bounded repository/Git tools, shell-free allowlisted command execution, OS sandbox/network policy, secret-minimized command environments, sessions/checkpoints, proof records, multimodal context, hierarchical instructions/memory, Skills/Hooks with workspace trust, deny-by-default MCP, repository/LSP intelligence, worktrees, plan mode, adaptive context, failure memory, multi-agent execution, heterogeneous routing, speculative read-only exploration, independent verification, browser/Playwright verification, background jobs/cron, observability, empirical route calibration and the remote Run/cloud worker protocol.
-
-## Security defaults
-
-Repository content, web pages, browser content, MCP responses and model output are untrusted data. They can provide evidence or restrict policy; they cannot grant themselves additional permissions.
-
-Project-local Hooks require explicit workspace trust. Command execution uses a sanitized environment and mutations follow deterministic allow/ask/deny policy. MCP tools are deny-by-default and `requires_approval` is enforced before transport dispatch.
-
-## Validation status
-
-The repository contains adversarial prompt-injection/secret-canary regressions, pinned real-repository benchmark infrastructure, and deterministic long-running worker/chaos coverage for lease, cancellation, proof, telemetry and state-failure races. These are reproducible regression/evaluation suites; they do not by themselves certify model quality, shared-host isolation, or production-scale soak behavior.
-
-## Remaining readiness work
-
-The remaining gaps are evidence, isolation and developer-experience hardening rather than missing command wrappers:
-
-- run and retain real-repository benchmark results across local and remote models;
-- expand adversarial red-team coverage and replay it across repository/web/MCP/Skills/Hooks/browser inputs;
-- run long-duration distributed soak/chaos campaigns beyond deterministic unit-level fault contracts;
-- enforce strong per-task container/VM-style isolation with CPU/RAM/PID/disk quotas and explicit egress controls across shared cloud workers;
-- deterministic cloud environment bootstrap/cache identity/invalidation;
-- complete Core EvidenceLedger/EvidenceGate wiring from real execution records;
-- nonblocking in-agent process support for dev servers and long-running tests;
-- independent code/conversation rewind plus live steering/attachment;
-- native IDE and GitHub PR-review integrations;
-- TypeScript SDK, native Windows sandbox, central enterprise policy and signed plugin publisher trust.
-
-These items are tracked as engineering requirements, not silently presented as completed capabilities.
+The runtime includes bounded repository/Git tools, allowlisted command execution, sandbox/network policy, sessions/checkpoints, proof records, multimodal context, hierarchical instructions/memory, Skills/Hooks, deny-by-default MCP, repository/LSP intelligence, worktrees, plan mode, adaptive context, failure memory, multi-agent execution, heterogeneous routing, browser verification, background jobs/cron, observability and the remote Run/cloud worker protocol.
 
 ## Development
 
