@@ -1,0 +1,1 @@
+The v0.9 real workload corpus covers CI triage, provider architecture, release readiness, PR review, documentation alignment and efficiency audits. Compare local-only, automatic and cloud-first routes using quality, correctness, tool failures, latency and token/cost telemetry.
