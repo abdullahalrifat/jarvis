@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.6
+
+- Consume the published Jarvis Core 0.15.0 common-brain release.
+- Align dependency, CI and clean-wheel validation with Core 0.15.0.
+- Document Core 0.15.0 token-efficiency primitives and their provider-neutral boundary.
+- Refresh release documentation and package metadata for the 0.9.6 patch release.
+
+## 0.9.5
+
+- Consume the published Jarvis Core 0.14.0 execution-maturity release.
+- Add nonblocking background process support with approval/allowlist controls.
+- Persist execution evidence records and lifecycle observations.
+
 ## 0.9.4
 
 - Consume the published Jarvis Core 0.13.0 common-brain release.
@@ -21,7 +34,7 @@
 
 ## 0.9.1
 
-- Pin the CLI to the immutable Jarvis Core 0.9.2 release wheel (SHA-256 `0ff9b5cfba29dca8d05df69a48573c3a69cc73ca9654e7122411b89a489f1130`).
+- Pin the CLI to the immutable Jarvis Core 0.9.2 release wheel.
 - Apply repository-wide Black formatting and keep workspace-trust Hook tests isolated.
 - Preserve independent consumers of the shared Core contracts.
 
