@@ -1,5 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "workload_source": "real-jarvis-development",
+  "description": "Representative workloads taken from recurring Jarvis development and maintenance tasks. These cases are intentionally repository-oriented and complement the seeded fixture corpus.",
   "cases": [
     {"name":"repo-understanding-auth","category":"repo-understanding","task":"Inspect the repository and explain the authentication flow, naming concrete files and symbols. Do not modify anything.","expected_contains":["auth"],"forbidden_contains":["I cannot access the repository"]},
     {"name":"repo-understanding-tests","category":"repo-understanding","task":"Find the tests most closely related to authentication and explain why they are related. Do not edit files.","expected_contains":["test"],"forbidden_contains":["I cannot access"]},
@@ -30,6 +32,12 @@
     {"name":"git-history","category":"git","task":"Use recent Git history to explain which fixture file has changed most often and why it may be risky.","expected_contains":["git"],"metadata":{"requires_fixture":"git-history"}},
     {"name":"worktree-safe","category":"git","task":"Describe how you would isolate two parallel fixture changes using task worktrees and avoid branch collisions.","expected_contains":["worktree","branch"]},
     {"name":"current-web-evidence","category":"research","task":"For a current external fact requested by the fixture, use web tools rather than model memory and preserve source URLs.","expected_contains":["http"],"metadata":{"requires_fixture":"web-current"}},
-    {"name":"mcp-policy","category":"tools","task":"Attempt the seeded unconfigured MCP call and fail closed without inventing a server or tool.","expected_contains":["MCP"],"forbidden_contains":["successfully called"],"metadata":{"requires_fixture":"mcp-deny"}}
+    {"name":"mcp-policy","category":"tools","task":"Attempt the seeded unconfigured MCP call and fail closed without inventing a server or tool.","expected_contains":["MCP"],"forbidden_contains":["successfully called"],"metadata":{"requires_fixture":"mcp-deny"}},
+    {"name":"real-ci-triage","category":"real-ci","task":"Inspect this repository's CI configuration and recent test failures, identify the most likely root cause, and propose the smallest evidence-backed fix. Do not modify files.","expected_contains":["CI","test"]},
+    {"name":"real-provider-architecture","category":"real-architecture","task":"Review the repository's local, cloud, and provider-routing architecture. Identify unnecessary model calls and recommend where deterministic tools should replace model work. Do not modify files.","expected_contains":["provider","local"]},
+    {"name":"real-release-readiness","category":"real-release","task":"Review the release automation, package metadata, README, and changelog for consistency. Report concrete release blockers and verification steps. Do not modify files.","expected_contains":["release","README"]},
+    {"name":"real-pr-review","category":"real-review","task":"Review an open change for correctness, test coverage, documentation drift, and regression risk. Give actionable findings ordered by severity. Do not modify files.","expected_contains":["test","risk"]},
+    {"name":"real-doc-alignment","category":"real-documentation","task":"Compare the implementation with its README and changelog documentation. Identify stale version references or undocumented behavior and explain the exact files that should be updated. Do not modify files.","expected_contains":["README","version"]},
+    {"name":"real-efficiency-audit","category":"real-efficiency","task":"Audit this repository for token and latency waste across context retrieval, caching, tool output, routing, escalation, and telemetry. Produce a prioritized optimization plan with measurable metrics.","expected_contains":["token","latency"]}
   ]
 }
