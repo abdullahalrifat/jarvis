@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8
+
+- Consume the published Jarvis Core 0.16.1 cost-aware local-first routing release.
+- Align dependency, CI, release-alignment tests and clean-wheel validation with Core 0.16.1.
+- Document deterministic-first routing with local, cheap-cloud and frontier escalation tiers.
+
 ## 0.9.7
 
 - Consume the published Jarvis Core 0.16.0 empirical calibration release.
@@ -24,14 +30,14 @@
 
 - Consume the published Jarvis Core 0.13.0 common-brain release.
 - Use the shared Core sandbox-requirements contract while retaining native OS sandbox enforcement in the CLI/runtime layer.
-- Align release and clean-install validation with Core 0.13.0.
+- Align release and clean-wheel validation with Core 0.13.0.
 - Refresh release documentation and package metadata for the 0.9.4 patch release.
 
 ## 0.9.3
 
 - Consume the published Jarvis Core 0.12.0 release.
 - Use the Core provider normalization API as the canonical model-boundary vocabulary for new provider integrations.
-- Align release and clean-install validation with Core 0.12.0.
+- Align release and clean-wheel validation with Core 0.12.0.
 - Refresh release documentation and package metadata for the 0.9.3 patch release.
 
 ## 0.9.2
