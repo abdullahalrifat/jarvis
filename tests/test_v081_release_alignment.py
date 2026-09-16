@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-CORE_VERSION = "0.16.0"
+CORE_VERSION = "0.16.1"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -39,4 +39,4 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.9.7"
+    assert result.stdout.strip() == "0.9.8"
