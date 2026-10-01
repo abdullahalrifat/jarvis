@@ -44,7 +44,7 @@ def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
                 priority=int(item.get("priority", 0)),
                 enabled=bool(item.get("enabled", True)),
                 capabilities=ModelCapabilities(
-                    tool_calling=bool(capabilities.get("tool_calling", False)),
+                    tool_calling=bool(capabilities.get("tool_calling", True)),
                     structured_output=bool(
                         capabilities.get("structured_output", False)
                     ),

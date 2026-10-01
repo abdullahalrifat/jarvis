@@ -2,9 +2,9 @@
 
 ## Current contract line
 
-Jarvis **0.9.7** consumes the provider-neutral Jarvis Core **0.16.0** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.9.7** consumes the provider-neutral Jarvis Core **0.16.1** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
-Jarvis Core 0.16.0 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
+Jarvis Core 0.16.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
 Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
 
@@ -19,11 +19,11 @@ pipx install .
 jarvis --version
 ```
 
-Jarvis 0.9.7 consumes `jarvis-agent-core==0.16.0` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.9.7 consumes `jarvis-agent-core==0.16.1` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 ## Token-efficient runtime
 
-Core 0.16.0 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
+Core 0.16.1 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
 
 Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and measured task outcomes.
 
