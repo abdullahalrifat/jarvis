@@ -27,6 +27,15 @@ def default_profiles_path() -> Path:
     return config / "jarvis/models.toml"
 
 
+def _local_model_base_url(provider: str) -> str:
+    """Return base URL for local models based on provider."""
+    if provider == "ollama":
+        return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    if provider == "anthropic_local":
+        return os.getenv("ANTHROPIC_LOCAL_BASE_URL", "http://localhost:8000")
+    return ""
+
+
 def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
     target = Path(path) if path is not None else default_profiles_path()
     registry = CapabilityRegistry()
@@ -34,13 +43,18 @@ def load_profiles(path: str | Path | None = None) -> CapabilityRegistry:
         return registry
     data = tomllib.loads(target.read_text(encoding="utf-8"))
     for name, item in (data.get("models") or {}).items():
+        provider = str(item.get("provider", "openai"))
         capabilities = item.get("capabilities") or {}
+        base_url = str(item.get("base_url", "")).rstrip("/")
+        # Use local base URL if not explicitly set
+        if not base_url:
+            base_url = _local_model_base_url(provider)
         registry.add(
             ModelProfile(
                 name=name,
-                provider=str(item.get("provider", "openai")),
+                provider=provider,
                 model=str(item["model"]),
-                base_url=str(item["base_url"]).rstrip("/"),
+                base_url=base_url,
                 priority=int(item.get("priority", 0)),
                 enabled=bool(item.get("enabled", True)),
                 capabilities=ModelCapabilities(
