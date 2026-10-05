@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Jarvis and development dependencies
-        run: python -m pip install --no-cache-dir -e . -r requirements.txt
+        run: python -m pip install --no-cache-dir -e . -r requirements.txt twine
       - name: Verify coordinated Core
         run: |
           python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.16.1'"
@@ -57,6 +57,7 @@ jobs:
           python -m pytest --collect-only -q tests/test_execution_hardening.py
           python -m pytest -q --cache-clear --cov=. --cov-report=term-missing --cov-fail-under=70
       - run: python -m build
+      - run: python -m twine check dist/*
       - name: Clean wheel installation
         if: matrix.python-version == '3.12'
         run: |
