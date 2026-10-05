@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.2
+
+- Send concrete model IDs to AI Stack instead of the removed `orchestrator` selector.
+- Default the AI Stack integration to `qwen3-1.7b`, while allowing `JARVIS_MODEL` to override it.
+- Align CLI tests with the concrete model-selector contract.
+
+
 ## 0.10.1
 
 - Release the Cloudflare-compatible model request header fix.
