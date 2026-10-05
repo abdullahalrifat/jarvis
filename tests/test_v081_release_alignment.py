@@ -1,6 +1,7 @@
-from pathlib import Path
+import re
 import subprocess
 import sys
+from pathlib import Path
 
 CORE_VERSION = "0.16.1"
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -39,8 +40,11 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    package_init = (REPO_ROOT / "src/jarvis_cli/__init__.py").read_text(encoding="utf-8")
-    import re
 
-    expected = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', package_init).group(1)
+    package_init = (REPO_ROOT / "src/jarvis_cli/__init__.py").read_text(
+        encoding="utf-8"
+    )
+    expected = re.search(
+        r'__version__\s*=\s*["\']([^"\']+)["\']', package_init
+    ).group(1)
     assert result.stdout.strip() == expected
