@@ -7,6 +7,7 @@ import pytest
 
 from jarvis_core import ArtifactResolver, MemoryArtifactStore, TokenBudget, TokenLedger
 
+from jarvis_cli import __version__
 from jarvis_cli.client import APIError
 from jarvis_cli.local_agent import (
     LocalConfig,
@@ -120,7 +121,7 @@ def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
     request = captured["request"]
     assert request.full_url == "https://model.test/v1/chat/completions"
     assert request.get_header("Authorization") == "Bearer secret"
-    assert request.get_header("User-agent") == "jarvis-agent-cli/0.10.0"
+    assert request.get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
     assert request.get_header("Accept") == "application/json"
     assert json.loads(request.data)["tools"][0]["type"] == "function"
 
