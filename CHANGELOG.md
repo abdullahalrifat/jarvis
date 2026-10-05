@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+- Release the Cloudflare-compatible model request header fix.
+- Publish the merged distributable CLI fixes as a patch release.
+
+
 ## 0.10.0
 
 - Make Jarvis a first-class distributable application with PyPI and standalone executable distribution.
