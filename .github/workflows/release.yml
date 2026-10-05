@@ -120,6 +120,16 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 30
+      - name: Package validated source for standalone builds
+        if: steps.release.outputs.needed == 'true'
+        run: git archive --format=tar.gz --output=/tmp/jarvis-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        if: steps.release.outputs.needed == 'true'
+        with:
+          name: validated-source-${{ steps.validated.outputs.sha }}
+          path: /tmp/jarvis-source.tar.gz
+          if-no-files-found: error
+          retention-days: 30
 
   binaries:
     name: Build standalone ${{ matrix.platform }}-${{ matrix.arch }}
@@ -145,9 +155,13 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: ${{ needs.validate-and-build.outputs.validated_sha }}
+          name: validated-source-${{ needs.validate-and-build.outputs.validated_sha }}
+          path: source
+      - name: Extract validated source
+        shell: bash
+        run: tar -xzf source/jarvis-source.tar.gz
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
