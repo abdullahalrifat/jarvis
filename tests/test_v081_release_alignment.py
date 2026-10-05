@@ -44,7 +44,5 @@ def test_package_version_is_importable_without_runtime_dependencies():
     package_init = (REPO_ROOT / "src/jarvis_cli/__init__.py").read_text(
         encoding="utf-8"
     )
-    expected = re.search(r'__version__\s*=\s*["\\']([^"\\']+)["\\']', package_init).group(
-        1
-    )
+    expected = re.search(r"__version__\\s*=\\s*['\"]([^'\"]+)['\"]", package_init).group(1)
     assert result.stdout.strip() == expected
