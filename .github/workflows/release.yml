@@ -42,6 +42,8 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$package_version"
       - run: python -m build
       - run: python -m twine check dist/*
+      - name: Show distributions
+        run: ls -lah dist/
       - uses: actions/upload-artifact@v7
         with:
           name: python-distributions
@@ -107,7 +109,8 @@ jobs:
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "Jarvis $GITHUB_REF_NAME"
 
   publish-pypi:
     needs: [package, github-release]
