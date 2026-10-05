@@ -84,7 +84,7 @@ python3 -m pip install -e .
 
 ## Release process
 
-A version bump in `src/jarvis_cli/__init__.py` is followed by a `v<version>` Git tag. The release workflow builds:
+A version bump in `src/jarvis_cli/__init__.py` followed by a merge to `main` triggers the release workflow. The workflow builds:
 
 - a Python wheel and source distribution;
 - standalone executables;
@@ -92,4 +92,4 @@ A version bump in `src/jarvis_cli/__init__.py` is followed by a `v<version>` Git
 - build-provenance attestations;
 - a GitHub Release.
 
-PyPI publishing uses GitHub Actions trusted publishing when the repository variable `PUBLISH_PYPI=true` is enabled and the corresponding PyPI trusted publisher is configured.
+PyPI publishing uses GitHub Actions Trusted Publishing through the repository's `pypi` environment and the corresponding PyPI trusted publisher configuration.
