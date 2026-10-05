@@ -131,12 +131,15 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: amd64
+            suffix: ""
           - os: macos-14
             platform: darwin
             arch: arm64
+            suffix: ""
           - os: windows-latest
             platform: windows
             arch: amd64
+            suffix: ".exe"
     runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
@@ -162,7 +165,7 @@ jobs:
       - name: Smoke test binary
         shell: bash
         run: |
-          dist/"jarvis-${{ needs.validate-and-build.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}" --version
+          dist/"jarvis-${{ needs.validate-and-build.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.suffix }}" --version
       - uses: actions/attest-build-provenance@v3
         with:
           subject-path: "dist/jarvis-*"
