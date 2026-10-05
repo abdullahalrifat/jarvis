@@ -20,11 +20,6 @@ classifiers = [
     "Topic :: Software Development",
 ]
 
-[project.urls]
-Homepage = "https://github.com/abdullahalrifat/jarvis"
-Repository = "https://github.com/abdullahalrifat/jarvis"
-Issues = "https://github.com/abdullahalrifat/jarvis/issues"
-Changelog = "https://github.com/abdullahalrifat/jarvis/releases"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -32,6 +27,12 @@ dependencies = [
     "jarvis-agent-core==0.16.1",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/abdullahalrifat/jarvis"
+Repository = "https://github.com/abdullahalrifat/jarvis"
+Issues = "https://github.com/abdullahalrifat/jarvis/issues"
+Changelog = "https://github.com/abdullahalrifat/jarvis/releases"
 
 [project.optional-dependencies]
 multimodal = ["pypdf>=6,<7", "Pillow>=12,<13"]
