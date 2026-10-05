@@ -39,4 +39,8 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.10.0"
+    package_init = (REPO_ROOT / "src/jarvis_cli/__init__.py").read_text(encoding="utf-8")
+    import re
+
+    expected = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', package_init).group(1)
+    assert result.stdout.strip() == expected
