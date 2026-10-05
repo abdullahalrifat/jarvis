@@ -160,7 +160,7 @@ class AgentClient:
             "protocol_version": PROTOCOL_VERSION,
             "task": task,
             "workspace": workspace,
-            "model": "orchestrator",
+            "model": os.getenv("JARVIS_MODEL", "qwen3-1.7b"),
             "conversation_id": conversation_id,
             "project_id": project_id,
             "allow_write": allow_write,
