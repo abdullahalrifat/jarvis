@@ -38,6 +38,7 @@ from jarvis_core import (
 )
 from jarvis_core.tokens import estimate_tokens
 
+from . import __version__
 from .client import APIError
 from .mcp_registry import call_configured_tool
 from .profiles import load_profiles, profile_api_key_env, select_calibrated
@@ -231,7 +232,12 @@ def _request_json(
     request = Request(
         url,
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", **headers},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": f"jarvis-agent-cli/{__version__}",
+            **headers,
+        },
         method="POST",
     )
     try:
