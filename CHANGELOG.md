@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0
+
+- Make Jarvis a first-class distributable application with PyPI and standalone executable distribution.
+- Pin the CLI to the immutable Jarvis Core 0.16.1 release.
+- Add release validation, clean-wheel installation, standalone binaries, SBOMs, checksums and provenance attestations.
+- Publish PyPI artifacts through GitHub Actions Trusted Publishing using the existing `pypi` environment.
+
+
 ## 0.9.7
 
 - Consume the published Jarvis Core 0.16.0 empirical calibration release.

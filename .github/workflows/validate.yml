@@ -14,7 +14,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           clean: true
@@ -30,11 +30,11 @@ jobs:
           grep -q 'Authorization: Bearer abcdefghijklmnop' tests/test_execution_hardening.py
           grep -q 'test_redact_text_preserves_placeholder_authorization' tests/test_execution_hardening.py
           if grep -q 'assert "\\*\\*\\*" in redacted' tests/test_execution_hardening.py; then echo 'Stale redaction assertion found in checkout' >&2; exit 1; fi
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Jarvis and development dependencies
-        run: python -m pip install --no-cache-dir -e . -r requirements.txt
+        run: python -m pip install --no-cache-dir -e . -r requirements.txt twine
       - name: Verify coordinated Core
         run: |
           python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.16.1'"
@@ -57,6 +57,7 @@ jobs:
           python -m pytest --collect-only -q tests/test_execution_hardening.py
           python -m pytest -q --cache-clear --cov=. --cov-report=term-missing --cov-fail-under=70
       - run: python -m build
+      - run: python -m twine check dist/*
       - name: Clean wheel installation
         if: matrix.python-version == '3.12'
         run: |

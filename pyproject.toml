@@ -5,6 +5,21 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jarvis-agent-cli"
 description = "Standalone and remote terminal coding agent"
+authors = [{name = "Abdullah Al Rifat"}]
+keywords = ["ai", "agent", "coding-agent", "cli", "terminal", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +27,12 @@ dependencies = [
     "jarvis-agent-core==0.16.1",
 ]
 dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/abdullahalrifat/jarvis"
+Repository = "https://github.com/abdullahalrifat/jarvis"
+Issues = "https://github.com/abdullahalrifat/jarvis/issues"
+Changelog = "https://github.com/abdullahalrifat/jarvis/releases"
 
 [project.optional-dependencies]
 multimodal = ["pypdf>=6,<7", "Pillow>=12,<13"]

@@ -4,7 +4,7 @@ Jarvis consumes the published `jarvis-agent-core` package from PyPI. Core owns i
 
 ## Current coordinated release
 
-Jarvis 0.9.7 consumes the immutable `jarvis-agent-core==0.16.1` release. Core 0.16.1 owns the provider-neutral empirical route calibration contract; Jarvis owns real workload definitions and task-level evaluation, while AI Stack owns runtime telemetry and provider execution.
+Jarvis 0.10.0 consumes the immutable `jarvis-agent-core==0.16.1` release. Core 0.16.1 owns the provider-neutral empirical route calibration contract; Jarvis owns real workload definitions and task-level evaluation, while AI Stack owns runtime telemetry and provider execution.
 
 ## Update flow
 
