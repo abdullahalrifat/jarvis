@@ -39,4 +39,4 @@ def test_package_version_is_importable_without_runtime_dependencies():
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "0.9.7"
+    assert result.stdout.strip() == "0.10.0"
