@@ -2,8 +2,14 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish"
+        required: true
+        default: "0.10.0"
+        type: string
 
 concurrency:
   group: jarvis-release
@@ -13,84 +19,164 @@ permissions:
   contents: read
 
 jobs:
-  package:
+  validate-and-build:
+    name: Validate and build exact release SHA
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release_needed: ${{ steps.release.outputs.needed }}
+      validated_sha: ${{ steps.validated.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install --upgrade build twine
-      - name: Verify tag
+          cache: pip
+      - name: Install validation and build dependencies
+        run: python -m pip install --no-cache-dir -e . -r requirements.txt build twine
+      - name: Validate source
         run: |
-          package_version="$(python - <<'PY'
+          black --check src tests
+          ruff check src tests --select E9,F63,F7,F82
+          pytest -q --cov=. --cov-report=term-missing --cov-fail-under=70
+      - name: Record validated SHA
+        id: validated
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Read and validate package version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          version="$(python - <<'PY'
           import ast
           from pathlib import Path
 
-          tree = ast.parse(Path('src/jarvis_cli/__init__.py').read_text(encoding='utf-8'))
+          tree = ast.parse(Path("src/jarvis_cli/__init__.py").read_text(encoding="utf-8"))
           for node in tree.body:
               if isinstance(node, ast.Assign) and any(
-                  isinstance(target, ast.Name) and target.id == '__version__'
+                  isinstance(target, ast.Name) and target.id == "__version__"
                   for target in node.targets
               ):
                   print(ast.literal_eval(node.value))
                   break
           else:
-              raise SystemExit('jarvis_cli.__version__ not found')
+              raise SystemExit("jarvis_cli.__version__ not found")
           PY
           )"
-          test "$GITHUB_REF_NAME" = "v$package_version"
-      - run: python -m build
-      - run: python -m twine check dist/*
-      - name: Show distributions
-        run: ls -lah dist/
-      - uses: actions/upload-artifact@v7
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
+            echo "Unsupported Python release version: $version" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$version" != "$REQUESTED_VERSION" ]]; then
+            echo "Requested version $REQUESTED_VERSION does not match src/jarvis_cli/__init__.py version $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Check whether release is new
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "Manual release requested for $RELEASE_TAG."
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; no artifacts will be rebuilt."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release $RELEASE_TAG is new."
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build distributions
+        if: steps.release.outputs.needed == 'true'
+        run: python -m build
+      - name: Validate distributions
+        if: steps.release.outputs.needed == 'true'
+        run: python -m twine check dist/*
+      - name: Verify wheel in a clean environment
+        if: steps.release.outputs.needed == 'true'
+        shell: bash
+        run: |
+          python -m venv /tmp/jarvis-release
+          /tmp/jarvis-release/bin/python -m pip install --no-cache-dir dist/*.whl
+          /tmp/jarvis-release/bin/jarvis --version
+          /tmp/jarvis-release/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-cli') == '${{ steps.version.outputs.version }}'"
+          /tmp/jarvis-release/bin/python -c "from jarvis_cli.v08_main import main; assert callable(main)"
+      - name: Create checksums
+        if: steps.release.outputs.needed == 'true'
+        run: cd dist && sha256sum * > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: steps.release.outputs.needed == 'true'
         with:
-          name: python-distributions
+          name: python-package-distributions-${{ steps.validated.outputs.sha }}
           path: dist/
+          if-no-files-found: error
+          retention-days: 30
 
   binaries:
+    name: Build standalone ${{ matrix.platform }}-${{ matrix.arch }}
+    needs: validate-and-build
+    if: needs.validate-and-build.outputs.release_needed == 'true'
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux
             arch: amd64
-            suffix: ""
           - os: macos-14
             platform: darwin
             arch: arm64
-            suffix: ""
           - os: windows-latest
             platform: windows
             arch: amd64
-            suffix: ".exe"
     runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
       attestations: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v7
+        with:
+          ref: ${{ needs.validate-and-build.outputs.validated_sha }}
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install ".[all]" pyinstaller cyclonedx-bom
-      - name: Build standalone binary
+          cache: pip
+      - name: Install application and packaging tools
+        run: python -m pip install --no-cache-dir ".[all]" pyinstaller cyclonedx-bom
+      - name: Build standalone binary and SBOM
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate-and-build.outputs.version }}
+        run: |
+          name="jarvis-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+          python -m PyInstaller --onefile --name "${name}" scripts/binary_entry.py
+          cyclonedx-py environment --output-format JSON --output-file "dist/${name}.cdx.json"
+      - name: Smoke test binary
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          python -m PyInstaller --onefile --name "jarvis-${version}-${{ matrix.platform }}-${{ matrix.arch }}" scripts/binary_entry.py
-          cyclonedx-py environment --output-format JSON --output-file "dist/jarvis-${version}-${{ matrix.platform }}-${{ matrix.arch }}.cdx.json"
-      - uses: actions/attest-build-provenance@v4
+          dist/"jarvis-${{ needs.validate-and-build.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}" --version
+      - uses: actions/attest-build-provenance@v3
         with:
           subject-path: "dist/jarvis-*"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/jarvis-*
+          if-no-files-found: error
+          retention-days: 30
 
   github-release:
-    needs: [package, binaries]
+    name: Publish validated GitHub release
+    needs: [validate-and-build, binaries]
+    if: needs.validate-and-build.outputs.release_needed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,20 +187,37 @@ jobs:
         with:
           path: release
           merge-multiple: true
+      - name: Refuse a mismatched release SHA
+        env:
+          VALIDATED_SHA: ${{ needs.validate-and-build.outputs.validated_sha }}
+        run: test "$GITHUB_SHA" = "$VALIDATED_SHA" || [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
       - name: Create checksums
         run: cd release && sha256sum * > SHA256SUMS
-      - uses: actions/attest-build-provenance@v4
+      - uses: actions/attest-build-provenance@v3
         with:
           subject-path: "release/*"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate-and-build.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.validate-and-build.outputs.version }}
+          VALIDATED_SHA: ${{ needs.validate-and-build.outputs.validated_sha }}
+        shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "Jarvis $GITHUB_REF_NAME"
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_TAG already exists; leaving it unchanged."
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$VALIDATED_SHA" \
+            --title "Jarvis $RELEASE_VERSION" \
+            --generate-notes
 
   publish-pypi:
-    needs: [package, github-release]
-    if: ${{ vars.PUBLISH_PYPI == 'true' }}
+    name: Publish validated distributions to PyPI
+    needs: [validate-and-build, github-release]
+    if: needs.validate-and-build.outputs.release_needed == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -124,6 +227,15 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: python-distributions
+          name: python-package-distributions-${{ needs.validate-and-build.outputs.validated_sha }}
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Remove non-package checksum file
+        run: rm -f dist/SHA256SUMS
+      - name: Verify distributions before publication
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+      - name: Publish to PyPI using Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
