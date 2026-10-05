@@ -33,7 +33,7 @@ def test_installer_manages_only_its_symlink(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "0.10.0"
+    assert result.stdout.strip() == __version__
     subprocess.run(
         [installer, "--uninstall"],
         env=env,
