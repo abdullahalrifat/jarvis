@@ -153,7 +153,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
-      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -180,9 +179,6 @@ jobs:
         shell: bash
         run: |
           dist/"jarvis-${{ needs.validate-and-build.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.suffix }}" --version
-      - uses: actions/attest-build-provenance@v3
-        with:
-          subject-path: "dist/jarvis-*"
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.platform }}-${{ matrix.arch }}
@@ -198,7 +194,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -210,9 +205,6 @@ jobs:
         run: test "$GITHUB_SHA" = "$VALIDATED_SHA" || [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
       - name: Create checksums
         run: cd release && sha256sum * > SHA256SUMS
-      - uses: actions/attest-build-provenance@v3
-        with:
-          subject-path: "release/*"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
