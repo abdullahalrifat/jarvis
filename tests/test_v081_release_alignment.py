@@ -45,6 +45,6 @@ def test_package_version_is_importable_without_runtime_dependencies():
         encoding="utf-8"
     )
     expected = re.search(
-        r"__version__\\s*=\\s*['\"]([^'\"]+)['\"]", package_init
+        r"__version__\s*=\s*['\"]([^'\"]+)['\"]", package_init
     ).group(1)
     assert result.stdout.strip() == expected
