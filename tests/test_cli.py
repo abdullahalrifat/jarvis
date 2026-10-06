@@ -85,7 +85,7 @@ def test_client_posts_authenticated_run_request():
         "protocol_version": 1,
         "task": "Fix the tests",
         "workspace": "/workspace/repo",
-        "model": "qwen3-1.7b",
+        "model": "qwen3:1.7b",
         "conversation_id": "conversation",
         "project_id": "project",
         "allow_write": True,
