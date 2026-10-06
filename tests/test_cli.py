@@ -1185,3 +1185,16 @@ def test_renderer_supports_json_and_stream_json_outputs():
         {"id": "run-1", "status": "completed"}
     )
     assert json.loads(final.getvalue())["status"] == "completed"
+
+
+def test_resolve_api_key_prefers_ai_stack_key(monkeypatch):
+    monkeypatch.setenv("AI_STACK_API_KEY", "ai-stack-secret")
+    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "legacy-secret")
+    assert resolve_api_key() == "ai-stack-secret"
+
+
+def test_parser_prefers_ai_stack_url(monkeypatch):
+    monkeypatch.setenv("AI_STACK_BASE_URL", "http://ai-stack:8000")
+    monkeypatch.setenv("JARVIS_SERVER_URL", "http://legacy:8000")
+    args = build_parser().parse_args(["run", "hello"])
+    assert args.url == "http://ai-stack:8000"
