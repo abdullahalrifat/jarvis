@@ -1198,3 +1198,35 @@ def test_parser_prefers_ai_stack_url(monkeypatch):
     monkeypatch.setenv("JARVIS_SERVER_URL", "http://legacy:8000")
     args = build_parser().parse_args(["run", "hello"])
     assert args.url == "http://ai-stack:8000"
+
+
+def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
+    from jarvis_cli.main import probe_ai_stack
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, base_url, api_key, **kwargs):
+            assert base_url == "http://ai-stack:8000"
+            assert api_key == "secret"
+
+        def health(self):
+            calls.append(("health", None))
+            return {"status": "running"}
+
+        def capabilities(self):
+            calls.append(("capabilities", None))
+            return {"api_version": "1"}
+
+        def request(self, method, path, payload=None):
+            calls.append((method, path, payload))
+            if path == "/v1/models":
+                return {"data": [{"id": "qwen3:1.7b"}]}
+            return {"answer": "OK"}
+
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
+    result = probe_ai_stack("http://ai-stack:8000", "secret", "qwen3:1.7b")
+    assert result["architecture"] == "jarvis -> ai-stack -> jarvis-inference"
+    assert result["inference"] == "ok"
+    assert ("POST", "/chat", {"message": "Reply with exactly OK.", "conversation_id": result.get("conversation_id", ""), "model": "qwen3:1.7b", "allow_write": False}) not in calls
+    assert any(item[0:2] == ("POST", "/chat") for item in calls)
