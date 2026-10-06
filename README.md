@@ -8,7 +8,7 @@ Jarvis **0.10.2** consumes the provider-neutral Jarvis Core **0.16.1** common-br
 
 Jarvis Core 0.16.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is an open-model-first coding and research agent for local repositories. The CLI is the primary product: normal interactive work does not require the optional Server. Inference can run locally or on a trusted OpenAI-compatible/Anthropic endpoint.
+Jarvis is the user-facing CLI for the AI Stack control plane. Normal interactive work sends agent runs to AI Stack; AI Stack owns orchestration, tools, memory and RAG, and calls the dedicated jarvis-inference gateway only when model inference is needed. Direct model access is an explicit local/diagnostic mode.
 
 ## Install
 
@@ -81,9 +81,9 @@ Use the corpus to compare local-only, automatic and cloud-first routes using suc
 
 ```bash
 export JARVIS_PROVIDER=openai
-export JARVIS_BASE_URL=https://your-endpoint.example/v1
-export JARVIS_MODEL=your-coding-model
-export JARVIS_API_KEY=your-secret
+export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
+export INFERENCE_API_KEY=<your-inference-secret>
+export JARVIS_MODEL=qwen3:1.7b
 
 jarvis model-doctor
 cd /path/to/repository
