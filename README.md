@@ -4,7 +4,7 @@ Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pi
 
 ## Current contract line
 
-Jarvis **0.10.2** consumes the provider-neutral Jarvis Core **0.16.1** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.10.3** consumes the provider-neutral Jarvis Core **0.16.1** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
 Jarvis Core 0.16.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
@@ -61,7 +61,7 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.10.0 consumes `jarvis-agent-core==0.16.1` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.10.3 consumes `jarvis-agent-core==0.16.1` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
@@ -76,6 +76,22 @@ Context construction can prioritize required task state, recent tool evidence an
 Jarvis owns the task-level real workload corpus and evaluation. The benchmark covers CI triage, provider architecture, release readiness, PR review, documentation alignment and efficiency audits. Runtime execution telemetry and route calibration belong to AI Stack; `jarvis-core` supplies the provider-neutral observation and calibration contract.
 
 Use the corpus to compare local-only, automatic and cloud-first routes using success, quality, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost. Runtime evidence should only influence automatic routing after the Core minimum-sample and quality-floor safeguards are satisfied.
+
+## Connect to AI Stack
+
+Normal Jarvis repository work uses the AI Stack control plane. AI Stack calls jarvis-inference only when model inference is needed.
+
+```bash
+export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
+export AI_STACK_API_KEY=<the-ai-stack-AGENT_API_KEY>
+export JARVIS_MODEL=qwen3:1.7b
+
+jarvis model-doctor
+cd /path/to/repository
+jarvis "review this repository and fix the highest-impact issue"
+```
+
+Direct inference configuration is diagnostic/developer-only; it is not the normal Jarvis architecture.
 
 ## Connect a model
 
