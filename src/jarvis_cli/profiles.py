@@ -28,11 +28,9 @@ def default_profiles_path() -> Path:
 
 
 def _local_model_base_url(provider: str) -> str:
-    """Return base URL for local models based on provider."""
-    if provider == "ollama":
-        return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    if provider == "anthropic_local":
-        return os.getenv("ANTHROPIC_LOCAL_BASE_URL", "http://localhost:8000")
+    """Return the dedicated inference gateway for local profiles."""
+    if provider in {"jarvis-inference", "openai", "local"}:
+        return os.getenv("INFERENCE_BASE_URL") or os.getenv("JARVIS_BASE_URL", "")
     return ""
 
 
