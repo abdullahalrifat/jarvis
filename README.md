@@ -81,9 +81,9 @@ Use the corpus to compare local-only, automatic and cloud-first routes using suc
 
 ```bash
 export JARVIS_PROVIDER=openai
-export JARVIS_BASE_URL=https://your-endpoint.example/v1
-export JARVIS_MODEL=your-coding-model
-export JARVIS_API_KEY=your-secret
+export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
+export INFERENCE_API_KEY=<your-inference-secret>
+export JARVIS_MODEL=qwen3:1.7b
 
 jarvis model-doctor
 cd /path/to/repository
