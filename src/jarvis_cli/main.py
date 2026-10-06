@@ -68,16 +68,16 @@ def _env_value(path: Path, name: str) -> str | None:
 def resolve_api_key(explicit: str | None = None) -> str:
     if explicit:
         return explicit
-    for name in ("JARVIS_SERVER_API_KEY",):
+    for name in ("AI_STACK_API_KEY", "JARVIS_SERVER_API_KEY"):
         if os.getenv(name):
             return str(os.environ[name])
     env_file = os.getenv("JARVIS_ENV_FILE")
     if env_file:
-        for name in ("JARVIS_SERVER_API_KEY",):
+        for name in ("AI_STACK_API_KEY", "JARVIS_SERVER_API_KEY"):
             value = _env_value(Path(env_file), name)
             if value:
                 return value
-    raise APIError("No API key configured. Set JARVIS_SERVER_API_KEY.")
+    raise APIError("No AI Stack API key configured. Set AI_STACK_API_KEY.")
 
 
 def _history_path() -> Path:
@@ -615,8 +615,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--url",
-        default=os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
-        help="Agent API URL (default: %(default)s)",
+        default=os.getenv("AI_STACK_BASE_URL") or os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
+        help="AI Stack API URL (default: %(default)s)",
     )
     parser.add_argument(
         "--workspace",
