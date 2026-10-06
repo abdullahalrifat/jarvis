@@ -60,10 +60,9 @@ def _is_local(profile) -> bool:
         "localhost",
         "127.0.0.1",
         "::1",
-        "ollama",
-        "litellm",
+        "jarvis-inference",
     } or provider in {
-        "ollama",
+        "jarvis-inference",
         "local",
     }
 
