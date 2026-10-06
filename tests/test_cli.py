@@ -1228,5 +1228,7 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
     result = probe_ai_stack("http://ai-stack:8000", "secret", "qwen3:1.7b")
     assert result["architecture"] == "jarvis -> ai-stack -> jarvis-inference"
     assert result["inference"] == "ok"
-    assert ("POST", "/chat", {"message": "Reply with exactly OK.", "conversation_id": result.get("conversation_id", ""), "model": "qwen3:1.7b", "allow_write": False}) not in calls
-    assert any(item[0:2] == ("POST", "/chat") for item in calls)
+    chat_calls = [item for item in calls if item[0:2] == ("POST", "/chat")]
+    assert len(chat_calls) == 1
+    assert chat_calls[0][2]["model"] == "qwen3:1.7b"
+    assert chat_calls[0][2]["allow_write"] is False
