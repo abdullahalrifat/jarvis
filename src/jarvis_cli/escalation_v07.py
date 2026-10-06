@@ -30,9 +30,8 @@ def _is_local(base_url: str, provider: str) -> bool:
         "localhost",
         "127.0.0.1",
         "::1",
-        "ollama",
-        "litellm",
-    } or provider.casefold() in {"ollama", "local"}
+        "jarvis-inference",
+    } or provider.casefold() in {"jarvis-inference", "local"}
 
 
 def _remote_escalation_config(config):
