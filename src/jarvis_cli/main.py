@@ -80,6 +80,47 @@ def resolve_api_key(explicit: str | None = None) -> str:
     raise APIError("No AI Stack API key configured. Set AI_STACK_API_KEY.")
 
 
+def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, Any]:
+    """Verify the Jarvis -> AI Stack -> inference path without direct model access."""
+    client = AgentClient(base_url, api_key, timeout=30)
+    health = client.health()
+    capabilities = client.capabilities()
+    models = client.request("GET", "/v1/models")
+    model_ids = [
+        str(item.get("id"))
+        for item in models.get("data", [])
+        if isinstance(item, dict) and item.get("id")
+    ]
+    selected_model = model or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
+    if selected_model not in model_ids:
+        raise APIError(
+            f"AI Stack does not advertise model {selected_model!r}; "
+            f"available models: {', '.join(model_ids) or 'none'}"
+        )
+    result = client.request(
+        "POST",
+        "/chat",
+        {
+            "message": "Reply with exactly OK.",
+            "conversation_id": f"jarvis-model-doctor-{uuid.uuid4()}",
+            "model": selected_model,
+            "allow_write": False,
+        },
+    )
+    answer = str(result.get("answer", "")).strip()
+    if not answer:
+        raise APIError("AI Stack returned an empty inference result")
+    return {
+        "architecture": "jarvis -> ai-stack -> jarvis-inference",
+        "ai_stack": health,
+        "api_version": capabilities.get("api_version"),
+        "model": selected_model,
+        "models": model_ids,
+        "inference": "ok",
+        "answer": answer,
+    }
+
+
 def _history_path() -> Path:
     configured = os.getenv("JARVIS_HISTORY_FILE") or os.getenv("JARVIS_HISTORY_FILE")
     if configured:
@@ -1100,9 +1141,20 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "model-doctor":
         try:
-            from .local_agent import probe_model, resolve_local_config
+            if (
+                not args.base_url
+                and not args.provider
+                and os.getenv("AI_STACK_BASE_URL")
+            ):
+                result = probe_ai_stack(
+                    os.getenv("AI_STACK_BASE_URL", ""),
+                    resolve_api_key(),
+                    args.model,
+                )
+            else:
+                from .local_agent import probe_model, resolve_local_config
 
-            result = probe_model(resolve_local_config(args))
+                result = probe_model(resolve_local_config(args))
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         except APIError as exc:
