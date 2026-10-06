@@ -5,8 +5,7 @@ results to the configured inference endpoint.
 
 ## Single endpoint
 
-Set `JARVIS_PROVIDER`, `JARVIS_BASE_URL`, `JARVIS_MODEL`, and
-`JARVIS_API_KEY`. OpenAI-compatible endpoints must implement chat completions
+For the dedicated local inference gateway, set `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and `JARVIS_MODEL`. `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints. OpenAI-compatible endpoints must implement chat completions
 and native tool calls. Use `jarvis model-doctor` before an agent task.
 
 ## Named profiles
