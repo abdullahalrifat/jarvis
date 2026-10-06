@@ -157,17 +157,24 @@ def resolve_local_config(args: Any) -> LocalConfig:
         base_url = (
             (profile.base_url if profile else None)
             or getattr(args, "base_url", None)
+            or os.getenv("INFERENCE_BASE_URL")
             or os.getenv("JARVIS_BASE_URL", "")
         )
-        api_key = os.getenv(getattr(args, "api_key_env", None) or "OPENAI_API_KEY", "")
+        api_key = os.getenv(
+            getattr(args, "api_key_env", None) or "INFERENCE_API_KEY",
+            "",
+        )
+        if not api_key:
+            api_key = os.getenv("OPENAI_API_KEY", "")
     api_key = os.getenv(
-        "JARVIS_API_KEY",
-        api_key,
+        "INFERENCE_API_KEY",
+        os.getenv("JARVIS_API_KEY", api_key),
     )
 
     if not base_url:
         raise APIError(
-            "No model endpoint configured. Pass --base-url or set " "JARVIS_BASE_URL."
+            "No model endpoint configured. Pass --base-url or set "
+            "INFERENCE_BASE_URL (or legacy JARVIS_BASE_URL)."
         )
     if not api_key and not bool(getattr(args, "no_api_key", False)):
         raise APIError(
