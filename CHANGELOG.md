@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.6
+
+- Fix `jarvis model-doctor` to query AI Stack's authenticated `/models/available` catalog instead of the inference-only `/v1/models` endpoint.
+- Keep the Jarvis -> AI Stack -> jarvis-inference API boundary explicit.
+
+
 ## 0.10.5
 
 - Send Cloudflare Access service-token credentials on AI Stack HTTPS requests when configured.
