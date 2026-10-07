@@ -649,6 +649,13 @@ def interactive_shell(
             print(f"Error: {exc}", file=sys.stderr)
 
 
+def normalize_argv(argv: list[str], commands: set[str]) -> list[str]:
+    """Route bare tasks to the AI Stack command; keep explicit local mode explicit."""
+    if argv and not argv[0].startswith("-") and argv[0] not in commands:
+        return ["run", *argv]
+    return argv
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jarvis",
@@ -937,10 +944,7 @@ def main(argv: list[str] | None = None) -> int:
         "stream",
         "workspaces",
     }
-    if argv and not argv[0].startswith("-") and argv[0] not in commands:
-        # Normal Jarvis usage is Jarvis -> AI Stack -> inference.
-        # Direct model execution remains available explicitly via `jarvis local`.
-        argv = ["run", *argv]
+    argv = normalize_argv(argv, commands)
     args = build_parser().parse_args(argv)
     if args.command == "self-update":
         try:
