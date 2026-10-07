@@ -5,6 +5,10 @@ Jarvis is distributed in two forms:
 1. **PyPI package** — recommended for developer machines. Install with `pipx` or `pip` and run `jarvis` from any directory.
 2. **Standalone executable** — recommended for machines where Python is not desired. Download a release binary and run it directly.
 
+## Current release: 0.10.6
+
+Jarvis 0.10.6 is the current release line for the AI Stack integration. It keeps the production request path as **Jarvis → AI Stack → jarvis-inference → Ollama**. `AI_STACK_BASE_URL` must point to the AI Stack API root; do not append `/v1`. The `/v1` API belongs to the private `jarvis-inference` gateway.
+
 ## PyPI installation
 
 ### pipx (recommended)
