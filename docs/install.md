@@ -60,15 +60,16 @@ On Windows, run the `.exe` from PowerShell or Command Prompt.
 
 ## Configuration
 
-Installation only provides the Jarvis application. Model credentials and endpoints remain runtime configuration. For example:
+For normal production use, Jarvis is a client of AI Stack. AI Stack owns orchestration, tools, memory/RAG and model routing; it calls jarvis-inference when model inference is required.
 
 ```bash
-export JARVIS_PROVIDER=openai
-export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
-export INFERENCE_API_KEY=<your-inference-secret>
+export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
+export AI_STACK_API_KEY=<your-ai-stack-agent-key>
 export JARVIS_MODEL=qwen3:1.7b
 jarvis model-doctor
 ```
+
+Direct inference configuration is reserved for the explicit `jarvis local` diagnostic/developer path. Do not put inference credentials into the normal Jarvis environment.
 
 Never commit API keys or production secrets to the repository.
 
