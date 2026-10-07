@@ -2,7 +2,7 @@
 
 ## 0.10.6
 
-- Fix `jarvis model-doctor` to query AI Stack's authenticated `/models/available` catalog instead of the inference-only `/v1/models` endpoint.
+- Fix `jarvis model-doctor` to query AI Stack's `/models/available` model catalog instead of the inference-only `/v1/models` endpoint.
 - Keep the Jarvis -> AI Stack -> jarvis-inference API boundary explicit.
 
 
