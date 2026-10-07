@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from . import __version__
 from .protocol import (
     PROTOCOL_HEADER,
     PROTOCOL_VERSION,
@@ -66,6 +67,7 @@ class AgentClient:
         body = None
         headers = {
             "Accept": "application/json",
+            "User-Agent": f"jarvis-agent-cli/{__version__}",
             "Authorization": f"Bearer {self.api_key}",
             PROTOCOL_HEADER: str(PROTOCOL_VERSION),
         }
