@@ -124,3 +124,8 @@ Additional guides:
 - [Web search](docs/web-search.md)
 - [v0.8 autonomous runtime](docs/v0.8-autonomous-runtime.md)
 - [World-class readiness](docs/world-class-readiness.md)
+
+
+### Production request path
+
+Normal Jarvis usage is **Jarvis CLI -> AI Stack -> jarvis-inference -> Ollama**. Configure Jarvis with `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`; AI Stack owns the inference connection and model routing. Direct model access is available only through the explicit `jarvis local` developer path.
