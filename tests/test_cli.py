@@ -1258,8 +1258,8 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
 
         def request(self, method, path, payload=None):
             calls.append((method, path, payload))
-            if path == "/v1/models":
-                return {"data": [{"id": "qwen3:1.7b"}]}
+            if path == "/models/available":
+                return {"models": ["qwen3:1.7b"]}
             return {"answer": "OK"}
 
     monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
