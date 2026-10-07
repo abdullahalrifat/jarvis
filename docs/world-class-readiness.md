@@ -86,3 +86,7 @@ Agent-run commands do not inherit credential-like environment variables by defau
 ## Release rule
 
 Do not use “world-class”, “Claude-equivalent”, “Codex-equivalent”, or “production-ready” as a release status until the P0 gates above have executable evidence. The product goal is comparable outcomes, safety and ergonomics—not feature-count parity or imitation.
+
+## Implementation status
+
+The current implementation branch adds the TypeScript SDK, a minimal VS Code bridge, and a reusable adversarial corpus. The existing runtime already contains background-process, checkpoint, proof, browser-evidence and GitHub control-plane primitives; the remaining work is integration/retained evidence rather than duplicating those primitives.
