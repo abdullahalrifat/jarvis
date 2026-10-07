@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.5
+
+- Send Cloudflare Access service-token credentials on AI Stack HTTPS requests when configured.
+- Reject incomplete Cloudflare Access credentials instead of sending partially authenticated requests.
+- Add regression coverage for Cloudflare Access authentication and prevent service-token leakage to HTTP endpoints.
+
+
 ## 0.10.4
 
 - Make AI Stack the default control plane for normal bare-command and server-backed Jarvis work.
