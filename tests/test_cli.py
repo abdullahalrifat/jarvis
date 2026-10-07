@@ -93,7 +93,6 @@ def test_client_posts_authenticated_run_request():
     }
 
 
-
 def test_client_sends_cloudflare_access_service_token(monkeypatch):
     captured = {}
 
@@ -130,7 +129,6 @@ def test_client_does_not_send_cloudflare_credentials_to_http(monkeypatch):
 
     with pytest.raises(APIError, match="require an HTTPS"):
         client.health()
-
 
 
 def test_client_surfaces_api_error_detail():
