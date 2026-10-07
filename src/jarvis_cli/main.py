@@ -662,7 +662,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Jarvis: a standalone, open-model coding agent.",
     )
     parser.add_argument(
-        "url",
+        "--url",
         default=os.getenv("AI_STACK_BASE_URL")
         or os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
         help="AI Stack API URL (default: %(default)s)",
