@@ -1,4 +1,4 @@
-import pytest
+from jarvis_cli import __version__
 from jarvis_cli.client import AgentClient
 
 
@@ -30,7 +30,7 @@ def test_client_identifies_itself_to_cloudflare(monkeypatch):
     client.health()
 
     request = captured["request"]
-    assert request.get_header("User-agent") == "jarvis-agent-cli/0.10.7"
+    assert request.get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
     assert request.get_header("Cf-access-client-id") == "client-id"
     assert request.get_header("Cf-access-client-secret") == "client-secret"
     assert request.get_header("Authorization") == "Bearer secret"
@@ -48,7 +48,7 @@ def test_client_sends_user_agent_without_cloudflare(monkeypatch):
 
     AgentClient("http://agent.test", "secret", opener=opener).health()
 
-    assert captured["request"].get_header("User-agent") == "jarvis-agent-cli/0.10.7"
+    assert captured["request"].get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
 
 
 def test_client_user_agent_tracks_package_version(monkeypatch):
