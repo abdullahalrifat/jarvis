@@ -28,7 +28,7 @@ export class JarvisClient {
   health(): Promise<Record<string,unknown>> { return this.request("/health"); }
   capabilities(): Promise<Record<string,unknown>> { return this.request("/engineering/capabilities"); }
   run(task:string, options:Record<string,unknown> = {}): Promise<Run> {
-    return this.request("/engineering/runs", {method:"POST", body:JSON.stringify({task,...options})});
+    return this.request("/runs", {method:"POST", body:JSON.stringify({task,...options})});
   }
   cancel(id:string): Promise<Run> {
     return this.request(`/engineering/runs/${encodeURIComponent(id)}/cancel`, {method:"POST"});
