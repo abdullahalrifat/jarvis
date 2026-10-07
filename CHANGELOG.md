@@ -1,9 +1,14 @@
 # Changelog
 
+## 0.10.3
+
+- Make AI Stack the primary control plane for normal Jarvis server-backed work.
+- Use the dedicated inference gateway only behind AI Stack for normal operation.
+
 ## 0.10.2
 
 - Send concrete model IDs to AI Stack instead of the removed `orchestrator` selector.
-- Default the AI Stack integration to `qwen3-1.7b`, while allowing `JARVIS_MODEL` to override it.
+- Default the AI Stack integration to `qwen3:1.7b`, while allowing `JARVIS_MODEL` to override it.
 - Align CLI tests with the concrete model-selector contract.
 
 
