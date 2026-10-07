@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.7
+
+- Send an explicit `jarvis-agent-cli/<version>` User-Agent on every HTTP request so protected Cloudflare API traffic is not mistaken for Python automation.
+- Keep Cloudflare Access service-token authentication and the AI Stack API boundary unchanged.
+
 ## 0.10.6
 
 - Fix `jarvis model-doctor` to query AI Stack's `/models/available` model catalog instead of the inference-only `/v1/models` endpoint.
