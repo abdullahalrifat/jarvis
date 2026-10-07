@@ -192,7 +192,7 @@ class HookRegistry:
         for result in self.run(event, payload, tool=tool):
             if not result.allowed:
                 raise PermissionError(
-                    f"Jarvis hook denied {event}: " f"{result.stderr or result.stdout}"
+                    f"Jarvis hook denied {event}: {result.stderr or result.stdout}"
                 )
             if result.add_context:
                 context.append(result.add_context)
