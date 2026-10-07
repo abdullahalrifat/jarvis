@@ -937,10 +937,10 @@ def main(argv: list[str] | None = None) -> int:
         "stream",
         "workspaces",
     }
-    if not argv:
-        argv = ["local"]
-    elif not argv[0].startswith("-") and argv[0] not in commands:
-        argv = ["local", *argv]
+    if argv and not argv[0].startswith("-") and argv[0] not in commands:
+        # Normal Jarvis usage is Jarvis -> AI Stack -> inference.
+        # Direct model execution remains available explicitly via `jarvis local`.
+        argv = ["run", *argv]
     args = build_parser().parse_args(argv)
     if args.command == "self-update":
         try:
@@ -1141,19 +1141,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "model-doctor":
         try:
-            if (
-                not args.base_url
-                and not args.provider
-                and os.getenv("AI_STACK_BASE_URL")
-            ):
-                result = probe_ai_stack(
-                    os.getenv("AI_STACK_BASE_URL", ""),
-                    resolve_api_key(),
-                    args.model,
-                )
+            if not args.base_url and not args.provider:
+                result = probe_ai_stack(args.url, resolve_api_key(), args.model)
             else:
                 from .local_agent import probe_model, resolve_local_config
-
                 result = probe_model(resolve_local_config(args))
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
