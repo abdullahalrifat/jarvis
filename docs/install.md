@@ -65,6 +65,9 @@ For normal production use, Jarvis is a client of AI Stack. AI Stack owns orchest
 ```bash
 export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
 export AI_STACK_API_KEY=<your-ai-stack-agent-key>
+# Optional: for an AI Stack hostname protected by Cloudflare Access
+export CLOUDFLARE_ACCESS_CLIENT_ID=<cloudflare-service-token-client-id>
+export CLOUDFLARE_ACCESS_CLIENT_SECRET=<cloudflare-service-token-client-secret>
 export JARVIS_MODEL=qwen3:1.7b
 jarvis model-doctor
 ```

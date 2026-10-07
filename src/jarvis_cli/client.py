@@ -49,6 +49,10 @@ class AgentClient:
         self.timeout = timeout
         self.stream_timeout = stream_timeout
         self._opener = opener
+        self._cloudflare_access_client_id = os.getenv("CLOUDFLARE_ACCESS_CLIENT_ID")
+        self._cloudflare_access_client_secret = os.getenv(
+            "CLOUDFLARE_ACCESS_CLIENT_SECRET"
+        )
         self._capabilities: dict[str, Any] | None = None
 
     def _request(
@@ -65,6 +69,22 @@ class AgentClient:
             "Authorization": f"Bearer {self.api_key}",
             PROTOCOL_HEADER: str(PROTOCOL_VERSION),
         }
+        if self._cloudflare_access_client_id or self._cloudflare_access_client_secret:
+            if not (
+                self._cloudflare_access_client_id
+                and self._cloudflare_access_client_secret
+            ):
+                raise APIError(
+                    "Both CLOUDFLARE_ACCESS_CLIENT_ID and "
+                    "CLOUDFLARE_ACCESS_CLIENT_SECRET must be configured together."
+                )
+            if not self.base_url.lower().startswith("https://"):
+                raise APIError(
+                    "Cloudflare Access service tokens require an HTTPS "
+                    "AI_STACK_BASE_URL."
+                )
+            headers["CF-Access-Client-Id"] = self._cloudflare_access_client_id
+            headers["CF-Access-Client-Secret"] = self._cloudflare_access_client_secret
         if payload is not None:
             body = json.dumps(payload).encode()
             headers["Content-Type"] = "application/json"
