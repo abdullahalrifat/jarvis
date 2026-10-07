@@ -3,7 +3,7 @@ from jarvis_cli.client import AgentClient
 
 
 class FakeResponse:
-    def __init__(self, body=b'{}'):
+    def __init__(self, body=b"{}"):
         self.body = body
 
     def __enter__(self):

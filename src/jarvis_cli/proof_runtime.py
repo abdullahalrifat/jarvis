@@ -258,7 +258,9 @@ def _completion_audit(state: dict[str, Any]) -> dict[str, Any]:
             claim = (
                 "verification"
                 if kind == "test"
-                else "apply_patch" if kind == "mutation" else subject
+                else "apply_patch"
+                if kind == "mutation"
+                else subject
             )
             digest = str(record.get("digest", ""))
             proofs.append(
