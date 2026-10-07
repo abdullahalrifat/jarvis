@@ -1021,6 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
 
                 task = attach_files(task, config.workspace, args.file)
             from jarvis_core import TraceRecorder
+
             from .sessions import SessionStore
 
             tools = LocalTools(config, approval=interactive_approval)
@@ -1081,7 +1082,6 @@ def main(argv: list[str] | None = None) -> int:
         "eval",
     }:
         try:
-            from .sessions import SessionStore
             from .features import (
                 create_repository_map,
                 list_local_sessions,
@@ -1092,6 +1092,7 @@ def main(argv: list[str] | None = None) -> int:
                 show_local_session,
                 show_trace,
             )
+            from .sessions import SessionStore
 
             if args.command == "sessions":
                 return list_local_sessions(args.limit)
@@ -1150,6 +1151,7 @@ def main(argv: list[str] | None = None) -> int:
                 result = probe_ai_stack(args.url, resolve_api_key(), args.model)
             else:
                 from .local_agent import probe_model, resolve_local_config
+
                 result = probe_model(resolve_local_config(args))
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
