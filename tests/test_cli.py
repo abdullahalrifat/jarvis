@@ -93,6 +93,46 @@ def test_client_posts_authenticated_run_request():
     }
 
 
+
+def test_client_sends_cloudflare_access_service_token(monkeypatch):
+    captured = {}
+
+    def opener(request, timeout):
+        captured["request"] = request
+        return FakeResponse(b'{"status":"ok"}')
+
+    monkeypatch.setenv("CLOUDFLARE_ACCESS_CLIENT_ID", "client-id")
+    monkeypatch.setenv("CLOUDFLARE_ACCESS_CLIENT_SECRET", "client-secret")
+
+    client = AgentClient("https://ai-stack.example.test", "secret", opener=opener)
+    client.health()
+
+    request = captured["request"]
+    assert request.get_header("Cf-access-client-id") == "client-id"
+    assert request.get_header("Cf-access-client-secret") == "client-secret"
+
+
+def test_client_rejects_partial_cloudflare_access_credentials(monkeypatch):
+    monkeypatch.setenv("CLOUDFLARE_ACCESS_CLIENT_ID", "client-id")
+    monkeypatch.delenv("CLOUDFLARE_ACCESS_CLIENT_SECRET", raising=False)
+
+    client = AgentClient("https://ai-stack.example.test", "secret")
+
+    with pytest.raises(APIError, match="Both CLOUDFLARE_ACCESS_CLIENT_ID"):
+        client.health()
+
+
+def test_client_does_not_send_cloudflare_credentials_to_http(monkeypatch):
+    monkeypatch.setenv("CLOUDFLARE_ACCESS_CLIENT_ID", "client-id")
+    monkeypatch.setenv("CLOUDFLARE_ACCESS_CLIENT_SECRET", "client-secret")
+
+    client = AgentClient("http://agent.test", "secret")
+
+    with pytest.raises(APIError, match="require an HTTPS"):
+        client.health()
+
+
+
 def test_client_surfaces_api_error_detail():
     def opener(request, timeout):
         raise HTTPError(
