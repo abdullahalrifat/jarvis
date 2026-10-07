@@ -72,7 +72,9 @@ def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
 
 
 
-def test_resolve_local_config_prefers_dedicated_inference_endpoint(monkeypatch, tmp_path):
+def test_resolve_local_config_prefers_dedicated_inference_endpoint(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
     monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
     monkeypatch.setenv("JARVIS_BASE_URL", "http://legacy:8080/v1")
