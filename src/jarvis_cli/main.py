@@ -85,12 +85,8 @@ def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, 
     client = AgentClient(base_url, api_key, timeout=30)
     health = client.health()
     capabilities = client.capabilities()
-    models = client.request("GET", "/v1/models")
-    model_ids = [
-        str(item.get("id"))
-        for item in models.get("data", [])
-        if isinstance(item, dict) and item.get("id")
-    ]
+    models = client.request("GET", "/models/available")
+    model_ids = [str(model_id) for model_id in models.get("models", []) if model_id]
     selected_model = model or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
     if selected_model not in model_ids:
         raise APIError(
