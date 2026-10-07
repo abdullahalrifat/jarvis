@@ -55,7 +55,14 @@ jobs:
           find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
           find . -type d -name '__pycache__' -prune -exec rm -rf {} +
           python -m pytest --collect-only -q tests/test_execution_hardening.py
-          python -m pytest -q --cache-clear --cov=. --cov-report=term-missing --cov-fail-under=70
+          set -o pipefail
+          python -m pytest -q --cache-clear --cov=. --cov-report=term-missing --cov-fail-under=70 2>&1 | tee /tmp/jarvis-pytest.log
+      - name: Upload pytest log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log-${{ matrix.python-version }}
+          path: /tmp/jarvis-pytest.log
       - run: python -m build
       - run: python -m twine check dist/*
       - name: Clean wheel installation
