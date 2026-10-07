@@ -1235,6 +1235,9 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
 
 
 def test_bare_task_uses_remote_ai_stack_run():
-    args = build_parser().parse_args(["run", "hello"])
-    assert args.command == "run"
-    assert args.task == ["hello"]
+    from jarvis_cli.main import normalize_argv
+
+    commands = {"run", "local", "model-doctor"}
+    assert normalize_argv(["hello"], commands) == ["run", "hello"]
+    assert normalize_argv([], commands) == []
+    assert normalize_argv(["local", "hello"], commands) == ["local", "hello"]
