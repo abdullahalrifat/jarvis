@@ -23,7 +23,9 @@ from .workspace_trust import (
 
 def _remote_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--server", default=os.getenv("AI_STACK_BASE_URL") or os.getenv("JARVIS_URL", "http://127.0.0.1:8000")
+        "--server",
+        default=os.getenv("AI_STACK_BASE_URL")
+        or os.getenv("JARVIS_URL", "http://127.0.0.1:8000"),
     )
     parser.add_argument("--server-api-key-env", default="AI_STACK_API_KEY")
 

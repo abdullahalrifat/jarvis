@@ -70,21 +70,29 @@ def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
     with pytest.raises(APIError, match="No model endpoint"):
         resolve_local_config(args)
 
-
-
-def test_resolve_local_config_prefers_dedicated_inference_endpoint(monkeypatch, tmp_path):
+def test_resolve_local_config_prefers_dedicated_inference_endpoint(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
     monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
     monkeypatch.setenv("JARVIS_BASE_URL", "http://legacy:8080/v1")
     monkeypatch.setenv("JARVIS_API_KEY", "legacy-secret")
     args = SimpleNamespace(
-        provider="openai", model="coder", base_url=None, api_key_env=None,
-        local_workspace=str(tmp_path), workspace=None, write=False,
-        accept_edits=False, max_steps=5, timeout=30,
+        provider="openai",
+        model="coder",
+        base_url=None,
+        api_key_env=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=5,
+        timeout=30,
     )
     config = resolve_local_config(args)
     assert config.base_url == "http://inference:8080/v1"
     assert config.api_key == "inference-secret"
+
 
 def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
     captured = {}

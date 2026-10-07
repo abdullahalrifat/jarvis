@@ -77,7 +77,7 @@ def resolve_api_key(explicit: str | None = None) -> str:
             value = _env_value(Path(env_file), name)
             if value:
                 return value
-    raise APIError("No AI Stack API key configured. Set AI_STACK_API_KEY.")
+    raise APIError("No API key configured. Set AI_STACK_API_KEY.")
 
 
 def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, Any]:
@@ -663,7 +663,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--url",
-        default=os.getenv("AI_STACK_BASE_URL") or os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
+        default=os.getenv("AI_STACK_BASE_URL")
+        or os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
         help="AI Stack API URL (default: %(default)s)",
     )
     parser.add_argument(
