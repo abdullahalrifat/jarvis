@@ -1,0 +1,9 @@
+{
+  "name":"jarvis-agent",
+  "displayName":"Jarvis Agent",
+  "version":"0.1.0",
+  "engines":{"vscode":"^1.90.0"},
+  "activationEvents":["onCommand:jarvis.runSelection","onCommand:jarvis.runWorkspace"],
+  "main":"./extension.js",
+  "contributes":{"commands":[{"command":"jarvis.runSelection","title":"Jarvis: Run Selection"},{"command":"jarvis.runWorkspace","title":"Jarvis: Run Workspace"}]}
+}
