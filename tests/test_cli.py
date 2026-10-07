@@ -1232,3 +1232,9 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
     assert len(chat_calls) == 1
     assert chat_calls[0][2]["model"] == "qwen3:1.7b"
     assert chat_calls[0][2]["allow_write"] is False
+
+
+def test_bare_task_uses_remote_ai_stack_run():
+    args = build_parser().parse_args(["run", "hello"])
+    assert args.command == "run"
+    assert args.task == ["hello"]
