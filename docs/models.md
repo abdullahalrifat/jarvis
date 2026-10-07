@@ -1,12 +1,12 @@
 # Model endpoints and profiles
 
-Jarvis runs tools locally and sends only model messages and selected tool
-results to the configured inference endpoint.
+Jarvis normally sends repository work to AI Stack. AI Stack owns model selection and calls the dedicated jarvis-inference gateway when inference is required. The normal CLI should therefore use `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`; `JARVIS_MODEL` selects the concrete model ID advertised by AI Stack.
 
-## Single endpoint
+## Direct local inference
 
-For the dedicated local inference gateway, set `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and `JARVIS_MODEL`. `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints. OpenAI-compatible endpoints must implement chat completions
-and native tool calls. Use `jarvis model-doctor` before an agent task.
+The explicit `jarvis local` developer path can connect directly to an OpenAI-compatible or Anthropic endpoint. For the dedicated inference gateway, set `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and `JARVIS_MODEL`. `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints.
+
+OpenAI-compatible endpoints must implement chat completions and native tool calls. Use `jarvis model-doctor --provider openai --base-url ...` to validate a direct endpoint.
 
 ## Named profiles
 
