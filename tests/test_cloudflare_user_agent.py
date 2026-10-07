@@ -48,7 +48,10 @@ def test_client_sends_user_agent_without_cloudflare(monkeypatch):
 
     AgentClient("http://agent.test", "secret", opener=opener).health()
 
-    assert captured["request"].get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
+    assert (
+        captured["request"].get_header("User-agent")
+        == f"jarvis-agent-cli/{__version__}"
+    )
 
 
 def test_client_user_agent_tracks_package_version(monkeypatch):
