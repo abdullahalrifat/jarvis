@@ -96,6 +96,7 @@ def probe_ai_stack(
     models = client.request("GET", "/models/available")
     model_ids = [str(model_id) for model_id in models.get("models", []) if model_id]
     selected_model = model or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
+    client.ensure_compatible("inference_diagnostics")
     if selected_model not in model_ids:
         raise APIError(
             f"AI Stack does not advertise model {selected_model!r}; "
@@ -104,7 +105,7 @@ def probe_ai_stack(
     try:
         inference_probe = client.request(
             "GET",
-            f"/inference/probe?model={quote(selected_model, safe='')}",
+            f"/diagnostics/inference?model={quote(selected_model, safe='')}",
         )
     except APIError as exc:
         raise APIError(f"Direct inference probe failed: {exc}") from exc
