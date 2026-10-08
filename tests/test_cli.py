@@ -1005,7 +1005,10 @@ def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys)
             return {"status": "ok"}
 
         def capabilities(self):
-            return {\n                "api_version": "1",\n                "features": ["client_leases", "inference_diagnostics"],\n            }
+            return {
+                "api_version": "1",
+                "features": ["client_leases", "inference_diagnostics"],
+            }
 
     monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
     monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
