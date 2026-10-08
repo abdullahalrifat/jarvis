@@ -1005,7 +1005,13 @@ def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys)
             return {"status": "ok"}
 
         def capabilities(self):
-            return {"api_version": "1", "features": ["client_leases"]}
+            return {
+                "api_version": "1",
+                "features": ["client_leases", "inference_diagnostics"],
+            }
+
+        def ensure_compatible(self, *features):
+            assert features == ("inference_diagnostics",)
 
     monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
     monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
@@ -1014,7 +1020,7 @@ def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys)
     assert capsys.readouterr().out == (
         "API: ok (http://agent.test)\n"
         "Protocol: 1\n"
-        "Features: client_leases\n"
+        "Features: client_leases, inference_diagnostics\n"
         "Workspace: /workspace\n"
         "Authentication: ok\n"
     )
@@ -1257,6 +1263,9 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
             calls.append(("capabilities", None))
             return {"api_version": "1"}
 
+        def ensure_compatible(self, *features):
+            assert features == ("inference_diagnostics",)
+
         def request(self, method, path, payload=None):
             calls.append((method, path, payload))
             if path == "/models/available":
@@ -1285,12 +1294,15 @@ def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
         def capabilities(self):
             return {"api_version": "1"}
 
+        def ensure_compatible(self, *features):
+            assert features == ("inference_diagnostics",)
+
         def request(self, method, path, payload=None):
             calls.append((method, path, payload))
             if path == "/models/available":
                 return {"models": ["qwen3:1.7b"]}
-            if path.startswith("/inference/probe?model="):
-                assert path == "/inference/probe?model=qwen3%3A1.7b"
+            if path.startswith("/diagnostics/inference?model="):
+                assert path == "/diagnostics/inference?model=qwen3%3A1.7b"
                 return {"status": "ok", "generation": {"answer": "OK"}}
             return {"answer": "OK"}
 
