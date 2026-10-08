@@ -1247,6 +1247,7 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
         def __init__(self, base_url, api_key, **kwargs):
             assert base_url == "http://ai-stack:8000"
             assert api_key == "secret"
+            assert kwargs["timeout"] == 120
 
         def health(self):
             calls.append(("health", None))
@@ -1286,12 +1287,15 @@ def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
             calls.append((method, path, payload))
             if path == "/models/available":
                 return {"models": ["qwen3:1.7b"]}
-            if path == "/inference/probe":
+            if path.startswith("/inference/probe?model="):
+                assert path == "/inference/probe?model=qwen3%3A1.7b"
                 return {"status": "ok", "generation": {"answer": "OK"}}
             return {"answer": "OK"}
 
     monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    result = probe_ai_stack("http://ai-stack:8000", "secret", "qwen3:1.7b", full_agent=True)
+    result = probe_ai_stack(
+        "http://ai-stack:8000", "secret", "qwen3:1.7b", full_agent=True
+    )
     assert result["full_agent"]["status"] == "ok"
     assert any(item[0:2] == ("POST", "/chat") for item in calls)
 
