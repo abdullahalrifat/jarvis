@@ -1289,8 +1289,8 @@ def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
             calls.append((method, path, payload))
             if path == "/models/available":
                 return {"models": ["qwen3:1.7b"]}
-            if path.startswith("/inference/probe?model="):
-                assert path == "/inference/probe?model=qwen3%3A1.7b"
+            if path.startswith("/diagnostics/inference?model="):
+                assert path == "/diagnostics/inference?model=qwen3%3A1.7b"
                 return {"status": "ok", "generation": {"answer": "OK"}}
             return {"answer": "OK"}
 
