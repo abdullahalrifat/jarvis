@@ -104,7 +104,7 @@ def probe_ai_stack(
     try:
         inference_probe = client.request(
             "GET",
-            f"/inference/probe?model={quote(selected_model, safe="")}",
+            f"/inference/probe?model={quote(selected_model, safe='')}",
         )
     except APIError as exc:
         raise APIError(f"Direct inference probe failed: {exc}") from exc
