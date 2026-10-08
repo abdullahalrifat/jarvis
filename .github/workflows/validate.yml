@@ -71,5 +71,5 @@ jobs:
           python -m venv /tmp/jarvis-clean-install
           /tmp/jarvis-clean-install/bin/python -m pip install --no-cache-dir dist/*.whl
           /tmp/jarvis-clean-install/bin/jarvis --version
-          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.16.1'"
+          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.16.2'"
           /tmp/jarvis-clean-install/bin/python -c "from jarvis_cli.sdk import CloudWorker; assert CloudWorker.__name__ == 'FencedCloudWorker'"
