@@ -15,6 +15,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from . import __version__
 from .client import AgentClient, APIError
@@ -103,8 +104,7 @@ def probe_ai_stack(
     try:
         inference_probe = client.request(
             "GET",
-            "/inference/probe",
-            {"model": selected_model},
+            f"/inference/probe?model={quote(selected_model, safe="")}",
         )
     except APIError as exc:
         raise APIError(f"Direct inference probe failed: {exc}") from exc
