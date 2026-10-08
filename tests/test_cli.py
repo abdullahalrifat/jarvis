@@ -1020,7 +1020,7 @@ def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys)
     assert capsys.readouterr().out == (
         "API: ok (http://agent.test)\n"
         "Protocol: 1\n"
-        "Features: client_leases\n"
+        "Features: client_leases, inference_diagnostics\n"
         "Workspace: /workspace\n"
         "Authentication: ok\n"
     )
@@ -1262,6 +1262,9 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
         def capabilities(self):
             calls.append(("capabilities", None))
             return {"api_version": "1"}
+
+        def ensure_compatible(self, *features):
+            assert features == ("inference_diagnostics",)
 
         def request(self, method, path, payload=None):
             calls.append((method, path, payload))
