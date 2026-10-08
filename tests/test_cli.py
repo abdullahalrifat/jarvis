@@ -1247,6 +1247,7 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
         def __init__(self, base_url, api_key, **kwargs):
             assert base_url == "http://ai-stack:8000"
             assert api_key == "secret"
+            assert kwargs["timeout"] == 120
 
         def health(self):
             calls.append(("health", None))
@@ -1265,11 +1266,40 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
     monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
     result = probe_ai_stack("http://ai-stack:8000", "secret", "qwen3:1.7b")
     assert result["architecture"] == "jarvis -> ai-stack -> jarvis-inference"
-    assert result["inference"] == "ok"
-    chat_calls = [item for item in calls if item[0:2] == ("POST", "/chat")]
-    assert len(chat_calls) == 1
-    assert chat_calls[0][2]["model"] == "qwen3:1.7b"
-    assert chat_calls[0][2]["allow_write"] is False
+    assert result["inference"]["answer"] == "OK"
+    assert not [item for item in calls if item[0:2] == ("POST", "/chat")]
+
+
+def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
+    from jarvis_cli.main import probe_ai_stack
+
+    calls = []
+
+    class FakeClient:
+        def __init__(self, base_url, api_key, **kwargs):
+            pass
+
+        def health(self):
+            return {"status": "running"}
+
+        def capabilities(self):
+            return {"api_version": "1"}
+
+        def request(self, method, path, payload=None):
+            calls.append((method, path, payload))
+            if path == "/models/available":
+                return {"models": ["qwen3:1.7b"]}
+            if path.startswith("/inference/probe?model="):
+                assert path == "/inference/probe?model=qwen3%3A1.7b"
+                return {"status": "ok", "generation": {"answer": "OK"}}
+            return {"answer": "OK"}
+
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
+    result = probe_ai_stack(
+        "http://ai-stack:8000", "secret", "qwen3:1.7b", full_agent=True
+    )
+    assert result["full_agent"]["status"] == "ok"
+    assert any(item[0:2] == ("POST", "/chat") for item in calls)
 
 
 def test_bare_task_uses_remote_ai_stack_run():

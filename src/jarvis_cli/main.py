@@ -15,6 +15,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from . import __version__
 from .client import AgentClient, APIError
@@ -80,9 +81,16 @@ def resolve_api_key(explicit: str | None = None) -> str:
     raise APIError("No API key configured. Set AI_STACK_API_KEY.")
 
 
-def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, Any]:
-    """Verify the Jarvis -> AI Stack -> inference path without direct model access."""
-    client = AgentClient(base_url, api_key, timeout=30)
+def probe_ai_stack(
+    base_url: str,
+    api_key: str,
+    model: str | None,
+    *,
+    timeout: float = 120,
+    full_agent: bool = False,
+) -> dict[str, Any]:
+    """Verify the Jarvis -> AI Stack -> inference path with layered diagnostics."""
+    client = AgentClient(base_url, api_key, timeout=timeout)
     health = client.health()
     capabilities = client.capabilities()
     models = client.request("GET", "/models/available")
@@ -93,28 +101,37 @@ def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, 
             f"AI Stack does not advertise model {selected_model!r}; "
             f"available models: {', '.join(model_ids) or 'none'}"
         )
-    result = client.request(
-        "POST",
-        "/chat",
-        {
-            "message": "Reply with exactly OK.",
-            "conversation_id": f"jarvis-model-doctor-{uuid.uuid4()}",
-            "model": selected_model,
-            "allow_write": False,
-        },
-    )
-    answer = str(result.get("answer", "")).strip()
-    if not answer:
-        raise APIError("AI Stack returned an empty inference result")
-    return {
+    try:
+        inference_probe = client.request(
+            "GET",
+            f"/inference/probe?model={quote(selected_model, safe='')}",
+        )
+    except APIError as exc:
+        raise APIError(f"Direct inference probe failed: {exc}") from exc
+    result: dict[str, Any] = {
         "architecture": "jarvis -> ai-stack -> jarvis-inference",
         "ai_stack": health,
         "api_version": capabilities.get("api_version"),
         "model": selected_model,
         "models": model_ids,
-        "inference": "ok",
-        "answer": answer,
+        "inference": inference_probe,
     }
+    if full_agent:
+        agent_result = client.request(
+            "POST",
+            "/chat",
+            {
+                "message": "Reply with exactly OK.",
+                "conversation_id": f"jarvis-model-doctor-{uuid.uuid4()}",
+                "model": selected_model,
+                "allow_write": False,
+            },
+        )
+        answer = str(agent_result.get("answer", "")).strip()
+        if not answer:
+            raise APIError("AI Stack returned an empty full-agent result")
+        result["full_agent"] = {"status": "ok", "answer": answer}
+    return result
 
 
 def _history_path() -> Path:
@@ -797,7 +814,12 @@ def build_parser() -> argparse.ArgumentParser:
     model_doctor.add_argument("--api-key-env")
     model_doctor.add_argument("--no-api-key", action="store_true")
     model_doctor.add_argument("--workspace", dest="local_workspace")
-    model_doctor.add_argument("--timeout", type=float, default=30)
+    model_doctor.add_argument("--timeout", type=float, default=120)
+    model_doctor.add_argument(
+        "--full-agent",
+        action="store_true",
+        help="Also run the full AI Stack /chat integration path",
+    )
     model_doctor.set_defaults(
         max_steps=1,
         multi_agent=False,
@@ -1144,7 +1166,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "model-doctor":
         try:
             if not args.base_url and not args.provider:
-                result = probe_ai_stack(args.url, resolve_api_key(), args.model)
+                result = probe_ai_stack(
+                    args.url,
+                    resolve_api_key(),
+                    args.model,
+                    timeout=args.timeout,
+                    full_agent=args.full_agent,
+                )
             else:
                 from .local_agent import probe_model, resolve_local_config
 
