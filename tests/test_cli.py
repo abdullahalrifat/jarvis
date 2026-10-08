@@ -1271,6 +1271,8 @@ def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
 
 
 def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
+    from jarvis_cli.main import probe_ai_stack
+
     calls = []
 
     class FakeClient:
