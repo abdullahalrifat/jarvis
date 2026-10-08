@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.8
+
+- Harden `jarvis model-doctor` with layered AI Stack -> inference diagnostics.
+- Add an opt-in `--full-agent` check for the complete `/chat` path while keeping the default doctor fast and isolated.
+- Propagate the configured doctor timeout and validate concrete model selection through AI Stack.
+- Add regression coverage for direct inference probing and URL-encoded model identifiers.
+
+
 ## 0.10.7
 
 - Send an explicit `jarvis-agent-cli/<version>` User-Agent on every HTTP request so protected Cloudflare API traffic is not mistaken for Python automation.
