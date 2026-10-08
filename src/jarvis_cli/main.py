@@ -815,7 +815,11 @@ def build_parser() -> argparse.ArgumentParser:
     model_doctor.add_argument("--no-api-key", action="store_true")
     model_doctor.add_argument("--workspace", dest="local_workspace")
     model_doctor.add_argument("--timeout", type=float, default=120)
-    model_doctor.add_argument("--full-agent", action="store_true", help="Also run the full AI Stack /chat integration path")
+    model_doctor.add_argument(
+        "--full-agent",
+        action="store_true",
+        help="Also run the full AI Stack /chat integration path",
+    )
     model_doctor.set_defaults(
         max_steps=1,
         multi_agent=False,
@@ -1162,7 +1166,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "model-doctor":
         try:
             if not args.base_url and not args.provider:
-                result = probe_ai_stack(args.url, resolve_api_key(), args.model, timeout=args.timeout, full_agent=args.full_agent)
+                result = probe_ai_stack(
+                    args.url,
+                    resolve_api_key(),
+                    args.model,
+                    timeout=args.timeout,
+                    full_agent=args.full_agent,
+                )
             else:
                 from .local_agent import probe_model, resolve_local_config
 
