@@ -250,7 +250,13 @@ def test_openai_provider_accepts_decoded_tool_arguments_and_missing_id(tmp_path)
     provider = ModelProvider(config(tmp_path), opener=opener)
     _text, calls, _raw = provider.complete(
         [{"role": "user", "content": "inspect"}],
-        [{"name": "read_file", "description": "read", "parameters": {"type": "object"}}],
+        [
+            {
+                "name": "read_file",
+                "description": "read",
+                "parameters": {"type": "object"},
+            }
+        ],
     )
 
     assert calls == [
