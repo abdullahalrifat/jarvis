@@ -17,7 +17,6 @@ from jarvis_cli.main import (
     match_workspace,
     read_shell_input,
     request_edit_permission,
-    resolve_api_key,
     resolve_project,
     review_run,
     run_exit_code,
@@ -1146,85 +1145,9 @@ def test_renderer_supports_json_and_stream_json_outputs():
     assert json.loads(final.getvalue())["status"] == "completed"
 
 
-def test_resolve_api_key_prefers_ai_stack_key(monkeypatch):
-    monkeypatch.setenv("AI_STACK_API_KEY", "ai-stack-secret")
-    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "legacy-secret")
-    assert resolve_api_key() == "ai-stack-secret"
-
-
 def test_parser_does_not_expose_ai_stack_url():
     with pytest.raises(SystemExit):
         build_parser().parse_args(["--url", "http://ai-stack:8000", "local", "hello"])
-
-
-def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
-    from jarvis_cli.main import probe_ai_stack
-
-    calls = []
-
-    class FakeClient:
-        def __init__(self, base_url, api_key, **kwargs):
-            assert base_url == "http://ai-stack:8000"
-            assert api_key == "secret"
-            assert kwargs["timeout"] == 120
-
-        def health(self):
-            calls.append(("health", None))
-            return {"status": "running"}
-
-        def capabilities(self):
-            calls.append(("capabilities", None))
-            return {"api_version": "1"}
-
-        def ensure_compatible(self, *features):
-            assert features == ("inference_diagnostics",)
-
-        def request(self, method, path, payload=None):
-            calls.append((method, path, payload))
-            if path == "/models/available":
-                return {"models": ["qwen3:1.7b"]}
-            return {"answer": "OK"}
-
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    result = probe_ai_stack("http://ai-stack:8000", "secret", "qwen3:1.7b")
-    assert result["architecture"] == "jarvis -> ai-stack -> jarvis-inference"
-    assert result["inference"]["answer"] == "OK"
-    assert not [item for item in calls if item[0:2] == ("POST", "/chat")]
-
-
-def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
-    from jarvis_cli.main import probe_ai_stack
-
-    calls = []
-
-    class FakeClient:
-        def __init__(self, base_url, api_key, **kwargs):
-            pass
-
-        def health(self):
-            return {"status": "running"}
-
-        def capabilities(self):
-            return {"api_version": "1"}
-
-        def ensure_compatible(self, *features):
-            assert features == ("inference_diagnostics",)
-
-        def request(self, method, path, payload=None):
-            calls.append((method, path, payload))
-            if path == "/models/available":
-                return {"models": ["qwen3:1.7b"]}
-            if path.startswith("/diagnostics/inference?model="):
-                assert path == "/diagnostics/inference?model=qwen3%3A1.7b"
-                return {"status": "ok", "generation": {"answer": "OK"}}
-            return {"answer": "OK"}
-
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    result = probe_ai_stack(
-        "http://ai-stack:8000", "secret", "qwen3:1.7b", full_agent=True
-    )
-    assert result["full_agent"]["status"] == "ok"
-    assert any(item[0:2] == ("POST", "/chat") for item in calls)
 
 
 def test_bare_task_uses_standalone_local_agent():
