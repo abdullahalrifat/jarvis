@@ -2,7 +2,7 @@
 
 ## Decision
 
-Jarvis is a standalone, local-first coding agent. A task such as `jarvis "fix the tests"` runs the agent loop and tools on the client machine and sends model requests directly to `jarvis-inference`. Jarvis has no AI Stack client or remote execution mode. AI Stack is an independent sibling application and may call the same inference API directly.
+Jarvis is a standalone, local-first coding agent. A task such as `jarvis "fix the tests"` runs the agent loop and tools on the client machine and sends model requests directly to `jarvis-inference`. The Jarvis CLI execution path has no AI Stack integration or remote execution commands. AI Stack is an independent sibling application and may call the same inference API directly.
 
 ## Coordinated versions
 
