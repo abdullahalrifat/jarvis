@@ -9,7 +9,7 @@ Jarvis is distributed in two forms:
 
 Jarvis 0.11.1 makes bare tasks local-first: the CLI runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. AI Stack remains an optional remote control plane. The inference URL includes `/v1`; AI Stack's API root does not.
 
-The compatible gateway release is `jarvis-inference` 0.3.1. Confirm the `v0.3.1` release image has been published before updating a production inference VM.
+Jarvis connects to the separately deployed `jarvis-inference` HTTP API; it does not install the gateway as a Python dependency. Verify the deployed gateway source commit or image digest and API compatibility. If you deploy a prebuilt GHCR image, use a published immutable tag or digest; a release is not required when building the gateway from source.
 
 ## PyPI installation
 
