@@ -335,10 +335,7 @@ class ModelProvider:
             response = self.inference_client.complete(
                 model=self.config.model,
                 messages=to_openai(messages),
-                tools=[
-                    {"type": "function", "function": tool}
-                    for tool in tools
-                ],
+                tools=[{"type": "function", "function": tool} for tool in tools],
                 tool_choice="auto",
                 max_tokens=min(4_096, self.config.max_output_tokens),
                 timeout=self.config.timeout,
