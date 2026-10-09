@@ -1333,3 +1333,41 @@ def test_model_doctor_prefers_direct_inference_when_configured(monkeypatch, caps
 
     assert main(["model-doctor"]) == 0
     assert json.loads(capsys.readouterr().out) == {"path": "direct"}
+
+def test_stream_response_uses_inference_gateway_directly(monkeypatch):
+    import importlib
+
+    cli_module = importlib.import_module("jarvis_cli.main")
+    captured = {}
+
+    class StreamResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n'
+            yield b'data: {"choices":[{"delta":{"content":" world"}}]}\n'
+            yield b'data: [DONE]\n'
+
+    def opener(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return StreamResponse()
+
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "secret")
+    monkeypatch.setenv("JARVIS_MODEL", "qwen3:1.7b")
+    monkeypatch.setattr(cli_module, "urlopen", opener)
+
+    assert list(cli_module.stream_response("say hello")) == ["Hello", " world"]
+    request = captured["request"]
+    assert request.full_url == "http://inference:8080/v1/chat/completions"
+    assert request.get_header("Authorization") == "Bearer secret"
+    assert json.loads(request.data) == {
+        "model": "qwen3:1.7b",
+        "messages": [{"role": "user", "content": "say hello"}],
+        "stream": True,
+    }
