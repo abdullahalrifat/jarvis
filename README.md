@@ -4,7 +4,7 @@ Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pi
 
 ## Efficient local-agent defaults
 
-The local agent defaults to 20 steps, a 16,000-token input budget and a 2,500-token output budget. Adaptive multi-agent execution is off by default to avoid speculative extra model calls; enable it with `JARVIS_ADAPTIVE_AGENTS=true` or explicitly pass `--multi-agent` / `JARVIS_MULTI_AGENT=true` for tasks that benefit from parallel analysis. Override token ceilings with `JARVIS_MAX_INPUT_TOKENS` and `JARVIS_MAX_OUTPUT_TOKENS` when a task demonstrably needs more context.
+The local agent defaults to 20 steps, a 16,000-token input budget and a 4,000-token output budget. Adaptive multi-agent execution is off by default to avoid speculative extra model calls; enable it with `JARVIS_ADAPTIVE_AGENTS=true` or explicitly pass `--multi-agent` / `JARVIS_MULTI_AGENT=true` for tasks that benefit from parallel analysis. Override token ceilings with `JARVIS_MAX_INPUT_TOKENS` and `JARVIS_MAX_OUTPUT_TOKENS` when a task demonstrably needs more context.
 
 ## Current contract line
 
