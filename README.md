@@ -73,7 +73,7 @@ Context construction can prioritize required task state, recent tool evidence an
 
 ## Real workload efficiency benchmark
 
-Jarvis owns the task-level real workload corpus and evaluation. The benchmark covers CI triage, provider architecture, release readiness, PR review, documentation alignment and efficiency audits. Runtime execution telemetry and route calibration belong to AI Stack; `jarvis-core` supplies the provider-neutral observation and calibration contract.
+Jarvis owns local runtime observations, task-level workload definitions and quality evaluation. AI Stack owns telemetry and calibration for server-side Runs. Both adapt their own measured outcomes to the provider-neutral `jarvis-core` observation/calibration contract. The benchmark covers CI triage, provider architecture, release readiness, PR review, documentation alignment and efficiency audits.
 
 Use the corpus to compare local-only, automatic and cloud-first routes using success, quality, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost. Runtime evidence should only influence automatic routing after the Core minimum-sample and quality-floor safeguards are satisfied.
 
