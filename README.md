@@ -4,11 +4,11 @@ Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pi
 
 ## Current contract line
 
-Jarvis **0.10.6** consumes the provider-neutral Jarvis Core **0.16.1** common-brain contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.11.0** consumes the provider-neutral Jarvis Core **0.16.2** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
-Jarvis Core 0.16.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
+Jarvis Core 0.16.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is the user-facing CLI for the AI Stack control plane. Normal interactive work sends agent runs to AI Stack; AI Stack owns orchestration, tools, memory and RAG, and calls the dedicated jarvis-inference gateway only when model inference is needed. Direct model access is an explicit local/diagnostic mode.
+Jarvis is a standalone local coding agent. Bare tasks run the agent loop and tools on the user's machine and send model requests directly to `jarvis-inference`. AI Stack is an optional sibling service for durable remote runs, shared queues, persistence, retrieval, integrations and UI; Jarvis does not require it for local work.
 
 ## Install
 
@@ -61,13 +61,13 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.10.6 consumes `jarvis-agent-core==0.16.1` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.11.0 consumes `jarvis-agent-core==0.16.2` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
 ## Token-efficient runtime
 
-Core 0.16.1 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
+Core 0.16.2 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
 
 Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and measured task outcomes.
 
@@ -77,26 +77,11 @@ Jarvis owns the task-level real workload corpus and evaluation. The benchmark co
 
 Use the corpus to compare local-only, automatic and cloud-first routes using success, quality, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost. Runtime evidence should only influence automatic routing after the Core minimum-sample and quality-floor safeguards are satisfied.
 
-## Connect to AI Stack
+## Connect directly to inference
 
-Normal repository work uses AI Stack. AI Stack owns orchestration, tools, memory and RAG and calls jarvis-inference only when inference is required.
-
-```bash
-export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
-export AI_STACK_API_KEY=<the-ai-stack-AGENT_API_KEY>
-export JARVIS_MODEL=qwen3:1.7b
-
-jarvis model-doctor
-cd /path/to/repository
-jarvis "review this repository and fix the highest-impact issue"
-```
-
-Direct inference configuration is diagnostic/developer-only.
-
-## Connect a model
+Configure Jarvis to use the dedicated inference gateway. No AI Stack, database, vector store, or web UI is required for local repository work.
 
 ```bash
-export JARVIS_PROVIDER=openai
 export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
 export INFERENCE_API_KEY=<your-inference-secret>
 export JARVIS_MODEL=qwen3:1.7b
@@ -106,7 +91,20 @@ cd /path/to/repository
 jarvis "review this repository and fix the highest-impact issue"
 ```
 
-Named profiles, fallback and automatic measured routing are documented in [docs/models.md](docs/models.md).
+Bare tasks use the standalone local agent. The agent loop, repository tools, permission checks and verification run on the machine where Jarvis is installed; only model requests go to the inference gateway.
+
+## Optional AI Stack integration
+
+Use AI Stack when you need its durable remote Runs API, shared queues, persisted run history, retrieval, integrations or web UI. Configure `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`, then make the server boundary explicit:
+
+```bash
+export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
+export AI_STACK_API_KEY=<your-ai-stack-agent-key>
+jarvis run "review this repository" --workspace /workspace/repo
+jarvis cloud health
+```
+
+`jarvis run` and `jarvis cloud` are explicit remote operations; they are not prerequisites for local work. See [docs/architecture.md](docs/architecture.md) for ownership boundaries and migration details.
 
 ## Jarvis versus Server
 
@@ -144,4 +142,4 @@ Additional guides:
 
 ### Production request path
 
-Normal Jarvis usage is **Jarvis CLI -> AI Stack -> jarvis-inference -> Ollama**. Configure Jarvis with `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`; AI Stack owns the inference connection and model routing. Direct model access is available only through the explicit `jarvis local` developer path.
+Normal bare-task usage is **Jarvis CLI -> jarvis-inference -> model backend**. AI Stack is an optional consumer of the same inference contract.
