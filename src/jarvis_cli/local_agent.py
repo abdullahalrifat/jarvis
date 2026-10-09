@@ -233,7 +233,11 @@ def _is_ambiguous_inference_timeout(exc: BaseException) -> bool:
     if not isinstance(exc, InferenceClientError):
         return False
     error_text = str(exc).casefold()
-    return exc.status_code in {408, 504} or "timed out" in error_text or "timeout" in error_text
+    return (
+        exc.status_code in {408, 504}
+        or "timed out" in error_text
+        or "timeout" in error_text
+    )
 
 
 def requires_web_search(task: str) -> bool:
