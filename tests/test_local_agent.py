@@ -335,3 +335,19 @@ def test_probe_model_rejects_prose_only_endpoint(tmp_path):
 
     with pytest.raises(APIError, match="native tool calling failed"):
         probe_model(config(tmp_path), Provider())
+
+
+def test_local_provider_does_not_replay_ambiguous_inference_timeout(tmp_path):
+    calls = []
+
+    def opener(_request, timeout):
+        calls.append(timeout)
+        raise TimeoutError("read timed out after server may have accepted request")
+
+    provider = ModelProvider(
+        config(tmp_path, base_url="http://inference:8080/v1"),
+        opener=opener,
+    )
+    with pytest.raises((TimeoutError, APIError)):
+        provider.complete([{"role": "user", "content": "inspect"}], [])
+    assert len(calls) == 1
