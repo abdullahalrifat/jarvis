@@ -8,9 +8,9 @@ The local agent defaults to 20 steps, a 16,000-token input budget and a 6,000-to
 
 ## Current contract line
 
-Jarvis **0.11.3** consumes the provider-neutral Jarvis Core **0.17.2** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
+Jarvis **0.11.4** consumes the provider-neutral Jarvis Core **0.17.3** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
 
-Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
+Jarvis Core 0.17.3 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
 Jarvis is a standalone local coding agent. The agent loop and tools run on the user's machine, and all model requests go directly to the separately deployed `jarvis-inference` HTTP API. The Jarvis CLI does not call AI Stack and exposes no AI Stack remote execution mode. AI Stack is an independent sibling application that may also consume the same inference API.
 
@@ -65,13 +65,13 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.11.3 consumes `jarvis-agent-core==0.17.2` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.11.4 consumes `jarvis-agent-core==0.17.3` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
 ## Token-efficient runtime
 
-Core 0.17.2 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps inference execution policy in the CLI, while shared efficiency and calibration contracts remain provider-neutral in Core.
+Core 0.17.3 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps inference execution policy in the CLI, while shared efficiency and calibration contracts remain provider-neutral in Core.
 
 Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and measured task outcomes.
 

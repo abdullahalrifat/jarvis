@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.4
+
+- Consume the published `jarvis-agent-core==0.17.3` release, including bounded retries for explicit pre-admission inference queue rejections while preventing replay after ambiguous generation timeouts or partial streams.
+- Align dependency and version assertions across packaging, CI and release documentation.
+
+
 ## 0.11.3
 
 - Remove AI Stack remote command execution from the Jarvis CLI; Jarvis and AI Stack are independent consumers of jarvis-inference.
