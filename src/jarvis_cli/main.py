@@ -30,6 +30,39 @@ TERMINAL_STATUSES = {
     "discarded",
     "failed",
 }
+
+
+CLI_COMMANDS = {
+    "approve",
+    "cancel",
+    "discard",
+    "doctor",
+    "list",
+    "local",
+    "model-doctor",
+    "models",
+    "mcp-tools",
+    "eval",
+    "repo-map",
+    "session-show",
+    "self-update",
+    "session-resume",
+    "session-fork",
+    "session-rename",
+    "session-archive",
+    "sessions",
+    "trace",
+    "undo",
+    "web-search",
+    "projects",
+    "resume",
+    "run",
+    "show",
+    "stream",
+    "workspaces",
+}
+
+
 SHELL_COMMANDS = (
     "/approve",
     "/cancel",
@@ -982,36 +1015,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    commands = {
-        "approve",
-        "cancel",
-        "discard",
-        "doctor",
-        "list",
-        "local",
-        "model-doctor",
-        "models",
-        "mcp-tools",
-        "eval",
-        "repo-map",
-        "session-show",
-        "self-update",
-        "session-resume",
-        "session-fork",
-        "session-rename",
-        "session-archive",
-        "sessions",
-        "trace",
-        "undo",
-        "web-search",
-        "projects",
-        "resume",
-        "run",
-        "show",
-        "stream",
-        "workspaces",
-    }
-    argv = normalize_argv(argv, commands)
+    argv = normalize_argv(argv, CLI_COMMANDS)
     args = build_parser().parse_args(argv)
     if args.command == "self-update":
         try:
