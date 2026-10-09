@@ -280,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    commands = {"cloud", "ide", "proof", "permissions", "trust", "dashboard"}
+    commands = {"ide", "proof", "permissions", "trust", "dashboard"}
     if argv and argv[0] in commands:
         try:
             args = _parser().parse_args(argv)
