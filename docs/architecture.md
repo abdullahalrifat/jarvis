@@ -6,7 +6,7 @@ Jarvis is a standalone, local-first coding agent. A task such as `jarvis "fix th
 
 ## Coordinated versions
 
-This release updates Jarvis to **0.11.3** and pins published `jarvis-agent-core==0.17.2`. Jarvis CLI and AI Stack are independent inference consumers; no AI Stack release or endpoint is required for Jarvis local use.
+This release updates Jarvis to **0.11.4** and pins published `jarvis-agent-core==0.17.3`. Jarvis CLI and AI Stack are independent inference consumers; no AI Stack release or endpoint is required for Jarvis local use.
 
 ## Runtime topology
 
