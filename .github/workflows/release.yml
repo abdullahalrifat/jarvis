@@ -28,7 +28,7 @@ jobs:
       release_needed: ${{ steps.release.outputs.needed }}
       validated_sha: ${{ steps.validated.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.sha }}
           fetch-depth: 0
