@@ -49,10 +49,6 @@ For a Cloudflare Access-protected AI Stack endpoint, configure `CLOUDFLARE_ACCES
 # Direct model gateway
 jarvis model-doctor
 
-# Optional AI Stack remote service
-jarvis cloud health --server "$AI_STACK_BASE_URL"
-jarvis cloud capabilities --server "$AI_STACK_BASE_URL"
-jarvis cloud inference-status --server "$AI_STACK_BASE_URL"
-```
+## Application boundary
 
-Local Jarvis should continue working when AI Stack is stopped. If the inference gateway is unavailable, model-dependent work should fail clearly rather than silently starting another model runtime.
+Jarvis and AI Stack are independent consumers of `jarvis-inference`. Jarvis does not configure or call AI Stack. For Jarvis, configure `INFERENCE_BASE_URL` and `INFERENCE_API_KEY` only. Local Jarvis should continue working when AI Stack is stopped; if the inference gateway is unavailable, model-dependent work should fail clearly rather than starting another model runtime.
