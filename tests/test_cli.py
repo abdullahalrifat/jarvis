@@ -989,105 +989,24 @@ def test_run_exit_codes_are_script_friendly(status, expected):
     assert run_exit_code({"status": status}) == expected
 
 
-def test_main_doctor_checks_api_and_resolves_server_default(monkeypatch, capsys):
-    class FakeClient:
-        def __init__(self, base_url, api_key):
-            assert base_url == "http://agent.test"
-            assert api_key == "secret"
-
-        def workspaces(self):
-            return ["/workspace/other"]
-
-        def default_workspace(self):
-            return "/workspace"
-
-        def health(self):
-            return {"status": "ok"}
-
-        def capabilities(self):
-            return {
-                "api_version": "1",
-                "features": ["client_leases", "inference_diagnostics"],
-            }
-
-        def ensure_compatible(self, *features):
-            assert features == ("inference_diagnostics",)
-
-    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-
-    assert main(["--url", "http://agent.test", "doctor"]) == 0
-    assert capsys.readouterr().out == (
-        "API: ok (http://agent.test)\n"
-        "Protocol: 1\n"
-        "Features: client_leases, inference_diagnostics\n"
-        "Workspace: /workspace\n"
-        "Authentication: ok\n"
-    )
+def test_main_rejects_legacy_ai_stack_doctor(monkeypatch, capsys):
+    monkeypatch.setenv("AI_STACK_API_KEY", "legacy-secret")
+    assert main(["doctor"]) == 2
+    output = capsys.readouterr()
+    assert "AI Stack remote commands have been removed" in output.err
+    assert output.out == ""
 
 
-def test_main_explicit_run_starts_with_mapped_workspace(
-    monkeypatch,
-    capsys,
-    tmp_path,
-):
-    calls = []
-
-    class FakeClient:
-        def __init__(self, _base_url, _api_key):
-            pass
-
-        def workspaces(self):
-            return ["/workspace/example"]
-
-    def fake_run_task(client, task, **options):
-        calls.append((client, task, options))
-        return {"status": "completed"}
-
-    checkout = tmp_path / "example"
-    checkout.mkdir()
-    monkeypatch.chdir(checkout)
-    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    monkeypatch.setattr("jarvis_cli.main.run_task", fake_run_task)
-
-    assert main(["run", "review", "the repo"]) == 0
-    assert calls[0][1] == "review the repo"
-    assert calls[0][2]["workspace"] == "/workspace/example"
-    assert calls[0][2]["allow_write"] is False
-    assert capsys.readouterr().err == ""
+def test_main_disables_ai_stack_run_command(capsys):
+    assert main(["run", "review", "the repo"]) == 2
+    output = capsys.readouterr()
+    assert "AI Stack remote commands have been removed" in output.err
+    assert output.out == ""
 
 
-def test_main_shorthand_automatically_allows_requested_edit(monkeypatch, tmp_path):
-    calls = []
-
-    class FakeClient:
-        def __init__(self, _base_url, _api_key):
-            pass
-
-        def workspaces(self):
-            return ["/workspace/example"]
-
-    def fake_run_task(client, task, **options):
-        calls.append(options)
-        return {"status": "completed"}
-
-    checkout = tmp_path / "example"
-    checkout.mkdir()
-    monkeypatch.chdir(checkout)
-    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    monkeypatch.setattr("jarvis_cli.main.run_task", fake_run_task)
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr(
-        "builtins.input",
-        lambda _prompt: (_ for _ in ()).throw(
-            AssertionError("edit tasks must not prompt for permission")
-        ),
-    )
-
-    assert main(["run", "fix", "the tests"]) == 0
-    assert calls[0]["allow_write"] is True
+def test_main_shorthand_never_routes_to_ai_stack(capsys):
+    assert main(["run", "fix", "the tests"]) == 2
+    assert "AI Stack remote commands have been removed" in capsys.readouterr().err
 
 
 def test_main_local_stream_simulate_mode(capsys):
@@ -1108,13 +1027,11 @@ def test_main_local_stream_fails_without_inference_endpoint(monkeypatch, capsys)
     assert "Quicksort" not in output.err
 
 
-def test_main_reports_configuration_errors_without_traceback(monkeypatch, capsys):
-    monkeypatch.delenv("JARVIS_SERVER_API_KEY", raising=False)
-    monkeypatch.delenv("AGENT_API_KEY", raising=False)
-    monkeypatch.delenv("JARVIS_ENV_FILE", raising=False)
-
-    assert main(["doctor"]) == 1
-    assert "No API key configured" in capsys.readouterr().err
+def test_main_reports_removed_remote_commands_without_traceback(capsys):
+    assert main(["doctor"]) == 2
+    error = capsys.readouterr().err
+    assert "AI Stack remote commands have been removed" in error
+    assert "Traceback" not in error
 
 
 def test_main_handles_broken_pipe_without_traceback(monkeypatch):
@@ -1235,11 +1152,9 @@ def test_resolve_api_key_prefers_ai_stack_key(monkeypatch):
     assert resolve_api_key() == "ai-stack-secret"
 
 
-def test_parser_prefers_ai_stack_url(monkeypatch):
-    monkeypatch.setenv("AI_STACK_BASE_URL", "http://ai-stack:8000")
-    monkeypatch.setenv("JARVIS_SERVER_URL", "http://legacy:8000")
-    args = build_parser().parse_args(["run", "hello"])
-    assert args.url == "http://ai-stack:8000"
+def test_parser_does_not_expose_ai_stack_url():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--url", "http://ai-stack:8000", "local", "hello"])
 
 
 def test_probe_ai_stack_verifies_end_to_end_path(monkeypatch):
@@ -1332,6 +1247,25 @@ def test_empty_cli_starts_local_shell(monkeypatch):
     assert main([]) == 0
 
 
+def test_model_doctor_uses_only_direct_inference_configuration(monkeypatch, capsys):
+    import jarvis_cli.local_agent as local_agent
+
+    monkeypatch.setenv("AI_STACK_API_KEY", "legacy-secret")
+    monkeypatch.delenv("INFERENCE_BASE_URL", raising=False)
+    monkeypatch.delenv("INFERENCE_API_KEY", raising=False)
+    monkeypatch.delenv("JARVIS_BASE_URL", raising=False)
+    monkeypatch.setattr(
+        local_agent,
+        "probe_model",
+        lambda _config: (_ for _ in ()).throw(AssertionError("must validate config first")),
+    )
+
+    assert main(["model-doctor"]) == 1
+    error = capsys.readouterr().err
+    assert "No inference endpoint configured" in error
+    assert "AI_STACK_API_KEY" not in error
+
+
 def test_model_doctor_prefers_direct_inference_when_configured(monkeypatch, capsys):
     import jarvis_cli.local_agent as local_agent
 
@@ -1341,7 +1275,9 @@ def test_model_doctor_prefers_direct_inference_when_configured(monkeypatch, caps
     monkeypatch.setattr(local_agent, "probe_model", lambda config: {"path": "direct"})
 
     assert main(["model-doctor"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"path": "direct"}
+    result = json.loads(capsys.readouterr().out)
+    assert result["path"] == "direct"
+    assert result["architecture"] == "jarvis-cli -> jarvis-inference -> ollama"
 
 
 def test_stream_response_uses_inference_gateway_directly(monkeypatch):
