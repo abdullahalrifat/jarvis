@@ -8,7 +8,7 @@ The local agent defaults to 20 steps, a 16,000-token input budget and a 6,000-to
 
 ## Current contract line
 
-Jarvis **0.11.2** consumes the provider-neutral Jarvis Core **0.17.2** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.11.3** consumes the provider-neutral Jarvis Core **0.17.2** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
 
 Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
@@ -65,13 +65,13 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.11.2 consumes `jarvis-agent-core==0.17.2` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.11.3 consumes `jarvis-agent-core==0.17.2` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
 ## Token-efficient runtime
 
-Core 0.17.2 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
+Core 0.17.2 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps inference execution policy in the CLI, while shared efficiency and calibration contracts remain provider-neutral in Core.
 
 Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and measured task outcomes.
 
@@ -79,7 +79,7 @@ Context construction can prioritize required task state, recent tool evidence an
 
 Jarvis owns local runtime observations, task-level workload definitions and quality evaluation. AI Stack owns telemetry and calibration for server-side Runs. Both adapt their own measured outcomes to the provider-neutral `jarvis-core` observation/calibration contract. The benchmark covers CI triage, provider architecture, release readiness, PR review, documentation alignment and efficiency audits.
 
-Use the corpus to compare local-only, automatic and cloud-first routes using success, quality, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost. Runtime evidence should only influence automatic routing after the Core minimum-sample and quality-floor safeguards are satisfied.
+Use the corpus to compare local-only and automatic routes using success, quality, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost. Runtime evidence should only influence automatic routing after the Core minimum-sample and quality-floor safeguards are satisfied.
 
 ## Connect directly to inference
 
@@ -108,7 +108,7 @@ Jarvis does not expose AI Stack remote commands and never requires `AI_STACK_BAS
 | Local repository work, interactive terminal, local automation | **Jarvis** |
 | Durable shared Runs, queues and integrations | **AI Stack independently** |
 
-Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
+Jarvis and AI Stack are independent consumers of `jarvis-agent-core` and `jarvis-inference`; neither calls the other.
 
 ## Implemented runtime
 
