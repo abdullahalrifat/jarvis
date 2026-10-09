@@ -1322,3 +1322,14 @@ def test_bare_task_uses_standalone_local_agent():
     assert normalize_argv([], commands) == []
     assert normalize_argv(["run", "hello"], commands) == ["run", "hello"]
     assert normalize_argv(["local", "hello"], commands) == ["local", "hello"]
+
+def test_model_doctor_prefers_direct_inference_when_configured(monkeypatch, capsys):
+    import jarvis_cli.local_agent as local_agent
+
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "secret")
+    monkeypatch.setattr(local_agent, "resolve_local_config", lambda _args: "config")
+    monkeypatch.setattr(local_agent, "probe_model", lambda config: {"path": "direct"})
+
+    assert main(["model-doctor"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"path": "direct"}
