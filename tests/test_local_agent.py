@@ -75,7 +75,7 @@ def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
         max_steps=5,
         timeout=30,
     )
-    with pytest.raises(APIError, match="No model endpoint"):
+    with pytest.raises(APIError, match="No inference endpoint"):
         resolve_local_config(args)
 
 
@@ -101,6 +101,27 @@ def test_resolve_local_config_prefers_dedicated_inference_endpoint(
     config = resolve_local_config(args)
     assert config.base_url == "http://inference:8080/v1"
     assert config.api_key == "inference-secret"
+
+
+def test_resolve_local_config_ignores_legacy_api_keys(monkeypatch, tmp_path):
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.delenv("INFERENCE_API_KEY", raising=False)
+    monkeypatch.setenv("JARVIS_API_KEY", "legacy-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "legacy-openai-secret")
+    args = SimpleNamespace(
+        provider="openai",
+        model="qwen3:1.7b",
+        base_url=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=5,
+        timeout=30,
+    )
+
+    with pytest.raises(APIError, match="Set INFERENCE_API_KEY"):
+        resolve_local_config(args)
 
 
 def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
@@ -221,6 +242,88 @@ def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
     assert request.get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
     assert request.get_header("Accept") == "application/json"
     assert json.loads(request.data)["tools"][0]["type"] == "function"
+
+
+def test_openai_provider_accepts_decoded_tool_arguments_and_missing_id(tmp_path):
+    def opener(_request, timeout):
+        return Response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "read_file",
+                                        "arguments": {"path": "README.md"},
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+    provider = ModelProvider(config(tmp_path), opener=opener)
+    _text, calls, _raw = provider.complete(
+        [{"role": "user", "content": "inspect"}],
+        [
+            {
+                "name": "read_file",
+                "description": "read",
+                "parameters": {"type": "object"},
+            }
+        ],
+    )
+
+    assert calls == [
+        {
+            "id": "jarvis-tool-1",
+            "name": "read_file",
+            "arguments": {"path": "README.md"},
+        }
+    ]
+
+
+def test_openai_provider_reports_malformed_tool_arguments_actionably(tmp_path):
+    def opener(_request, timeout):
+        return Response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "function": {
+                                        "name": "read_file",
+                                        "arguments": "{not-json",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+    provider = ModelProvider(config(tmp_path), opener=opener)
+    with pytest.raises(APIError, match="malformed tool call.*coder"):
+        provider.complete(
+            [{"role": "user", "content": "inspect"}],
+            [
+                {
+                    "name": "read_file",
+                    "description": "read",
+                    "parameters": {"type": "object"},
+                }
+            ],
+        )
 
 
 def test_anthropic_provider_uses_native_messages_api(tmp_path):

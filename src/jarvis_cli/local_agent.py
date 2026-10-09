@@ -44,7 +44,7 @@ from jarvis_core.tokens import estimate_tokens
 from . import __version__
 from .client import APIError
 from .mcp_registry import call_configured_tool
-from .profiles import load_profiles, profile_api_key_env, select_calibrated
+from .profiles import load_profiles, select_calibrated
 from .provider_messages import to_anthropic, to_openai
 from .quality_runtime import classify_request
 from .repository_map import build_repository_map
@@ -109,7 +109,9 @@ class LocalConfig:
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
-    requested_model = getattr(args, "model", None) or os.getenv("JARVIS_MODEL")
+    requested_model = (
+        getattr(args, "model", None) or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
+    )
     profile = None
     profiles = load_profiles()
     profile_names = {item.name for item in profiles.list()}
@@ -139,52 +141,33 @@ def resolve_local_config(args: Any) -> LocalConfig:
         or os.getenv("JARVIS_PROVIDER")
         or "openai"
     ).lower()
-    if provider not in {"openai", "anthropic"}:
-        raise APIError("Local provider must be 'openai' or 'anthropic'.")
+    if provider != "openai":
+        raise APIError(
+            "Jarvis only supports direct OpenAI-compatible jarvis-inference access. "
+            "Configure INFERENCE_BASE_URL and INFERENCE_API_KEY."
+        )
+    if profile and profile.provider.lower() != "openai":
+        raise APIError(
+            "External provider profiles are not supported. Jarvis must use "
+            "jarvis-inference directly."
+        )
 
     model = profile.model if profile else requested_model
     if not model:
         raise APIError("No model configured. Pass --model or set JARVIS_MODEL.")
 
-    if provider == "anthropic":
-        base_url = (
-            (profile.base_url if profile else None)
-            or getattr(args, "base_url", None)
-            or os.getenv("JARVIS_BASE_URL")
-            or "https://api.anthropic.com"
-        )
-        api_key = os.getenv(
-            getattr(args, "api_key_env", None) or "ANTHROPIC_API_KEY", ""
-        )
-    else:
-        base_url = (
-            (profile.base_url if profile else None)
-            or getattr(args, "base_url", None)
-            or os.getenv("INFERENCE_BASE_URL")
-            or os.getenv("JARVIS_BASE_URL", "")
-        )
-        api_key = os.getenv(
-            getattr(args, "api_key_env", None) or "INFERENCE_API_KEY",
-            "",
-        )
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-    api_key = os.getenv(
-        "INFERENCE_API_KEY",
-        os.getenv("JARVIS_API_KEY", api_key),
+    base_url = (
+        getattr(args, "base_url", None) or os.getenv("INFERENCE_BASE_URL", "").strip()
     )
+    api_key = os.getenv("INFERENCE_API_KEY", "").strip()
 
     if not base_url:
         raise APIError(
-            "No model endpoint configured. Pass --base-url or set "
-            "INFERENCE_BASE_URL (or legacy JARVIS_BASE_URL)."
+            "No inference endpoint configured. Set INFERENCE_BASE_URL "
+            "(for example, http://192.168.1.113:8080/v1)."
         )
-    if not api_key and not bool(getattr(args, "no_api_key", False)):
-        raise APIError(
-            "No model API key configured. Set JARVIS_API_KEY, select an "
-            "API-key environment variable, or use --no-api-key for a trusted "
-            "private endpoint."
-        )
+    if not api_key:
+        raise APIError("No inference API key configured. Set INFERENCE_API_KEY.")
 
     workspace_value = getattr(args, "local_workspace", None) or getattr(
         args, "workspace", None
@@ -362,18 +345,36 @@ class ModelProvider:
             ) from exc
         self.last_usage = dict(response.get("usage") or {})
         calls = []
-        for call in message.get("tool_calls") or []:
+        for index, call in enumerate(message.get("tool_calls") or []):
             try:
-                arguments = json.loads(call["function"].get("arguments") or "{}")
+                function = call["function"]
+                name = function["name"]
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError("tool name is missing")
+                raw_arguments = function.get("arguments") or {}
+                if isinstance(raw_arguments, str):
+                    arguments = json.loads(raw_arguments or "{}")
+                elif isinstance(raw_arguments, dict):
+                    # Some OpenAI-compatible gateways return arguments decoded.
+                    arguments = raw_arguments
+                else:
+                    raise TypeError("tool arguments must be a JSON object")
+                if not isinstance(arguments, dict):
+                    raise TypeError("tool arguments must decode to a JSON object")
+                call_id = call.get("id") or f"jarvis-tool-{index + 1}"
                 calls.append(
                     {
-                        "id": call["id"],
-                        "name": call["function"]["name"],
+                        "id": str(call_id),
+                        "name": name,
                         "arguments": arguments,
                     }
                 )
-            except (KeyError, TypeError, json.JSONDecodeError) as exc:
-                raise APIError("Model returned an invalid tool call.") from exc
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise APIError(
+                    "Inference endpoint returned a malformed tool call "
+                    f"for model {self.config.model!r}: {exc}. "
+                    "Check the model's native tool-calling support and gateway response."
+                ) from exc
         return str(message.get("content") or ""), calls, message
 
     def _anthropic(self, messages, tools):
@@ -616,19 +617,19 @@ def build_model_provider(config: LocalConfig):
         profile = profiles.get(name)
         if profile is None or profile.model == config.model:
             continue
-        key_env = profile_api_key_env(name)
-        default_key_env = (
-            "ANTHROPIC_API_KEY" if profile.provider == "anthropic" else "OPENAI_API_KEY"
-        )
-        fallback_key = os.getenv(key_env or default_key_env, "")
+        if profile.provider.lower() != "openai":
+            raise APIError(
+                f"Fallback profile {name!r} is not an OpenAI-compatible "
+                "jarvis-inference model profile."
+            )
         providers.append(
             ModelProvider(
                 replace(
                     config,
-                    provider=profile.provider,
+                    provider="openai",
                     model=profile.model,
-                    base_url=profile.base_url,
-                    api_key=fallback_key,
+                    base_url=config.base_url,
+                    api_key=config.api_key,
                 )
             )
         )
@@ -1152,19 +1153,18 @@ class _LocalAgentBackend:
             raise APIError(
                 f"Role {role!r} selects unavailable model profile {profile_name!r}."
             ) from exc
-        key_env = profile_api_key_env(profile.name) or (
-            "ANTHROPIC_API_KEY"
-            if profile.provider.lower() == "anthropic"
-            else "OPENAI_API_KEY"
-        )
-        api_key = os.getenv("JARVIS_API_KEY") or os.getenv(key_env, "")
+        if profile.provider.lower() != "openai":
+            raise APIError(
+                f"Role {role!r} profile {profile_name!r} must target "
+                "jarvis-inference, not an external provider."
+            )
         output_limit = profile.capabilities.max_output_tokens
         return replace(
             config,
-            provider=profile.provider.lower(),
+            provider="openai",
             model=profile.model,
-            base_url=profile.base_url.rstrip("/"),
-            api_key=api_key,
+            base_url=config.base_url,
+            api_key=config.api_key,
             max_output_tokens=(
                 min(config.max_output_tokens, output_limit)
                 if output_limit

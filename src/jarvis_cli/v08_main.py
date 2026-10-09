@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import sys
 
-from .autonomous_sdk import AutonomousRemoteJarvis, FencedCloudWorker
 from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
 from .proof_runtime import PermissionPolicy, proof_path, trusted_permissions_path
@@ -21,21 +19,10 @@ from .workspace_trust import (
 )
 
 
-def _remote_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--server",
-        default=os.getenv("AI_STACK_BASE_URL")
-        or os.getenv("JARVIS_URL", "http://127.0.0.1:8000"),
-    )
-    parser.add_argument("--server-api-key-env", default="AI_STACK_API_KEY")
-
-
 def _provider_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--provider", choices=("openai", "anthropic"))
+    parser.add_argument("--provider", choices=("openai",))
     parser.add_argument("--base-url")
     parser.add_argument("--model")
-    parser.add_argument("--api-key-env")
-    parser.add_argument("--no-api-key", action="store_true")
     parser.add_argument("--workspace", dest="local_workspace")
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--max-steps", type=int, default=20)
@@ -48,63 +35,6 @@ def _provider_options(parser: argparse.ArgumentParser) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jarvis-v08", add_help=False)
     subs = parser.add_subparsers(dest="command")
-
-    cloud = subs.add_parser("cloud")
-    cloud_sub = cloud.add_subparsers(dest="action", required=True)
-
-    submit = cloud_sub.add_parser("submit")
-    submit.add_argument("task", nargs="+")
-    source = submit.add_mutually_exclusive_group(required=True)
-    source.add_argument("--workspace")
-    source.add_argument("--repository-url")
-    submit.add_argument("--git-ref")
-    submit.add_argument("--git-commit")
-    submit.add_argument("--write", action="store_true")
-    submit.add_argument("--model", default="auto")
-    submit.add_argument("--project-id")
-    submit.add_argument("--idempotency-key")
-    _remote_options(submit)
-
-    status = cloud_sub.add_parser("status")
-    status.add_argument("task_id")
-    _remote_options(status)
-
-    health = cloud_sub.add_parser("health")
-    _remote_options(health)
-
-    capabilities = cloud_sub.add_parser("capabilities")
-    _remote_options(capabilities)
-
-    inference = cloud_sub.add_parser("inference-status")
-    _remote_options(inference)
-
-    github_issue = cloud_sub.add_parser("github-issue")
-    github_issue.add_argument("owner")
-    github_issue.add_argument("repo")
-    github_issue.add_argument("issue_number", type=int)
-    github_issue.add_argument("--branch", required=True)
-    github_issue.add_argument("--base")
-    github_issue.add_argument("--create-pr", action="store_true")
-    github_issue.add_argument("--title")
-    github_issue.add_argument("--body")
-    _remote_options(github_issue)
-
-    github_review = cloud_sub.add_parser("github-review")
-    github_review.add_argument("owner")
-    github_review.add_argument("repo")
-    github_review.add_argument("number", type=int)
-    _remote_options(github_review)
-
-    cancel = cloud_sub.add_parser("cancel")
-    cancel.add_argument("task_id")
-    _remote_options(cancel)
-
-    worker = cloud_sub.add_parser("worker")
-    worker.add_argument("--worker-id", required=True)
-    worker.add_argument("--once", action="store_true")
-    worker.add_argument("--lease-seconds", type=int, default=60)
-    _remote_options(worker)
-    _provider_options(worker)
 
     ide = subs.add_parser("ide")
     ide_sub = ide.add_subparsers(dest="action", required=True)
@@ -129,79 +59,6 @@ def _parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--watch", action="store_true")
     dashboard.add_argument("--interval", type=float, default=1.0)
     return parser
-
-
-def _key(args: argparse.Namespace) -> str:
-    value = os.getenv(args.server_api_key_env, "")
-    if not value:
-        raise APIError(f"No Server API key configured in {args.server_api_key_env}.")
-    return value
-
-
-def _cloud(args: argparse.Namespace) -> int:
-    remote = AutonomousRemoteJarvis(args.server, _key(args))
-    if args.action == "submit":
-        result = remote.submit_cloud(
-            " ".join(args.task),
-            workspace=args.workspace,
-            repository_url=args.repository_url,
-            git_ref=args.git_ref,
-            git_commit=args.git_commit,
-            allow_write=args.write,
-            model=args.model,
-            project_id=args.project_id,
-            idempotency_key=args.idempotency_key,
-        )
-    elif args.action == "status":
-        result = remote.cloud_task(args.task_id)
-    elif args.action == "health":
-        result = remote.client.health()
-    elif args.action == "capabilities":
-        result = remote.client.capabilities()
-    elif args.action == "inference-status":
-        result = remote.client.request("GET", "/engineering/inference/status")
-    elif args.action == "github-issue":
-        result = remote.client.request(
-            "POST",
-            "/engineering/github/issue-bootstrap",
-            json={
-                "owner": args.owner,
-                "repo": args.repo,
-                "issue_number": args.issue_number,
-                "branch": args.branch,
-                "base": args.base,
-                "create_pr": args.create_pr,
-                "title": args.title,
-                "body": args.body,
-            },
-        )
-    elif args.action == "github-review":
-        result = remote.client.request(
-            "GET", f"/engineering/github/pull/{args.owner}/{args.repo}/{args.number}"
-        )
-    elif args.action == "cancel":
-        result = remote.cancel_cloud(args.task_id)
-    else:
-        from .local_agent import resolve_local_config
-
-        args.task = []
-        config = resolve_local_config(args)
-        worker = FencedCloudWorker(
-            args.server,
-            _key(args),
-            args.worker_id,
-            LocalJarvis(config),
-            lease_seconds=args.lease_seconds,
-        )
-        if args.once:
-            result = worker.run_once()
-            if result is not None:
-                print(json.dumps(result.__dict__, indent=2, default=str))
-            return 0
-        worker.serve_forever()
-        return 0
-    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
-    return 0
 
 
 def _ide(args: argparse.Namespace) -> int:
@@ -273,12 +130,17 @@ def _trust(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    commands = {"cloud", "ide", "proof", "permissions", "trust", "dashboard"}
+    if argv and argv[0] == "cloud":
+        print(
+            "Error: AI Stack cloud integration has been removed. "
+            "Jarvis connects directly to jarvis-inference.",
+            file=sys.stderr,
+        )
+        return 2
+    commands = {"ide", "proof", "permissions", "trust", "dashboard"}
     if argv and argv[0] in commands:
         try:
             args = _parser().parse_args(argv)
-            if args.command == "cloud":
-                return _cloud(args)
             if args.command == "ide":
                 return _ide(args)
             if args.command == "proof":

@@ -5,9 +5,9 @@ Jarvis is distributed in two forms:
 1. **PyPI package** — recommended for developer machines. Install with `pipx` or `pip` and run `jarvis` from any directory.
 2. **Standalone executable** — recommended for machines where Python is not desired. Download a release binary and run it directly.
 
-## Current release: 0.11.2
+## Current release: 0.11.3
 
-Jarvis 0.11.2 makes bare tasks local-first: the CLI runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. AI Stack remains an optional remote control plane. The inference URL includes `/v1`; AI Stack's API root does not. Jarvis pins the published `jarvis-agent-core==0.17.2` release.
+Jarvis 0.11.3 runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. The CLI has no AI Stack remote execution mode. The inference URL includes `/v1`. Jarvis pins the published `jarvis-agent-core==0.17.2` release.
 
 Jarvis connects to the separately deployed `jarvis-inference` HTTP API; it does not install the gateway as a Python dependency. Verify the deployed gateway source commit or image digest and API compatibility. If you deploy a prebuilt GHCR image, use a published immutable tag or digest; a release is not required when building the gateway from source.
 
@@ -78,15 +78,7 @@ jarvis "review this repository and fix the highest-impact issue"
 
 Bare tasks use the standalone local agent. The agent loop, repository tools, approvals and verification run on the client machine. Only model requests leave that machine for the inference gateway. Keep port 8080 restricted to trusted clients on your private network.
 
-AI Stack is optional. For durable remote Runs, configure its API and explicitly use `jarvis run` or `jarvis cloud`:
-
-```bash
-export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
-export AI_STACK_API_KEY=<your-ai-stack-agent-key>
-jarvis run "review this repository" --workspace /workspace/repo
-```
-
-For an AI Stack hostname protected by Cloudflare Access, configure `CLOUDFLARE_ACCESS_CLIENT_ID` and `CLOUDFLARE_ACCESS_CLIENT_SECRET`. Never commit API keys or production secrets to the repository.
+Jarvis has no AI Stack URL or API-key configuration. Set `INFERENCE_BASE_URL` and `INFERENCE_API_KEY` for direct model access.
 
 Never commit API keys or production secrets to the repository.
 
