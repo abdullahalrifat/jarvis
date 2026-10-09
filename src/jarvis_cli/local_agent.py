@@ -620,19 +620,19 @@ def build_model_provider(config: LocalConfig):
         profile = profiles.get(name)
         if profile is None or profile.model == config.model:
             continue
-        key_env = profile_api_key_env(name)
-        default_key_env = (
-            "ANTHROPIC_API_KEY" if profile.provider == "anthropic" else "OPENAI_API_KEY"
-        )
-        fallback_key = os.getenv(key_env or default_key_env, "")
+        if profile.provider.lower() != "openai":
+            raise APIError(
+                f"Fallback profile {name!r} is not an OpenAI-compatible "
+                "jarvis-inference model profile."
+            )
         providers.append(
             ModelProvider(
                 replace(
                     config,
-                    provider=profile.provider,
+                    provider="openai",
                     model=profile.model,
-                    base_url=profile.base_url,
-                    api_key=fallback_key,
+                    base_url=config.base_url,
+                    api_key=config.api_key,
                 )
             )
         )
@@ -1156,19 +1156,18 @@ class _LocalAgentBackend:
             raise APIError(
                 f"Role {role!r} selects unavailable model profile {profile_name!r}."
             ) from exc
-        key_env = profile_api_key_env(profile.name) or (
-            "ANTHROPIC_API_KEY"
-            if profile.provider.lower() == "anthropic"
-            else "OPENAI_API_KEY"
-        )
-        api_key = os.getenv("JARVIS_API_KEY") or os.getenv(key_env, "")
+        if profile.provider.lower() != "openai":
+            raise APIError(
+                f"Role {role!r} profile {profile_name!r} must target "
+                "jarvis-inference, not an external provider."
+            )
         output_limit = profile.capabilities.max_output_tokens
         return replace(
             config,
-            provider=profile.provider.lower(),
+            provider="openai",
             model=profile.model,
-            base_url=profile.base_url.rstrip("/"),
-            api_key=api_key,
+            base_url=config.base_url,
+            api_key=config.api_key,
             max_output_tokens=(
                 min(config.max_output_tokens, output_limit)
                 if output_limit
