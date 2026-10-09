@@ -65,7 +65,7 @@ Jarvis has no AI Stack configuration variables or remote commands. Do not make l
 ## Failure and resource boundaries
 
 - Local Jarvis should remain usable when AI Stack is stopped.
-- AI Stack should remain usable as a remote control plane when no Jarvis CLI process is running.
+- AI Stack should remain usable independently when no Jarvis CLI process is running.
 - If the inference gateway is unavailable, model-dependent work should fail with a bounded, actionable error; it must not fall back to hidden local model processes or unbounded retries.
 - Inference request concurrency and queue capacity must be bounded at the gateway, independent of consumer-side concurrency.
 - Memory/retrieval is optional for standalone Jarvis; it must not block a direct inference request.
