@@ -2,6 +2,8 @@
 
 ## 0.11.2
 
+- Consume the published `jarvis-agent-core==0.17.2` release, including the shared fix that prevents ambiguous inference timeouts from being retried as if they were safe failures.
+
 - Lower standalone agent defaults to 20 steps, 16,000 input tokens and 6,000 output tokens; retain environment and CLI overrides.
 - Make adaptive multi-agent execution opt-in by default while preserving explicit `--multi-agent` and `JARVIS_MULTI_AGENT` overrides.
 - Do not start a recovery model turn after an ambiguous inference timeout, avoiding duplicate work on the shared single-generation queue.
