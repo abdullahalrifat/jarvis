@@ -1020,29 +1020,14 @@ def test_main_reports_removed_remote_commands_without_traceback(capsys):
     assert "Traceback" not in error
 
 
-def test_main_handles_broken_pipe_without_traceback(monkeypatch):
-    class BrokenOutput:
-        def write(self, _value):
-            raise BrokenPipeError
+def test_main_rejects_server_commands_before_network_access(monkeypatch, capsys):
+    class ForbiddenClient:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("Jarvis must not instantiate the AI Stack client")
 
-        def flush(self):
-            pass
-
-        def fileno(self):
-            raise OSError("not a real descriptor")
-
-    class FakeClient:
-        def __init__(self, _base_url, _api_key):
-            pass
-
-        def list_runs(self, _limit):
-            return [{"id": "run-1", "status": "completed", "task": "done"}]
-
-    monkeypatch.setenv("JARVIS_SERVER_API_KEY", "secret")
-    monkeypatch.setattr("jarvis_cli.main.AgentClient", FakeClient)
-    monkeypatch.setattr(sys, "stdout", BrokenOutput())
-
-    assert main(["list"]) == 0
+    monkeypatch.setattr("jarvis_cli.main.AgentClient", ForbiddenClient)
+    assert main(["list"]) == 2
+    assert "AI Stack remote commands have been removed" in capsys.readouterr().err
 
 
 def test_interactive_shell_automatically_allows_edit_tasks(monkeypatch, capsys):
