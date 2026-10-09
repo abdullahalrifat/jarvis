@@ -2,7 +2,7 @@
 
 ## 0.11.2
 
-- Lower standalone agent defaults to 20 steps, 16,000 input tokens and 4,000 output tokens; retain environment and CLI overrides.
+- Lower standalone agent defaults to 20 steps, 16,000 input tokens and 6,000 output tokens; retain environment and CLI overrides.
 - Make adaptive multi-agent execution opt-in by default while preserving explicit `--multi-agent` and `JARVIS_MULTI_AGENT` overrides.
 - Do not start a recovery model turn after an ambiguous inference timeout, avoiding duplicate work on the shared single-generation queue.
 - Keep recovery bounded and avoid retrying ambiguous inference timeouts at the CLI layer.
