@@ -1097,16 +1097,14 @@ def test_main_local_stream_simulate_mode(capsys):
     assert "[done in" in output.err
 
 
-def test_main_local_stream_fails_when_runtime_is_unavailable(monkeypatch, capsys):
-    monkeypatch.setattr(
-        "jarvis_cli.main._import_chat_stream_text",
-        lambda: None,
-    )
+def test_main_local_stream_fails_without_inference_endpoint(monkeypatch, capsys):
+    monkeypatch.delenv("INFERENCE_BASE_URL", raising=False)
+    monkeypatch.delenv("JARVIS_BASE_URL", raising=False)
 
     assert main(["stream", "never", "fabricate", "this"]) == 1
     output = capsys.readouterr()
     assert output.out == ""
-    assert "Use 'jarvis run'" in output.err
+    assert "No inference endpoint configured" in output.err
     assert "Quicksort" not in output.err
 
 
@@ -1314,10 +1312,72 @@ def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
     assert any(item[0:2] == ("POST", "/chat") for item in calls)
 
 
-def test_bare_task_uses_remote_ai_stack_run():
+def test_bare_task_uses_standalone_local_agent():
     from jarvis_cli.main import normalize_argv
 
     commands = {"run", "local", "model-doctor"}
-    assert normalize_argv(["hello"], commands) == ["run", "hello"]
+    assert normalize_argv(["hello"], commands) == ["local", "hello"]
     assert normalize_argv([], commands) == []
+    assert normalize_argv(["run", "hello"], commands) == ["run", "hello"]
     assert normalize_argv(["local", "hello"], commands) == ["local", "hello"]
+
+
+def test_empty_cli_starts_local_shell(monkeypatch):
+    import jarvis_cli.local_agent as local_agent
+
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(local_agent, "resolve_local_config", lambda _args: "config")
+    monkeypatch.setattr(local_agent, "run_local_shell", lambda config: 0)
+
+    assert main([]) == 0
+
+
+def test_model_doctor_prefers_direct_inference_when_configured(monkeypatch, capsys):
+    import jarvis_cli.local_agent as local_agent
+
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "secret")
+    monkeypatch.setattr(local_agent, "resolve_local_config", lambda _args: "config")
+    monkeypatch.setattr(local_agent, "probe_model", lambda config: {"path": "direct"})
+
+    assert main(["model-doctor"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"path": "direct"}
+
+
+def test_stream_response_uses_inference_gateway_directly(monkeypatch):
+    import importlib
+
+    cli_module = importlib.import_module("jarvis_cli.main")
+    captured = {}
+
+    class StreamResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n'
+            yield b'data: {"choices":[{"delta":{"content":" world"}}]}\n'
+            yield b"data: [DONE]\n"
+
+    def opener(request, timeout):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return StreamResponse()
+
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "secret")
+    monkeypatch.setenv("JARVIS_MODEL", "qwen3:1.7b")
+    monkeypatch.setattr(cli_module, "urlopen", opener)
+
+    assert list(cli_module.stream_response("say hello")) == ["Hello", " world"]
+    request = captured["request"]
+    assert request.full_url == "http://inference:8080/v1/chat/completions"
+    assert request.get_header("Authorization") == "Bearer secret"
+    assert json.loads(request.data) == {
+        "model": "qwen3:1.7b",
+        "messages": [{"role": "user", "content": "say hello"}],
+        "stream": True,
+    }

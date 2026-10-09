@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0
+
+- Make bare-task invocations use the standalone local agent and direct model endpoint by default.
+- Keep AI Stack available through explicit `jarvis run` and `jarvis cloud` commands for durable remote execution.
+- Make `jarvis model-doctor` probe the dedicated inference gateway when `INFERENCE_BASE_URL` is configured.
+- Document repository ownership boundaries and the optional AI Stack integration.
+- Bump the CLI to 0.11.0 and pin the shared inference transport to the published provider-neutral Jarvis Core 0.17.0 release.
+- Route OpenAI-compatible chat, tool calls, and request configuration through `jarvis_core.InferenceClient`; keep the native Anthropic path separate.
+- Align install, architecture, configuration, and release documentation with direct local inference and optional explicit AI Stack Runs.
+
+
 ## 0.10.8
 
 - Harden `jarvis model-doctor` with layered AI Stack -> inference diagnostics.

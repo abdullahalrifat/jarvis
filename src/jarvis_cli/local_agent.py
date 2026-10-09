@@ -19,6 +19,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from jarvis_core import (
+    InferenceClient,
+    InferenceClientError,
+    InferenceConfig,
     AgentResult,
     ArtifactResolver,
     MemoryArtifactStore,
@@ -272,6 +275,19 @@ class ModelProvider:
         self.opener = opener
         self.last_usage: dict[str, int] = {}
         self.active_provider = config.provider
+        self.inference_client = (
+            InferenceClient(
+                InferenceConfig(
+                    base_url=config.base_url,
+                    api_key=config.api_key,
+                    timeout=config.timeout,
+                    user_agent=f"jarvis-agent-cli/{__version__}",
+                ),
+                opener=opener,
+            )
+            if config.provider == "openai"
+            else None
+        )
 
     def complete(
         self,
@@ -313,23 +329,19 @@ class ModelProvider:
         return payload
 
     def _openai(self, messages, tools):
-        response = _request_json(
-            f"{self.config.base_url}/chat/completions",
-            {
-                "model": self.config.model,
-                "messages": to_openai(messages),
-                "tools": [{"type": "function", "function": tool} for tool in tools],
-                "tool_choice": "auto",
-                "max_tokens": min(4_096, self.config.max_output_tokens),
-            },
-            (
-                {"Authorization": f"Bearer {self.config.api_key}"}
-                if self.config.api_key
-                else {}
-            ),
-            self.config.timeout,
-            self.opener,
-        )
+        """Call the shared Core inference client for OpenAI-compatible gateways."""
+        assert self.inference_client is not None
+        try:
+            response = self.inference_client.complete(
+                model=self.config.model,
+                messages=to_openai(messages),
+                tools=[{"type": "function", "function": tool} for tool in tools],
+                tool_choice="auto",
+                max_tokens=min(4_096, self.config.max_output_tokens),
+                timeout=self.config.timeout,
+            )
+        except InferenceClientError as exc:
+            raise APIError(str(exc)) from exc
         try:
             message = response["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:

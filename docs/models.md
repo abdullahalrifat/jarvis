@@ -1,10 +1,24 @@
 # Model endpoints and profiles
 
-Jarvis normally sends repository work to AI Stack. AI Stack owns model selection and calls the dedicated jarvis-inference gateway when inference is required. The normal CLI should therefore use `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`; `JARVIS_MODEL` selects the concrete model ID advertised by AI Stack.
+Jarvis is a standalone agent and talks directly to the configured model endpoint. For the recommended home-lab architecture, use the dedicated `jarvis-inference` gateway. AI Stack is an optional consumer of that same gateway and is only used when you explicitly choose a remote Server operation such as `jarvis run` or `jarvis cloud`.
 
-## Direct local inference
+## Dedicated inference (recommended)
 
-The explicit `jarvis local` developer path can connect directly to an OpenAI-compatible or Anthropic endpoint. For the dedicated inference gateway, set `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and `JARVIS_MODEL`. `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints.
+```bash
+export JARVIS_PROVIDER=openai
+export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
+export INFERENCE_API_KEY=<your-inference-secret>
+export JARVIS_MODEL=qwen3:1.7b
+jarvis model-doctor
+```
+
+The gateway provides the stable OpenAI-compatible chat and embedding API, model catalog, request IDs, queueing and resource limits. Jarvis owns the agent loop, local tools, approvals and task verification; it does not call Ollama directly.
+
+`JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints. Named profiles can still point at other OpenAI-compatible or Anthropic endpoints.
+
+## Optional AI Stack
+
+Set `AI_STACK_BASE_URL` and `AI_STACK_API_KEY` when you want the durable remote Runs API, shared execution queues, persistence, retrieval or UI. Use `jarvis run ...` for remote Runs and `jarvis cloud ...` for cloud-task operations. These operations remain separate from the local-first default.
 
 OpenAI-compatible endpoints must implement chat completions and native tool calls. Use `jarvis model-doctor --provider openai --base-url ...` to validate a direct endpoint.
 
