@@ -17,6 +17,10 @@ Jarvis CLI ---------------> jarvis-inference <--------------- AI Stack
 
 Jarvis owns its local agent loop, repository tools, permissions, approvals and task verification. AI Stack owns server-side orchestration and durable control-plane concerns. `jarvis-inference` owns the model registry, OpenAI-compatible API, scheduling, queueing and resource limits. Neither consumer calls Ollama directly.
 
+## Gateway compatibility and deployment
+
+`jarvis-inference` is a separately deployed HTTP service, not a Python dependency of the CLI. Keep the gateway API compatible with this client, require API-key authentication by default, and avoid replaying ambiguous backend generation timeouts. Verify the deployed source commit or image digest. A published immutable release image is necessary only when choosing the prebuilt-image deployment path.
+
 ## Direct local configuration
 
 ```bash

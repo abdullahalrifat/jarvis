@@ -4,6 +4,10 @@
 
 Jarvis is a standalone, local-first coding agent. A bare task such as `jarvis "fix the tests"` runs the agent loop and tools on the client machine and sends model requests directly to the configured inference endpoint. AI Stack is an optional service for durable remote execution and shared platform capabilities; it is not a runtime dependency of the CLI.
 
+## Coordinated versions
+
+This release candidate updates Jarvis to **0.11.1**, pins published `jarvis-agent-core==0.17.1`, and targets `jarvis-inference` **0.3.1** for fail-closed authentication and non-replayed ambiguous inference timeouts. The inference `v0.3.1` tag/release image must be published before deploying that gateway version.
+
 ## Runtime topology
 
 ```text
