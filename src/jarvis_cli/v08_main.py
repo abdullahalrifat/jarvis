@@ -10,6 +10,7 @@ import sys
 from .client import APIError
 from .dashboard import render_dashboard, watch_dashboard
 from .proof_runtime import PermissionPolicy, proof_path, trusted_permissions_path
+from .sdk import LocalJarvis
 from .workspace_trust import (
     is_workspace_trusted,
     trust_file,
