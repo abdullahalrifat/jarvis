@@ -44,7 +44,7 @@ from jarvis_core.tokens import estimate_tokens
 from . import __version__
 from .client import APIError
 from .mcp_registry import call_configured_tool
-from .profiles import load_profiles, profile_api_key_env, select_calibrated
+from .profiles import load_profiles, select_calibrated
 from .provider_messages import to_anthropic, to_openai
 from .quality_runtime import classify_request
 from .repository_map import build_repository_map
