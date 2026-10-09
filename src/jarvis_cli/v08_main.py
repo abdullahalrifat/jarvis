@@ -273,6 +273,13 @@ def _trust(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "cloud":
+        print(
+            "Error: AI Stack cloud integration has been removed. "
+            "Jarvis connects directly to jarvis-inference.",
+            file=sys.stderr,
+        )
+        return 2
     commands = {"cloud", "ide", "proof", "permissions", "trust", "dashboard"}
     if argv and argv[0] in commands:
         try:
