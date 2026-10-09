@@ -110,9 +110,7 @@ class LocalConfig:
 
 def resolve_local_config(args: Any) -> LocalConfig:
     requested_model = (
-        getattr(args, "model", None)
-        or os.getenv("JARVIS_MODEL")
-        or "qwen3:1.7b"
+        getattr(args, "model", None) or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
     )
     profile = None
     profiles = load_profiles()
@@ -159,8 +157,7 @@ def resolve_local_config(args: Any) -> LocalConfig:
         raise APIError("No model configured. Pass --model or set JARVIS_MODEL.")
 
     base_url = (
-        getattr(args, "base_url", None)
-        or os.getenv("INFERENCE_BASE_URL", "").strip()
+        getattr(args, "base_url", None) or os.getenv("INFERENCE_BASE_URL", "").strip()
     )
     api_key = os.getenv("INFERENCE_API_KEY", "").strip()
 
