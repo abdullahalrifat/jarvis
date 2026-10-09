@@ -8,7 +8,7 @@ Jarvis **0.11.1** consumes the provider-neutral Jarvis Core **0.17.1** contracts
 
 Jarvis Core 0.17.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is a standalone local coding agent. The coordinated inference gateway target is `jarvis-inference` 0.3.1; use the immutable `v0.3.1` image/release after it has been published. Bare tasks run the agent loop and tools on the user's machine and send model requests directly to `jarvis-inference`. AI Stack is an optional sibling service for durable remote runs, shared queues, persistence, retrieval, integrations and UI; Jarvis does not require it for local work.
+Jarvis is a standalone local coding agent. Bare tasks run the agent loop and tools on the user's machine and send model requests directly to the separately deployed `jarvis-inference` HTTP API; the gateway is not a Python dependency. Verify the deployed gateway commit or image digest and API compatibility. Use a published immutable release image only when choosing the prebuilt-image deployment path. AI Stack is an optional sibling service for durable remote runs, shared queues, persistence, retrieval, integrations and UI; Jarvis does not require it for local work.
 
 ## Install
 
