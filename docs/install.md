@@ -80,8 +80,6 @@ Bare tasks use the standalone local agent. The agent loop, repository tools, app
 
 Jarvis has no AI Stack URL or API-key configuration. Set `INFERENCE_BASE_URL` and `INFERENCE_API_KEY` for direct model access.
 
-For an AI Stack hostname protected by Cloudflare Access, configure `CLOUDFLARE_ACCESS_CLIENT_ID` and `CLOUDFLARE_ACCESS_CLIENT_SECRET`. Never commit API keys or production secrets to the repository.
-
 Never commit API keys or production secrets to the repository.
 
 ## Development
