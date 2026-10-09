@@ -109,7 +109,11 @@ class LocalConfig:
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
-    requested_model = getattr(args, "model", None) or os.getenv("JARVIS_MODEL")
+    requested_model = (
+        getattr(args, "model", None)
+        or os.getenv("JARVIS_MODEL")
+        or "qwen3:1.7b"
+    )
     profile = None
     profiles = load_profiles()
     profile_names = {item.name for item in profiles.list()}
@@ -139,29 +143,26 @@ def resolve_local_config(args: Any) -> LocalConfig:
         or os.getenv("JARVIS_PROVIDER")
         or "openai"
     ).lower()
-    if provider not in {"openai", "anthropic"}:
-        raise APIError("Local provider must be 'openai' or 'anthropic'.")
+    if provider != "openai":
+        raise APIError(
+            "Jarvis only supports direct OpenAI-compatible jarvis-inference access. "
+            "Configure INFERENCE_BASE_URL and INFERENCE_API_KEY."
+        )
+    if profile and profile.provider.lower() != "openai":
+        raise APIError(
+            "External provider profiles are not supported. Jarvis must use "
+            "jarvis-inference directly."
+        )
 
     model = profile.model if profile else requested_model
     if not model:
         raise APIError("No model configured. Pass --model or set JARVIS_MODEL.")
 
-    if provider == "anthropic":
-        base_url = (
-            (profile.base_url if profile else None)
-            or getattr(args, "base_url", None)
-            or os.getenv("JARVIS_BASE_URL")
-            or "https://api.anthropic.com"
-        )
-        api_key = os.getenv(
-            getattr(args, "api_key_env", None) or "ANTHROPIC_API_KEY", ""
-        )
-    else:
-        base_url = (
-            getattr(args, "base_url", None)
-            or os.getenv("INFERENCE_BASE_URL", "").strip()
-        )
-        api_key = os.getenv("INFERENCE_API_KEY", "").strip()
+    base_url = (
+        getattr(args, "base_url", None)
+        or os.getenv("INFERENCE_BASE_URL", "").strip()
+    )
+    api_key = os.getenv("INFERENCE_API_KEY", "").strip()
 
     if not base_url:
         raise APIError(
