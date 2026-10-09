@@ -769,15 +769,6 @@ def build_parser() -> argparse.ArgumentParser:
     local.add_argument("--provider", choices=("openai",))
     local.add_argument("--base-url", help="Remote model API base URL")
     local.add_argument("--model", help="Remote model identifier")
-    local.add_argument(
-        "--api-key-env",
-        help="Environment variable containing the model API key",
-    )
-    local.add_argument(
-        "--no-api-key",
-        action="store_true",
-        help="Connect to a trusted private endpoint without authentication",
-    )
     local.add_argument("--workspace", dest="local_workspace")
     local.add_argument(
         "--file",
@@ -814,7 +805,7 @@ def build_parser() -> argparse.ArgumentParser:
         "model-doctor",
         help="Verify a remote model endpoint and native tool calling",
     )
-    model_doctor.add_argument("--provider", choices=("openai", "anthropic"))
+    model_doctor.add_argument("--provider", choices=("openai",))
     model_doctor.add_argument("--base-url", help="Remote model API base URL")
     model_doctor.add_argument("--model", help="Remote model identifier")
     model_doctor.add_argument("--workspace", dest="local_workspace")
@@ -855,11 +846,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     local_resume.add_argument("session_id")
     local_resume.add_argument("task", nargs="*")
-    local_resume.add_argument("--provider", choices=("openai", "anthropic"))
+    local_resume.add_argument("--provider", choices=("openai",))
     local_resume.add_argument("--base-url")
     local_resume.add_argument("--model")
-    local_resume.add_argument("--api-key-env")
-    local_resume.add_argument("--no-api-key", action="store_true")
     local_resume.add_argument("--workspace", dest="local_workspace")
     local_resume.add_argument("--timeout", type=float, default=180)
     local_resume.add_argument("--max-steps", type=int, default=30)
@@ -900,11 +889,9 @@ def build_parser() -> argparse.ArgumentParser:
         "eval", help="Run JSON-defined local agent evaluations"
     )
     evaluate.add_argument("file")
-    evaluate.add_argument("--provider", choices=("openai", "anthropic"))
+    evaluate.add_argument("--provider", choices=("openai",))
     evaluate.add_argument("--base-url")
     evaluate.add_argument("--model")
-    evaluate.add_argument("--api-key-env")
-    evaluate.add_argument("--no-api-key", action="store_true")
     evaluate.add_argument("--workspace", dest="local_workspace")
     evaluate.add_argument("--timeout", type=float, default=180)
     evaluate.add_argument("--max-steps", type=int, default=30)
