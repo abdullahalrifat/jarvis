@@ -12,7 +12,7 @@ Jarvis **0.11.3** consumes the provider-neutral Jarvis Core **0.17.2** contracts
 
 Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is a standalone local coding agent. The agent loop and tools run on the user's machine, and all model requests go directly to the separately deployed `jarvis-inference` HTTP API. Jarvis does not call AI Stack and has no AI Stack remote execution mode. AI Stack is an independent sibling application that may also consume the same inference API.
+Jarvis is a standalone local coding agent. The agent loop and tools run on the user's machine, and all model requests go directly to the separately deployed `jarvis-inference` HTTP API. The Jarvis CLI does not call AI Stack and exposes no AI Stack remote execution mode. AI Stack is an independent sibling application that may also consume the same inference API.
 
 ## Install
 
