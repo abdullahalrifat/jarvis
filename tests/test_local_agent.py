@@ -5,7 +5,13 @@ from urllib.error import HTTPError
 
 import pytest
 
-from jarvis_core import ArtifactResolver, MemoryArtifactStore, TokenBudget, TokenLedger
+from jarvis_core import (
+    ArtifactResolver,
+    InferenceClientError,
+    MemoryArtifactStore,
+    TokenBudget,
+    TokenLedger,
+)
 
 from jarvis_cli import __version__
 from jarvis_cli.client import APIError
@@ -13,6 +19,7 @@ from jarvis_cli.local_agent import (
     LocalConfig,
     LocalTools,
     ModelProvider,
+    _is_ambiguous_inference_timeout,
     _parse_verification_verdict,
     probe_model,
     resolve_local_config,
@@ -144,6 +151,19 @@ def test_explicit_multi_agent_override_is_preserved(monkeypatch, tmp_path):
         multi_agent=False,
     )
     assert resolve_local_config(args).multi_agent is True
+
+
+def test_ambiguous_inference_timeout_is_not_retried():
+    timeout = InferenceClientError(
+        "Could not reach inference endpoint: read timed out", retryable=True
+    )
+    gateway_timeout = InferenceClientError(
+        "Inference endpoint returned HTTP 504", status_code=504, retryable=False
+    )
+
+    assert _is_ambiguous_inference_timeout(timeout) is True
+    assert _is_ambiguous_inference_timeout(gateway_timeout) is True
+    assert _is_ambiguous_inference_timeout(ConnectionError("connection refused")) is False
 
 
 def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
