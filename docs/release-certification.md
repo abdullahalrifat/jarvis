@@ -1,6 +1,6 @@
 # Jarvis release certification
 
-Current coordinated line: **Jarvis 0.9.2 with Jarvis Core 0.9.5**.
+Current coordinated line: **Jarvis 0.11.0 with Jarvis Core 0.17.0**. Verify the published package pins and exact commit SHA before certifying any deployment.
 
 ## Automated gates
 
