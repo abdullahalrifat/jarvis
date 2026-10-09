@@ -1152,7 +1152,9 @@ def test_model_doctor_uses_only_direct_inference_configuration(monkeypatch, caps
     monkeypatch.setattr(
         local_agent,
         "probe_model",
-        lambda _config: (_ for _ in ()).throw(AssertionError("must validate config first")),
+        lambda _config: (_ for _ in ()).throw(
+            AssertionError("must validate config first")
+        ),
     )
 
     assert main(["model-doctor"]) == 1
