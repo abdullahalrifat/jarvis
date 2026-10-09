@@ -65,6 +65,14 @@ jobs:
           path: /tmp/jarvis-pytest.log
       - run: python -m build
       - run: python -m twine check dist/*
+      - name: Clean wheel installation
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m venv /tmp/jarvis-clean-install
+          /tmp/jarvis-clean-install/bin/python -m pip install --no-cache-dir dist/*.whl
+          /tmp/jarvis-clean-install/bin/jarvis --version
+          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.17.0'"
+          /tmp/jarvis-clean-install/bin/python -c "from jarvis_cli.sdk import CloudWorker; assert CloudWorker.__name__ == 'FencedCloudWorker'"
       - name: Write commit-bound certification manifest
         if: always()
         run: python scripts/write_certification_manifest.py certification-evidence.json
@@ -75,11 +83,3 @@ jobs:
           name: certification-evidence-${{ github.sha }}-python-${{ matrix.python-version }}
           path: certification-evidence.json
           if-no-files-found: error
-      - name: Clean wheel installation
-        if: matrix.python-version == '3.12'
-        run: |
-          python -m venv /tmp/jarvis-clean-install
-          /tmp/jarvis-clean-install/bin/python -m pip install --no-cache-dir dist/*.whl
-          /tmp/jarvis-clean-install/bin/jarvis --version
-          /tmp/jarvis-clean-install/bin/python -c "import importlib.metadata as m; assert m.version('jarvis-agent-core') == '0.17.0'"
-          /tmp/jarvis-clean-install/bin/python -c "from jarvis_cli.sdk import CloudWorker; assert CloudWorker.__name__ == 'FencedCloudWorker'"
