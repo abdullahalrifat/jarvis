@@ -12,7 +12,7 @@ Jarvis **0.11.2** consumes the provider-neutral Jarvis Core **0.17.2** contracts
 
 Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
-Jarvis is a standalone local coding agent. Bare tasks run the agent loop and tools on the user's machine and send model requests directly to the separately deployed `jarvis-inference` HTTP API; the gateway is not a Python dependency. Verify the deployed gateway commit or image digest and API compatibility. Use a published immutable release image only when choosing the prebuilt-image deployment path. AI Stack is an optional sibling service for durable remote runs, shared queues, persistence, retrieval, integrations and UI; Jarvis does not require it for local work.
+Jarvis is a standalone local coding agent. The agent loop and tools run on the user's machine, and all model requests go directly to the separately deployed `jarvis-inference` HTTP API. Jarvis does not call AI Stack and has no AI Stack remote execution mode. AI Stack is an independent sibling application that may also consume the same inference API.
 
 ## Install
 
@@ -97,31 +97,22 @@ jarvis "review this repository and fix the highest-impact issue"
 
 Bare tasks use the standalone local agent. The agent loop, repository tools, permission checks and verification run on the machine where Jarvis is installed; only model requests go to the inference gateway.
 
-## Optional AI Stack integration
+## AI Stack boundary
 
-Use AI Stack when you need its durable remote Runs API, shared queues, persisted run history, retrieval, integrations or web UI. Configure `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`, then make the server boundary explicit:
-
-```bash
-export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
-export AI_STACK_API_KEY=<your-ai-stack-agent-key>
-jarvis run "review this repository" --workspace /workspace/repo
-jarvis cloud health
-```
-
-`jarvis run` and `jarvis cloud` are explicit remote operations; they are not prerequisites for local work. See [docs/architecture.md](docs/architecture.md) for ownership boundaries and migration details.
+Jarvis does not expose AI Stack remote commands and never requires `AI_STACK_BASE_URL` or `AI_STACK_API_KEY`. Use Jarvis for local repository work; deploy AI Stack independently when you need its own durable Runs API, queues, retrieval, integrations or UI. Both applications call `jarvis-inference` directly. See [docs/architecture.md](docs/architecture.md) for ownership boundaries.
 
 ## Jarvis versus Server
 
 | Need | Use |
 | --- | --- |
 | Local repository work, interactive terminal, local automation | **Jarvis** |
-| Durable cloud tasks, shared queues and external workers | **Server** |
+| Durable shared Runs, queues and integrations | **AI Stack independently** |
 
 Jarvis and Server share stable contracts through `jarvis-agent-core`, while tool execution and storage policy remain separate.
 
 ## Implemented runtime
 
-The runtime includes bounded repository/Git tools, allowlisted command execution, sandbox/network policy, sessions/checkpoints, proof records, multimodal context, hierarchical instructions/memory, Skills/Hooks, deny-by-default MCP, repository/LSP intelligence, worktrees, plan mode, adaptive context, failure memory, multi-agent execution, heterogeneous routing, browser verification, background jobs/cron, observability and the remote Run/cloud worker protocol.
+The runtime includes bounded repository/Git tools, allowlisted command execution, sandbox/network policy, sessions/checkpoints, proof records, multimodal context, hierarchical instructions/memory, Skills/Hooks, deny-by-default MCP, repository/LSP intelligence, worktrees, plan mode, adaptive context, failure memory, multi-agent execution, heterogeneous routing, browser verification, background jobs/cron and observability.
 
 ## Development
 
