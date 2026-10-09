@@ -121,7 +121,7 @@ def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
     resolved = resolve_local_config(args)
 
     assert resolved.max_input_tokens == 16_000
-    assert resolved.max_output_tokens == 2_500
+    assert resolved.max_output_tokens == 4_000
     assert resolved.multi_agent is False
 
 
