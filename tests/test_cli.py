@@ -1352,7 +1352,7 @@ def test_stream_response_uses_inference_gateway_directly(monkeypatch):
         def __iter__(self):
             yield b'data: {"choices":[{"delta":{"content":"Hello"}}]}\n'
             yield b'data: {"choices":[{"delta":{"content":" world"}}]}\n'
-            yield b'data: [DONE]\n'
+            yield b"data: [DONE]\n"
 
     def opener(request, timeout):
         captured["request"] = request
