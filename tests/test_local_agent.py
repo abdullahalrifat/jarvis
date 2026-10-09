@@ -316,7 +316,13 @@ def test_openai_provider_reports_malformed_tool_arguments_actionably(tmp_path):
     with pytest.raises(APIError, match="malformed tool call.*coder"):
         provider.complete(
             [{"role": "user", "content": "inspect"}],
-            [{"name": "read_file", "description": "read", "parameters": {"type": "object"}}],
+            [
+                {
+                    "name": "read_file",
+                    "description": "read",
+                    "parameters": {"type": "object"},
+                }
+            ],
         )
 
 
