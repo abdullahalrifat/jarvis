@@ -912,11 +912,6 @@ def build_parser() -> argparse.ArgumentParser:
     model_doctor.add_argument("--no-api-key", action="store_true")
     model_doctor.add_argument("--workspace", dest="local_workspace")
     model_doctor.add_argument("--timeout", type=float, default=120)
-    model_doctor.add_argument(
-        "--full-agent",
-        action="store_true",
-        help="Also run the full AI Stack /chat integration path",
-    )
     model_doctor.set_defaults(
         max_steps=1,
         multi_agent=False,
@@ -1035,6 +1030,16 @@ def main(argv: list[str] | None = None) -> int:
         argv = ["local"]
     argv = normalize_argv(argv, CLI_COMMANDS)
     args = build_parser().parse_args(argv)
+    if args.command in {
+        "run", "list", "show", "resume", "approve", "discard", "cancel",
+        "projects", "workspaces", "doctor",
+    }:
+        print(
+            "Error: AI Stack remote commands have been removed. "
+            "Jarvis runs locally and connects directly to jarvis-inference.",
+            file=sys.stderr,
+        )
+        return 2
     if args.command == "self-update":
         try:
             from .update import update_binary
@@ -1235,27 +1240,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "model-doctor":
         try:
-            if (
-                not args.base_url
-                and not args.provider
-                and os.getenv("INFERENCE_BASE_URL", "").strip()
-                and not args.full_agent
-            ):
-                from .local_agent import probe_model, resolve_local_config
+            from .local_agent import probe_model, resolve_local_config
 
-                result = probe_model(resolve_local_config(args))
-            elif not args.base_url and not args.provider:
-                result = probe_ai_stack(
-                    args.url,
-                    resolve_api_key(),
-                    args.model,
-                    timeout=args.timeout,
-                    full_agent=args.full_agent,
-                )
-            else:
-                from .local_agent import probe_model, resolve_local_config
-
-                result = probe_model(resolve_local_config(args))
+            result = probe_model(resolve_local_config(args))
+            result["architecture"] = "jarvis-cli -> jarvis-inference -> ollama"
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         except APIError as exc:
