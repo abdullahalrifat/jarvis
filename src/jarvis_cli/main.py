@@ -1170,6 +1170,7 @@ def main(argv: list[str] | None = None) -> int:
                 not args.base_url
                 and not args.provider
                 and os.getenv("INFERENCE_BASE_URL", "").strip()
+                and not args.full_agent
             ):
                 from .local_agent import probe_model, resolve_local_config
 
