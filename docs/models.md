@@ -1,6 +1,6 @@
 # Model endpoints and profiles
 
-Jarvis is a standalone agent and talks directly to the configured model endpoint. For the recommended home-lab architecture, use the dedicated `jarvis-inference` gateway. AI Stack is an optional consumer of that same gateway and is only used when you explicitly choose a remote Server operation such as `jarvis run` or `jarvis cloud`.
+Jarvis is a standalone agent and always talks directly to the dedicated `jarvis-inference` gateway. AI Stack is an independent sibling consumer; Jarvis never calls it.
 
 ## Dedicated inference (recommended)
 
@@ -16,11 +16,9 @@ The gateway provides the stable OpenAI-compatible chat and embedding API, model 
 
 `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints. Named profiles can still point at other OpenAI-compatible or Anthropic endpoints.
 
-## Optional AI Stack
+## Provider boundary
 
-Set `AI_STACK_BASE_URL` and `AI_STACK_API_KEY` when you want the durable remote Runs API, shared execution queues, persistence, retrieval or UI. Use `jarvis run ...` for remote Runs and `jarvis cloud ...` for cloud-task operations. These operations remain separate from the local-first default.
-
-OpenAI-compatible endpoints must implement chat completions and native tool calls. Use `jarvis model-doctor --provider openai --base-url ...` to validate a direct endpoint.
+Jarvis only supports the OpenAI-compatible `jarvis-inference` endpoint. External provider profiles and AI Stack endpoints are not supported. `jarvis model-doctor` validates the same direct inference path used by the local agent.
 
 ## Named profiles
 
