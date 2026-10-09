@@ -75,7 +75,7 @@ def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
         max_steps=5,
         timeout=30,
     )
-    with pytest.raises(APIError, match="No model endpoint"):
+    with pytest.raises(APIError, match="No inference endpoint"):
         resolve_local_config(args)
 
 
