@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.3
+
+- Remove AI Stack remote command execution from the Jarvis CLI; Jarvis and AI Stack are independent consumers of jarvis-inference.
+- Make `model-doctor` always test the configured inference gateway directly and require `INFERENCE_API_KEY`, never `AI_STACK_API_KEY`.
+- Normalize OpenAI-compatible tool-call arguments whether gateways return JSON strings or already-decoded objects; improve malformed-call diagnostics.
+- Default direct local inference to the concrete `qwen3:1.7b` model and reject external provider profiles/endpoints.
+- Add regression coverage for inference-only diagnostics and tool-call normalization.
+
 ## 0.11.2
 
 - Consume the published `jarvis-agent-core==0.17.2` release, including the shared fix that prevents ambiguous inference timeouts from being retried as if they were safe failures.
