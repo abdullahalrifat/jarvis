@@ -23,6 +23,7 @@ from jarvis_cli.local_agent import (
 class Response:
     def __init__(self, payload):
         self.payload = json.dumps(payload).encode()
+        self.headers = {}
 
     def __enter__(self):
         return self
