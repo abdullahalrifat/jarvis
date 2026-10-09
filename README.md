@@ -101,7 +101,7 @@ Bare tasks use the standalone local agent. The agent loop, repository tools, per
 
 Jarvis does not expose AI Stack remote commands and never requires `AI_STACK_BASE_URL` or `AI_STACK_API_KEY`. Use Jarvis for local repository work; deploy AI Stack independently when you need its own durable Runs API, queues, retrieval, integrations or UI. Both applications call `jarvis-inference` directly. See [docs/architecture.md](docs/architecture.md) for ownership boundaries.
 
-## Jarvis versus Server
+## Application boundaries
 
 | Need | Use |
 | --- | --- |
