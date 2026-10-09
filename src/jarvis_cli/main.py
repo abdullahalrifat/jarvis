@@ -199,21 +199,16 @@ def stream_response(prompt: str, simulate: bool = False):
         yield from simulated_stream(prompt)
         return
 
-    base_url = (
-        os.getenv("INFERENCE_BASE_URL", "").strip()
-        or os.getenv("JARVIS_BASE_URL", "").strip()
-    ).rstrip("/")
+    base_url = os.getenv("INFERENCE_BASE_URL", "").strip().rstrip("/")
     if not base_url:
         raise APIError(
             "No inference endpoint configured. Set INFERENCE_BASE_URL "
             "(for example, http://inference-host:8080/v1)."
         )
     model = os.getenv("JARVIS_MODEL", "qwen3:1.7b").strip()
-    api_key = (
-        os.getenv("INFERENCE_API_KEY", "").strip()
-        or os.getenv("JARVIS_API_KEY", "").strip()
-        or os.getenv("OPENAI_API_KEY", "").strip()
-    )
+    api_key = os.getenv("INFERENCE_API_KEY", "").strip()
+    if not api_key:
+        raise APIError("No inference API key configured. Set INFERENCE_API_KEY.")
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
