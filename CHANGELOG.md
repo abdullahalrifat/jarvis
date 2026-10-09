@@ -3,7 +3,7 @@
 ## 0.11.1
 
 - Pin the published `jarvis-agent-core==0.17.1` release, including the shared inference timeout/retry and stream-cancellation fixes.
-- Align release, installation and architecture documentation with the `jarvis-inference` 0.3.1 gateway contract: fail-closed authentication and no replay of ambiguous generation timeouts.
+- Align release, installation and architecture documentation with the inference HTTP contract: fail-closed authentication and no replay of ambiguous generation timeouts, without requiring a published gateway release for source-based deployment.
 - Keep the CLI local-first and AI Stack optional.
 
 
