@@ -1324,6 +1324,7 @@ def test_bare_task_uses_standalone_local_agent():
 def test_empty_cli_starts_local_shell(monkeypatch):
     import jarvis_cli.local_agent as local_agent
 
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(local_agent, "resolve_local_config", lambda _args: "config")
     monkeypatch.setattr(local_agent, "run_local_shell", lambda config: 0)
 
