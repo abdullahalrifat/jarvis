@@ -169,10 +169,8 @@ def resolve_local_config(args: Any) -> LocalConfig:
             "No inference endpoint configured. Set INFERENCE_BASE_URL "
             "(for example, http://192.168.1.113:8080/v1)."
         )
-    if not api_key and not bool(getattr(args, "no_api_key", False)):
-        raise APIError(
-            "No inference API key configured. Set INFERENCE_API_KEY."
-        )
+    if not api_key:
+        raise APIError("No inference API key configured. Set INFERENCE_API_KEY.")
 
     workspace_value = getattr(args, "local_workspace", None) or getattr(
         args, "workspace", None
