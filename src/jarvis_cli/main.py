@@ -16,7 +16,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from . import __version__
@@ -767,7 +766,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the coding agent locally against a remote model API",
     )
     local.add_argument("task", nargs="*", help="Task text; reads stdin when omitted")
-    local.add_argument("--provider", choices=("openai", "anthropic"))
+    local.add_argument("--provider", choices=("openai",))
     local.add_argument("--base-url", help="Remote model API base URL")
     local.add_argument("--model", help="Remote model identifier")
     local.add_argument(
@@ -818,8 +817,6 @@ def build_parser() -> argparse.ArgumentParser:
     model_doctor.add_argument("--provider", choices=("openai", "anthropic"))
     model_doctor.add_argument("--base-url", help="Remote model API base URL")
     model_doctor.add_argument("--model", help="Remote model identifier")
-    model_doctor.add_argument("--api-key-env")
-    model_doctor.add_argument("--no-api-key", action="store_true")
     model_doctor.add_argument("--workspace", dest="local_workspace")
     model_doctor.add_argument("--timeout", type=float, default=120)
     model_doctor.set_defaults(
