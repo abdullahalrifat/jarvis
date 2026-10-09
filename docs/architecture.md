@@ -2,11 +2,11 @@
 
 ## Decision
 
-Jarvis is a standalone, local-first coding agent. A bare task such as `jarvis "fix the tests"` runs the agent loop and tools on the client machine and sends model requests directly to the configured inference endpoint. AI Stack is an optional service for durable remote execution and shared platform capabilities; it is not a runtime dependency of the CLI.
+Jarvis is a standalone, local-first coding agent. A task such as `jarvis "fix the tests"` runs the agent loop and tools on the client machine and sends model requests directly to `jarvis-inference`. Jarvis has no AI Stack client or remote execution mode. AI Stack is an independent sibling application and may call the same inference API directly.
 
 ## Coordinated versions
 
-This release candidate updates Jarvis to **0.11.2**, pins published `jarvis-agent-core==0.17.2`, and targets `jarvis-inference` **0.3.1** for fail-closed authentication and non-replayed ambiguous inference timeouts. The inference `v0.3.1` tag/release image must be published before deploying that gateway version.
+This release updates Jarvis to **0.11.3** and pins published `jarvis-agent-core==0.17.2`. Jarvis CLI and AI Stack are independent inference consumers; no AI Stack release or endpoint is required for Jarvis local use.
 
 ## Runtime topology
 
@@ -60,7 +60,7 @@ jarvis model-doctor
 jarvis "review this repository"
 ```
 
-For optional remote execution, configure `AI_STACK_BASE_URL` and `AI_STACK_API_KEY` and explicitly use `jarvis run` or `jarvis cloud`. Do not make local execution silently depend on AI Stack, PostgreSQL, Redis, Qdrant or SearXNG.
+Jarvis has no AI Stack configuration variables or remote commands. Do not make local execution depend on AI Stack, PostgreSQL, Redis, Qdrant or SearXNG. Configure only `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and a concrete `JARVIS_MODEL`.
 
 ## Failure and resource boundaries
 
@@ -75,7 +75,7 @@ For optional remote execution, configure `AI_STACK_BASE_URL` and `AI_STACK_API_K
 
 1. Keep the published Core contract provider-neutral and independently versioned.
 2. Prefer additive, versioned inference API changes; maintain compatibility for supported clients.
-3. Keep remote Server operations explicit (`jarvis run`, `jarvis cloud`) and local operations self-contained.
+3. Keep Jarvis entirely local-first and prohibit any Jarvis-to-AI-Stack HTTP path.
 4. Add tests that run the local CLI with AI Stack environment variables absent and tests that prove the direct inference path does not import Server modules.
 5. Add end-to-end tests for each consumer independently: Jarvis -> inference, and AI Stack -> inference.
 6. Do not merge a cross-repository migration until each affected repository's CI is green and dependency/version pins agree.
