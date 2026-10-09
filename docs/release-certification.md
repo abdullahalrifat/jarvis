@@ -1,6 +1,6 @@
 # Jarvis release certification
 
-Current coordinated line: **Jarvis 0.11.1 with Jarvis Core 0.17.1**. Verify the published CLI/Core package pins, the deployed inference source commit or image digest, API compatibility, and exact commit SHA before certifying any deployment.
+Current coordinated line: **Jarvis 0.11.2 with Jarvis Core 0.17.2**. Verify the published CLI/Core package pins, the deployed inference source commit or image digest, API compatibility, and exact commit SHA before certifying any deployment.
 
 ## Automated gates
 
@@ -8,7 +8,7 @@ Current coordinated line: **Jarvis 0.11.1 with Jarvis Core 0.17.1**. Verify the 
 - black and critical Ruff checks;
 - pytest with the 70% coverage floor;
 - package build and clean-wheel installation;
-- immutable Core 0.17.1 release/checksum verification;
+- immutable Core 0.17.2 release/checksum verification;
 - cross-repository Core protocol conformance;
 - real-repository benchmark harness;
 - adversarial prompt-injection and secret-canary regression coverage;
