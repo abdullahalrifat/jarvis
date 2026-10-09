@@ -6,7 +6,7 @@ Jarvis is a standalone, local-first coding agent. A bare task such as `jarvis "f
 
 ## Coordinated versions
 
-This release candidate updates Jarvis to **0.11.1**, pins published `jarvis-agent-core==0.17.1`, and targets `jarvis-inference` **0.3.1** for fail-closed authentication and non-replayed ambiguous inference timeouts. The inference `v0.3.1` tag/release image must be published before deploying that gateway version.
+This release candidate updates Jarvis to **0.11.2**, pins published `jarvis-agent-core==0.17.2`, and targets `jarvis-inference` **0.3.1** for fail-closed authentication and non-replayed ambiguous inference timeouts. The inference `v0.3.1` tag/release image must be published before deploying that gateway version.
 
 ## Runtime topology
 
