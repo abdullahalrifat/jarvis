@@ -103,6 +103,27 @@ def test_resolve_local_config_prefers_dedicated_inference_endpoint(
     assert config.api_key == "inference-secret"
 
 
+def test_resolve_local_config_ignores_legacy_api_keys(monkeypatch, tmp_path):
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.delenv("INFERENCE_API_KEY", raising=False)
+    monkeypatch.setenv("JARVIS_API_KEY", "legacy-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "legacy-openai-secret")
+    args = SimpleNamespace(
+        provider="openai",
+        model="qwen3:1.7b",
+        base_url=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=5,
+        timeout=30,
+    )
+
+    with pytest.raises(APIError, match="Set INFERENCE_API_KEY"):
+        resolve_local_config(args)
+
+
 def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
     monkeypatch, tmp_path
 ):
