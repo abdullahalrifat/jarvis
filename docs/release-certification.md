@@ -1,6 +1,6 @@
 # Jarvis release certification
 
-Current coordinated line: **Jarvis 0.11.2 with Jarvis Core 0.17.2**. Verify the published CLI/Core package pins, the deployed inference source commit or image digest, API compatibility, and exact commit SHA before certifying any deployment.
+Current coordinated line: **Jarvis 0.11.3 with Jarvis Core 0.17.2**. Verify the published CLI/Core package pins, the deployed inference source commit or image digest, API compatibility, and exact commit SHA before certifying any deployment.
 
 ## Automated gates
 
