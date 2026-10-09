@@ -38,7 +38,7 @@ def _provider_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-api-key", action="store_true")
     parser.add_argument("--workspace", dest="local_workspace")
     parser.add_argument("--timeout", type=float, default=180)
-    parser.add_argument("--max-steps", type=int, default=30)
+    parser.add_argument("--max-steps", type=int, default=20)
     parser.add_argument("--multi-agent", action="store_true")
     parser.add_argument("--accept-edits", action="store_true")
     parser.add_argument("--accept-commands", action="store_true")

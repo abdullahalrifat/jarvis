@@ -2,11 +2,15 @@
 
 Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pipx or pip, or download a standalone executable from GitHub Releases. Cloning the repository is only required for development.
 
+## Efficient local-agent defaults
+
+The local agent defaults to 20 steps, a 16,000-token input budget and a 6,000-token output budget. Adaptive multi-agent execution is off by default to avoid speculative extra model calls; enable it with `JARVIS_ADAPTIVE_AGENTS=true` or explicitly pass `--multi-agent` / `JARVIS_MULTI_AGENT=true` for tasks that benefit from parallel analysis. Override token ceilings with `JARVIS_MAX_INPUT_TOKENS` and `JARVIS_MAX_OUTPUT_TOKENS` when a task demonstrably needs more context.
+
 ## Current contract line
 
-Jarvis **0.11.1** consumes the provider-neutral Jarvis Core **0.17.1** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.11.2** consumes the provider-neutral Jarvis Core **0.17.2** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
-Jarvis Core 0.17.1 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
+Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
 Jarvis is a standalone local coding agent. Bare tasks run the agent loop and tools on the user's machine and send model requests directly to the separately deployed `jarvis-inference` HTTP API; the gateway is not a Python dependency. Verify the deployed gateway commit or image digest and API compatibility. Use a published immutable release image only when choosing the prebuilt-image deployment path. AI Stack is an optional sibling service for durable remote runs, shared queues, persistence, retrieval, integrations and UI; Jarvis does not require it for local work.
 
@@ -61,13 +65,13 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.11.1 consumes `jarvis-agent-core==0.17.1` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.11.2 consumes `jarvis-agent-core==0.17.2` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
 ## Token-efficient runtime
 
-Core 0.17.1 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
+Core 0.17.2 provides provider-neutral primitives for bounded context construction, token/cost estimation, route budgets, adaptive routing and empirical route calibration. Jarvis keeps provider-specific execution policy in the CLI, while shared efficiency and calibration contracts remain reusable across local and remote providers without adding provider SDKs to Core.
 
 Context construction can prioritize required task state, recent tool evidence and relevant files under an explicit budget. Route decisions can account for estimated token cost, latency, risk and measured task outcomes.
 
