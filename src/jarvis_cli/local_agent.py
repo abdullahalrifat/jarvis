@@ -158,32 +158,19 @@ def resolve_local_config(args: Any) -> LocalConfig:
         )
     else:
         base_url = (
-            (profile.base_url if profile else None)
-            or getattr(args, "base_url", None)
-            or os.getenv("INFERENCE_BASE_URL")
-            or os.getenv("JARVIS_BASE_URL", "")
+            getattr(args, "base_url", None)
+            or os.getenv("INFERENCE_BASE_URL", "").strip()
         )
-        api_key = os.getenv(
-            getattr(args, "api_key_env", None) or "INFERENCE_API_KEY",
-            "",
-        )
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-    api_key = os.getenv(
-        "INFERENCE_API_KEY",
-        os.getenv("JARVIS_API_KEY", api_key),
-    )
+        api_key = os.getenv("INFERENCE_API_KEY", "").strip()
 
     if not base_url:
         raise APIError(
-            "No model endpoint configured. Pass --base-url or set "
-            "INFERENCE_BASE_URL (or legacy JARVIS_BASE_URL)."
+            "No inference endpoint configured. Set INFERENCE_BASE_URL "
+            "(for example, http://192.168.1.113:8080/v1)."
         )
     if not api_key and not bool(getattr(args, "no_api_key", False)):
         raise APIError(
-            "No model API key configured. Set JARVIS_API_KEY, select an "
-            "API-key environment variable, or use --no-api-key for a trusted "
-            "private endpoint."
+            "No inference API key configured. Set INFERENCE_API_KEY."
         )
 
     workspace_value = getattr(args, "local_workspace", None) or getattr(
@@ -362,18 +349,36 @@ class ModelProvider:
             ) from exc
         self.last_usage = dict(response.get("usage") or {})
         calls = []
-        for call in message.get("tool_calls") or []:
+        for index, call in enumerate(message.get("tool_calls") or []):
             try:
-                arguments = json.loads(call["function"].get("arguments") or "{}")
+                function = call["function"]
+                name = function["name"]
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError("tool name is missing")
+                raw_arguments = function.get("arguments") or {}
+                if isinstance(raw_arguments, str):
+                    arguments = json.loads(raw_arguments or "{}")
+                elif isinstance(raw_arguments, dict):
+                    # Some OpenAI-compatible gateways return arguments decoded.
+                    arguments = raw_arguments
+                else:
+                    raise TypeError("tool arguments must be a JSON object")
+                if not isinstance(arguments, dict):
+                    raise TypeError("tool arguments must decode to a JSON object")
+                call_id = call.get("id") or f"jarvis-tool-{index + 1}"
                 calls.append(
                     {
-                        "id": call["id"],
-                        "name": call["function"]["name"],
+                        "id": str(call_id),
+                        "name": name,
                         "arguments": arguments,
                     }
                 )
-            except (KeyError, TypeError, json.JSONDecodeError) as exc:
-                raise APIError("Model returned an invalid tool call.") from exc
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise APIError(
+                    "Inference endpoint returned a malformed tool call "
+                    f"for model {self.config.model!r}: {exc}. "
+                    "Check the model's native tool-calling support and gateway response."
+                ) from exc
         return str(message.get("content") or ""), calls, message
 
     def _anthropic(self, messages, tools):
