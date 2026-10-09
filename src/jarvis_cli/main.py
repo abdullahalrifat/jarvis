@@ -920,8 +920,16 @@ def main(argv: list[str] | None = None) -> int:
     argv = normalize_argv(argv, CLI_COMMANDS)
     args = build_parser().parse_args(argv)
     if args.command in {
-        "run", "list", "show", "resume", "approve", "discard", "cancel",
-        "projects", "workspaces", "doctor",
+        "run",
+        "list",
+        "show",
+        "resume",
+        "approve",
+        "discard",
+        "cancel",
+        "projects",
+        "workspaces",
+        "doctor",
     }:
         print(
             "Error: AI Stack remote commands have been removed. "
