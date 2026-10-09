@@ -104,8 +104,8 @@ class LocalConfig:
     max_steps: int = 30
     timeout: float = 180.0
     multi_agent: bool = False
-    max_input_tokens: int = 48_000
-    max_output_tokens: int = 6_000
+    max_input_tokens: int = 16_000
+    max_output_tokens: int = 2_500
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
@@ -207,16 +207,16 @@ def resolve_local_config(args: Any) -> LocalConfig:
             getattr(args, "multi_agent", False)
             or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
             or (
-                os.getenv("JARVIS_ADAPTIVE_AGENTS", "true").lower()
+                os.getenv("JARVIS_ADAPTIVE_AGENTS", "false").lower()
                 in {"1", "true", "yes"}
                 and classify_request(
                     str(getattr(args, "task", "") or "")
                 ).needs_multi_agent
             )
         ),
-        max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),
+        max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "16000"))),
         max_output_tokens=max(
-            1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
+            1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "2500"))
         ),
     )
 
@@ -972,8 +972,15 @@ def _run_single_agent(
                 failure=decision.kind.value,
                 recovery=decision.action,
             )
+            error_text = str(exc).casefold()
+            ambiguous_inference_timeout = isinstance(exc, InferenceClientError) and (
+                exc.status_code in {408, 504}
+                or "timed out" in error_text
+                or "timeout" in error_text
+            )
             if (
                 decision.retryable
+                and not ambiguous_inference_timeout
                 and not decision.switch_model
                 and recovery_retries < 2
             ):
