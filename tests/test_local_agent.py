@@ -163,7 +163,9 @@ def test_ambiguous_inference_timeout_is_not_retried():
 
     assert _is_ambiguous_inference_timeout(timeout) is True
     assert _is_ambiguous_inference_timeout(gateway_timeout) is True
-    assert _is_ambiguous_inference_timeout(ConnectionError("connection refused")) is False
+    assert (
+        _is_ambiguous_inference_timeout(ConnectionError("connection refused")) is False
+    )
 
 
 def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
