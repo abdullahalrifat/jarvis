@@ -4,7 +4,7 @@ Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pi
 
 ## Current contract line
 
-Jarvis **0.11.2** consumes the provider-neutral Jarvis Core **0.17.2** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
+Jarvis **0.11.2** consumes the provider-neutral Jarvis Core **0.17.1** contracts. Cloud completion is bound to the exact local run ID and requires real passing test records.
 
 Jarvis Core 0.17.2 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
