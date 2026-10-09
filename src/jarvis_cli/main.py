@@ -286,7 +286,9 @@ def stream_response(prompt: str, simulate: bool = False):
                 try:
                     event = json.loads(data)
                 except json.JSONDecodeError as exc:
-                    raise APIError("Inference endpoint returned invalid SSE JSON.") from exc
+                    raise APIError(
+                        "Inference endpoint returned invalid SSE JSON."
+                    ) from exc
                 for choice in event.get("choices", []):
                     delta = choice.get("delta") or {}
                     content = delta.get("content")
@@ -294,7 +296,9 @@ def stream_response(prompt: str, simulate: bool = False):
                         yield str(content)
     except HTTPError as exc:
         detail = exc.read(16_384).decode(errors="replace")
-        raise APIError(f"Inference endpoint returned HTTP {exc.code}: {detail}") from exc
+        raise APIError(
+            f"Inference endpoint returned HTTP {exc.code}: {detail}"
+        ) from exc
     except (URLError, OSError, TimeoutError) as exc:
         raise APIError(f"Could not reach inference endpoint: {exc}") from exc
 
