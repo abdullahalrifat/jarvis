@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import sys
 
@@ -20,11 +19,9 @@ from .workspace_trust import (
 
 
 def _provider_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--provider", choices=("openai", "anthropic"))
+    parser.add_argument("--provider", choices=("openai",))
     parser.add_argument("--base-url")
     parser.add_argument("--model")
-    parser.add_argument("--api-key-env")
-    parser.add_argument("--no-api-key", action="store_true")
     parser.add_argument("--workspace", dest="local_workspace")
     parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--max-steps", type=int, default=20)
