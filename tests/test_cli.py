@@ -1321,6 +1321,7 @@ def test_bare_task_uses_standalone_local_agent():
     assert normalize_argv(["run", "hello"], commands) == ["run", "hello"]
     assert normalize_argv(["local", "hello"], commands) == ["local", "hello"]
 
+
 def test_empty_cli_starts_local_shell(monkeypatch):
     import jarvis_cli.local_agent as local_agent
 
