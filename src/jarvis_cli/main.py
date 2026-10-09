@@ -1031,6 +1031,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
+    if not argv:
+        argv = ["local"]
     argv = normalize_argv(argv, CLI_COMMANDS)
     args = build_parser().parse_args(argv)
     if args.command == "self-update":
