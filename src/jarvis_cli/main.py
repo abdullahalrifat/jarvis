@@ -49,6 +49,7 @@ CLI_COMMANDS = {
     "hooks",
     "ide",
     "jobs",
+    "list",
     "plan",
     "permissions",
     "plugin",
