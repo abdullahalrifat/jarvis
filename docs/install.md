@@ -5,9 +5,9 @@ Jarvis is distributed in two forms:
 1. **PyPI package** — recommended for developer machines. Install with `pipx` or `pip` and run `jarvis` from any directory.
 2. **Standalone executable** — recommended for machines where Python is not desired. Download a release binary and run it directly.
 
-## Current release: 0.11.1
+## Current release: 0.11.2
 
-Jarvis 0.11.1 makes bare tasks local-first: the CLI runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. AI Stack remains an optional remote control plane. The inference URL includes `/v1`; AI Stack's API root does not.
+Jarvis 0.11.2 makes bare tasks local-first: the CLI runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. AI Stack remains an optional remote control plane. The inference URL includes `/v1`; AI Stack's API root does not. Jarvis pins the published `jarvis-agent-core==0.17.2` release.
 
 Jarvis connects to the separately deployed `jarvis-inference` HTTP API; it does not install the gateway as a Python dependency. Verify the deployed gateway source commit or image digest and API compatibility. If you deploy a prebuilt GHCR image, use a published immutable tag or digest; a release is not required when building the gateway from source.
 
