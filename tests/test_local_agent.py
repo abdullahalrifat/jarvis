@@ -96,15 +96,25 @@ def test_resolve_local_config_prefers_dedicated_inference_endpoint(
     assert config.api_key == "inference-secret"
 
 
-def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(monkeypatch, tmp_path):
+def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
     monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
     monkeypatch.delenv("JARVIS_MULTI_AGENT", raising=False)
     monkeypatch.delenv("JARVIS_ADAPTIVE_AGENTS", raising=False)
     args = SimpleNamespace(
-        provider="openai", model="coder", base_url=None, api_key_env=None,
-        local_workspace=str(tmp_path), workspace=None, write=False,
-        accept_edits=False, max_steps=20, timeout=30, task="inspect one function",
+        provider="openai",
+        model="coder",
+        base_url=None,
+        api_key_env=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=20,
+        timeout=30,
+        task="inspect one function",
         multi_agent=False,
     )
 
@@ -120,9 +130,17 @@ def test_explicit_multi_agent_override_is_preserved(monkeypatch, tmp_path):
     monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
     monkeypatch.setenv("JARVIS_MULTI_AGENT", "true")
     args = SimpleNamespace(
-        provider="openai", model="coder", base_url=None, api_key_env=None,
-        local_workspace=str(tmp_path), workspace=None, write=False,
-        accept_edits=False, max_steps=20, timeout=30, task="quick check",
+        provider="openai",
+        model="coder",
+        base_url=None,
+        api_key_env=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=20,
+        timeout=30,
+        task="quick check",
         multi_agent=False,
     )
     assert resolve_local_config(args).multi_agent is True
