@@ -15,7 +15,9 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from . import __version__
 from .client import AgentClient, APIError
@@ -215,15 +217,6 @@ def task_requests_edits(task: str) -> bool:
     return bool(_EDIT_INTENT.search(task))
 
 
-def _import_chat_stream_text():
-    try:
-        from app.llm.client import chat_stream_text
-
-        return chat_stream_text
-    except Exception:
-        return None
-
-
 def simulated_stream(prompt: str):
     text = (
         "Quicksort is a divide-and-conquer sorting algorithm. It picks a pivot, "
@@ -236,24 +229,74 @@ def simulated_stream(prompt: str):
 
 
 def stream_response(prompt: str, simulate: bool = False):
-    """Stream a direct model response without ever fabricating a fallback."""
+    """Stream from the configured OpenAI-compatible inference endpoint."""
 
     if simulate:
         yield from simulated_stream(prompt)
         return
 
-    chat_stream_text = _import_chat_stream_text()
-    if chat_stream_text is None:
+    base_url = (
+        os.getenv("INFERENCE_BASE_URL", "").strip()
+        or os.getenv("JARVIS_BASE_URL", "").strip()
+    ).rstrip("/")
+    if not base_url:
         raise APIError(
-            "Direct local streaming is unavailable in the standalone CLI. "
-            "Use 'jarvis run' to connect to the configured remote agent service."
+            "No inference endpoint configured. Set INFERENCE_BASE_URL "
+            "(for example, http://inference-host:8080/v1)."
         )
-
-    messages = [{"role": "user", "content": prompt}]
+    model = os.getenv("JARVIS_MODEL", "qwen3:1.7b").strip()
+    api_key = (
+        os.getenv("INFERENCE_API_KEY", "").strip()
+        or os.getenv("JARVIS_API_KEY", "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+    )
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        "User-Agent": f"jarvis-agent-cli/{__version__}",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": True,
+            }
+        ).encode(),
+        headers=headers,
+        method="POST",
+    )
+    total_bytes = 0
     try:
-        yield from chat_stream_text(messages)
-    except Exception as exc:
-        raise APIError(f"Direct model stream failed: {exc}") from exc
+        with urlopen(request, timeout=120) as response:
+            for line in response:
+                total_bytes += len(line)
+                if total_bytes > 8 * 1024 * 1024:
+                    raise APIError("Model stream exceeded the 8 MiB safety limit.")
+                if not line.startswith(b"data:"):
+                    continue
+                data = line[5:].strip()
+                if not data:
+                    continue
+                if data == b"[DONE]":
+                    return
+                try:
+                    event = json.loads(data)
+                except json.JSONDecodeError as exc:
+                    raise APIError("Inference endpoint returned invalid SSE JSON.") from exc
+                for choice in event.get("choices", []):
+                    delta = choice.get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        yield str(content)
+    except HTTPError as exc:
+        detail = exc.read(16_384).decode(errors="replace")
+        raise APIError(f"Inference endpoint returned HTTP {exc.code}: {detail}") from exc
+    except (URLError, OSError, TimeoutError) as exc:
+        raise APIError(f"Could not reach inference endpoint: {exc}") from exc
 
 
 def stream_prompt(args: argparse.Namespace) -> int:
