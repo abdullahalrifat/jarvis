@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1
+
+- Pin the published `jarvis-agent-core==0.17.1` release, including the shared inference timeout/retry and stream-cancellation fixes.
+- Align release, installation and architecture documentation with the `jarvis-inference` 0.3.1 gateway contract: fail-closed authentication and no replay of ambiguous generation timeouts.
+- Keep the CLI local-first and AI Stack optional.
+
+
 ## 0.11.0
 
 - Make bare-task invocations use the standalone local agent and direct model endpoint by default.
