@@ -4,7 +4,7 @@ Jarvis consumes the published `jarvis-agent-core` package from PyPI. Core owns i
 
 ## Current coordinated release
 
-Jarvis 0.11.3 consumes the immutable `jarvis-agent-core==0.17.2` release. Core 0.17.2 provides the shared inference gateway client and provider-neutral routing/runtime contracts. Jarvis owns local workload execution and task-level evaluation; AI Stack independently owns its own remote orchestration, persistence, telemetry and integrations. Neither application calls the other.
+Jarvis 0.11.4 consumes the immutable `jarvis-agent-core==0.17.3` release. Core 0.17.3 provides the shared inference gateway client and provider-neutral routing/runtime contracts. Jarvis owns local workload execution and task-level evaluation; AI Stack independently owns its own remote orchestration, persistence, telemetry and integrations. Neither application calls the other.
 
 ## Update flow
 
@@ -18,7 +18,7 @@ jarvis-core Conventional Commit
     -> Jarvis CI + review
 ```
 
-The dependency remains pinned to the tested Core release in `pyproject.toml`. This PR advances the pin to published Core 0.17.2. `jarvis-inference` is a separately deployed HTTP service, not a Python dependency of the CLI. Verify the deployed source commit or image digest and API compatibility. A published release is required only when deploying a prebuilt release image; source-based deployments do not need a tag solely to satisfy the version reference. Future Core updates should remain reviewable and reproducible rather than widening the dependency range.
+The dependency remains pinned to the tested Core release in `pyproject.toml`. This PR advances the pin to published Core 0.17.3. `jarvis-inference` is a separately deployed HTTP service, not a Python dependency of the CLI. Verify the deployed source commit or image digest and API compatibility. A published release is required only when deploying a prebuilt release image; source-based deployments do not need a tag solely to satisfy the version reference. Future Core updates should remain reviewable and reproducible rather than widening the dependency range.
 
 ## Compatibility rule
 
