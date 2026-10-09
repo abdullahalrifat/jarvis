@@ -228,6 +228,14 @@ _WEB_REQUIRED = re.compile(
 )
 
 
+def _is_ambiguous_inference_timeout(exc: BaseException) -> bool:
+    """Do not spend another generation after a possibly admitted timeout."""
+    if not isinstance(exc, InferenceClientError):
+        return False
+    error_text = str(exc).casefold()
+    return exc.status_code in {408, 504} or "timed out" in error_text or "timeout" in error_text
+
+
 def requires_web_search(task: str) -> bool:
     return bool(_WEB_REQUIRED.search(task))
 
@@ -972,15 +980,9 @@ def _run_single_agent(
                 failure=decision.kind.value,
                 recovery=decision.action,
             )
-            error_text = str(exc).casefold()
-            ambiguous_inference_timeout = isinstance(exc, InferenceClientError) and (
-                exc.status_code in {408, 504}
-                or "timed out" in error_text
-                or "timeout" in error_text
-            )
             if (
                 decision.retryable
-                and not ambiguous_inference_timeout
+                and not _is_ambiguous_inference_timeout(exc)
                 and not decision.switch_model
                 and recovery_retries < 2
             ):
