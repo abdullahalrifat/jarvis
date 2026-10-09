@@ -1314,10 +1314,11 @@ def test_probe_ai_stack_full_agent_is_opt_in(monkeypatch):
     assert any(item[0:2] == ("POST", "/chat") for item in calls)
 
 
-def test_bare_task_uses_remote_ai_stack_run():
+def test_bare_task_uses_standalone_local_agent():
     from jarvis_cli.main import normalize_argv
 
     commands = {"run", "local", "model-doctor"}
-    assert normalize_argv(["hello"], commands) == ["run", "hello"]
+    assert normalize_argv(["hello"], commands) == ["local", "hello"]
     assert normalize_argv([], commands) == []
+    assert normalize_argv(["run", "hello"], commands) == ["run", "hello"]
     assert normalize_argv(["local", "hello"], commands) == ["local", "hello"]
