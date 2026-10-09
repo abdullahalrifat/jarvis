@@ -664,9 +664,9 @@ def interactive_shell(
 
 
 def normalize_argv(argv: list[str], commands: set[str]) -> list[str]:
-    """Route bare tasks to the AI Stack command; keep explicit local mode explicit."""
+    """Route bare tasks to the standalone local agent; keep Server use explicit."""
     if argv and not argv[0].startswith("-") and argv[0] not in commands:
-        return ["run", *argv]
+        return ["local", *argv]
     return argv
 
 
@@ -1166,7 +1166,15 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "model-doctor":
         try:
-            if not args.base_url and not args.provider:
+            if (
+                not args.base_url
+                and not args.provider
+                and os.getenv("INFERENCE_BASE_URL", "").strip()
+            ):
+                from .local_agent import probe_model, resolve_local_config
+
+                result = probe_model(resolve_local_config(args))
+            elif not args.base_url and not args.provider:
                 result = probe_ai_stack(
                     args.url,
                     resolve_api_key(),
