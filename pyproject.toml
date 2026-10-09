@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jarvis-agent-cli"
-description = "Standalone and remote terminal coding agent"
+description = "Standalone terminal coding agent for jarvis-inference"
 authors = [{name = "Abdullah Al Rifat"}]
 keywords = ["ai", "agent", "coding-agent", "cli", "terminal", "llm"]
 classifiers = [
