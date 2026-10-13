@@ -164,6 +164,11 @@ class MCPClient:
         permission = self.permissions.get(name)
         if permission is None or not permission.allow:
             raise APIError(f"MCP tool is denied by policy: {name}")
+        if permission.requires_approval:
+            raise APIError(
+                f"MCP tool requires approval: {name}. "
+                "Use authorize_mcp_call() or configure approval in MCP policy."
+            )
         self.initialize()
         return self._send("tools/call", {"name": name, "arguments": arguments})
 
@@ -280,6 +285,11 @@ class HTTPMCPClient:
         permission = self.permissions.get(name)
         if permission is None or not permission.allow:
             raise APIError(f"MCP tool is denied by policy: {name}")
+        if permission.requires_approval:
+            raise APIError(
+                f"MCP tool requires approval: {name}. "
+                "Use authorize_mcp_call() or configure approval in MCP policy."
+            )
         return self._send("tools/call", {"name": name, "arguments": arguments})
 
     def health(self) -> dict[str, Any]:
