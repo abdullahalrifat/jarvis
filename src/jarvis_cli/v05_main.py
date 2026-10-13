@@ -241,9 +241,10 @@ def _run_bench(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from .main import main as legacy_main
+    from .main import CLI_COMMANDS, main as legacy_main, normalize_argv
 
     argv = list(sys.argv[1:] if argv is None else argv)
+    argv = normalize_argv(argv, CLI_COMMANDS)
     if argv and argv[0] == "local" and "--plan" in argv:
         argv = ["plan", *[value for value in argv[1:] if value != "--plan"]]
     if argv and argv[0] in {"plan", "tui", "skills", "hooks", "bench"}:

@@ -1,12 +1,24 @@
 # Model endpoints and profiles
 
-Jarvis normally sends repository work to AI Stack. AI Stack owns model selection and calls the dedicated jarvis-inference gateway when inference is required. The normal CLI should therefore use `AI_STACK_BASE_URL` and `AI_STACK_API_KEY`; `JARVIS_MODEL` selects the concrete model ID advertised by AI Stack.
+Jarvis is a standalone agent and always talks directly to the dedicated `jarvis-inference` gateway. AI Stack is an independent sibling consumer; Jarvis never calls it.
 
-## Direct local inference
+## Dedicated inference (recommended)
 
-The explicit `jarvis local` developer path can connect directly to an OpenAI-compatible or Anthropic endpoint. For the dedicated inference gateway, set `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, and `JARVIS_MODEL`. `JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints.
+```bash
+export JARVIS_PROVIDER=openai
+export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
+export INFERENCE_API_KEY=<your-inference-secret>
+export JARVIS_MODEL=qwen3:1.7b
+jarvis model-doctor
+```
 
-OpenAI-compatible endpoints must implement chat completions and native tool calls. Use `jarvis model-doctor --provider openai --base-url ...` to validate a direct endpoint.
+The gateway provides the stable OpenAI-compatible chat and embedding API, model catalog, request IDs, queueing and resource limits. Jarvis owns the agent loop, local tools, approvals and task verification; it does not call Ollama directly.
+
+`JARVIS_BASE_URL` and `JARVIS_API_KEY` remain supported as legacy fallbacks for generic OpenAI-compatible endpoints. Named profiles can still point at other OpenAI-compatible or Anthropic endpoints.
+
+## Provider boundary
+
+Jarvis only supports the OpenAI-compatible `jarvis-inference` endpoint. External provider profiles and AI Stack endpoints are not supported. `jarvis model-doctor` validates the same direct inference path used by the local agent.
 
 ## Named profiles
 

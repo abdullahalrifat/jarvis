@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.11.4
+
+- Consume the published `jarvis-agent-core==0.17.3` release, including bounded retries for explicit pre-admission inference queue rejections while preventing replay after ambiguous generation timeouts or partial streams.
+- Align dependency and version assertions across packaging, CI and release documentation.
+
+
+## 0.11.3
+
+- Remove AI Stack remote command execution from the Jarvis CLI; Jarvis and AI Stack are independent consumers of jarvis-inference.
+- Make `model-doctor` always test the configured inference gateway directly and require `INFERENCE_API_KEY`, never `AI_STACK_API_KEY`.
+- Normalize OpenAI-compatible tool-call arguments whether gateways return JSON strings or already-decoded objects; improve malformed-call diagnostics.
+- Default direct local inference to the concrete `qwen3:1.7b` model and reject external provider profiles/endpoints.
+- Add regression coverage for inference-only diagnostics and tool-call normalization.
+
+## 0.11.2
+
+- Consume the published `jarvis-agent-core==0.17.2` release, including the shared fix that prevents ambiguous inference timeouts from being retried as if they were safe failures.
+
+- Lower standalone agent defaults to 20 steps, 16,000 input tokens and 6,000 output tokens; retain environment and CLI overrides.
+- Make adaptive multi-agent execution opt-in by default while preserving explicit `--multi-agent` and `JARVIS_MULTI_AGENT` overrides.
+- Do not start a recovery model turn after an ambiguous inference timeout, avoiding duplicate work on the shared single-generation queue.
+- Keep recovery bounded and avoid retrying ambiguous inference timeouts at the CLI layer.
+
+
+## 0.11.1
+
+- Pin the published `jarvis-agent-core==0.17.1` release, including the shared inference timeout/retry and stream-cancellation fixes.
+- Align release, installation and architecture documentation with the inference HTTP contract: fail-closed authentication and no replay of ambiguous generation timeouts, without requiring a published gateway release for source-based deployment.
+- Keep the CLI local-first and AI Stack optional.
+
+
+## 0.11.0
+
+- Make bare-task invocations use the standalone local agent and direct model endpoint by default.
+- Keep AI Stack available through explicit `jarvis run` and `jarvis cloud` commands for durable remote execution.
+- Make `jarvis model-doctor` probe the dedicated inference gateway when `INFERENCE_BASE_URL` is configured.
+- Document repository ownership boundaries and the optional AI Stack integration.
+- Bump the CLI to 0.11.0 and pin the shared inference transport to the published provider-neutral Jarvis Core 0.17.0 release.
+- Route OpenAI-compatible chat, tool calls, and request configuration through `jarvis_core.InferenceClient`; keep the native Anthropic path separate.
+- Align install, architecture, configuration, and release documentation with direct local inference and optional explicit AI Stack Runs.
+
+
+## 0.10.8
+
+- Harden `jarvis model-doctor` with layered AI Stack -> inference diagnostics.
+- Add an opt-in `--full-agent` check for the complete `/chat` path while keeping the default doctor fast and isolated.
+- Propagate the configured doctor timeout and validate concrete model selection through AI Stack.
+- Add regression coverage for direct inference probing and URL-encoded model identifiers.
+
+
+## 0.10.7
+
+- Send an explicit `jarvis-agent-cli/<version>` User-Agent on every HTTP request so protected Cloudflare API traffic is not mistaken for Python automation.
+- Keep Cloudflare Access service-token authentication and the AI Stack API boundary unchanged.
+
 ## 0.10.6
 
 - Fix `jarvis model-doctor` to query AI Stack's `/models/available` model catalog instead of the inference-only `/v1/models` endpoint.

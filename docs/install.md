@@ -5,9 +5,11 @@ Jarvis is distributed in two forms:
 1. **PyPI package** — recommended for developer machines. Install with `pipx` or `pip` and run `jarvis` from any directory.
 2. **Standalone executable** — recommended for machines where Python is not desired. Download a release binary and run it directly.
 
-## Current release: 0.10.6
+## Current release: 0.11.4
 
-Jarvis 0.10.6 is the current release line for the AI Stack integration. It keeps the production request path as **Jarvis → AI Stack → jarvis-inference → Ollama**. `AI_STACK_BASE_URL` must point to the AI Stack API root; do not append `/v1`. The `/v1` API belongs to the private `jarvis-inference` gateway.
+Jarvis 0.11.4 runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. The CLI has no AI Stack remote execution mode. The inference URL includes `/v1`. Jarvis pins the published `jarvis-agent-core==0.17.3` release.
+
+Jarvis connects to the separately deployed `jarvis-inference` HTTP API; it does not install the gateway as a Python dependency. Verify the deployed gateway source commit or image digest and API compatibility. If you deploy a prebuilt GHCR image, use a published immutable tag or digest; a release is not required when building the gateway from source.
 
 ## PyPI installation
 
@@ -64,19 +66,19 @@ On Windows, run the `.exe` from PowerShell or Command Prompt.
 
 ## Configuration
 
-For normal production use, Jarvis is a client of AI Stack. AI Stack owns orchestration, tools, memory/RAG and model routing; it calls jarvis-inference when model inference is required.
+For normal local repository work, configure the dedicated inference gateway:
 
 ```bash
-export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
-export AI_STACK_API_KEY=<your-ai-stack-agent-key>
-# Optional: for an AI Stack hostname protected by Cloudflare Access
-export CLOUDFLARE_ACCESS_CLIENT_ID=<cloudflare-service-token-client-id>
-export CLOUDFLARE_ACCESS_CLIENT_SECRET=<cloudflare-service-token-client-secret>
+export INFERENCE_BASE_URL=http://<inference-vm-ip>:8080/v1
+export INFERENCE_API_KEY=<your-inference-secret>
 export JARVIS_MODEL=qwen3:1.7b
 jarvis model-doctor
+jarvis "review this repository and fix the highest-impact issue"
 ```
 
-Direct inference configuration is reserved for the explicit `jarvis local` diagnostic/developer path. Do not put inference credentials into the normal Jarvis environment.
+Bare tasks use the standalone local agent. The agent loop, repository tools, approvals and verification run on the client machine. Only model requests leave that machine for the inference gateway. Keep port 8080 restricted to trusted clients on your private network.
+
+Jarvis has no AI Stack URL or API-key configuration. Set `INFERENCE_BASE_URL` and `INFERENCE_API_KEY` for direct model access.
 
 Never commit API keys or production secrets to the repository.
 

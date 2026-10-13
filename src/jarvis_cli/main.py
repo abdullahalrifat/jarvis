@@ -15,6 +15,8 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from . import __version__
 from .client import AgentClient, APIError
@@ -27,6 +29,55 @@ TERMINAL_STATUSES = {
     "discarded",
     "failed",
 }
+
+
+CLI_COMMANDS = {
+    "approve",
+    "browser",
+    "calibrate",
+    "cancel",
+    "cloud",
+    "dashboard",
+    "discard",
+    "doctor",
+    "local",
+    "model-doctor",
+    "models",
+    "mcp-tools",
+    "eval",
+    "hooks",
+    "ide",
+    "jobs",
+    "list",
+    "plan",
+    "permissions",
+    "plugin",
+    "proof",
+    "repo-map",
+    "session-show",
+    "self-update",
+    "session-resume",
+    "session-fork",
+    "session-rename",
+    "session-archive",
+    "sessions",
+    "skills",
+    "team",
+    "trace",
+    "tui",
+    "undo",
+    "web-search",
+    "projects",
+    "bench",
+    "optimize",
+    "resume",
+    "run",
+    "show",
+    "stream",
+    "workspaces",
+}
+
+
 SHELL_COMMANDS = (
     "/approve",
     "/cancel",
@@ -48,73 +99,6 @@ _EDIT_INTENT = re.compile(
     r"remove|rename|replace|update|write)\b",
     re.IGNORECASE,
 )
-
-
-def _env_value(path: Path, name: str) -> str | None:
-    try:
-        lines = path.read_text().splitlines()
-    except OSError:
-        return None
-    for line in lines:
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, value = stripped.split("=", 1)
-        if key.strip() == name:
-            return value.strip().strip("\"'")
-    return None
-
-
-def resolve_api_key(explicit: str | None = None) -> str:
-    if explicit:
-        return explicit
-    for name in ("AI_STACK_API_KEY", "JARVIS_SERVER_API_KEY"):
-        if os.getenv(name):
-            return str(os.environ[name])
-    env_file = os.getenv("JARVIS_ENV_FILE")
-    if env_file:
-        for name in ("AI_STACK_API_KEY", "JARVIS_SERVER_API_KEY"):
-            value = _env_value(Path(env_file), name)
-            if value:
-                return value
-    raise APIError("No API key configured. Set AI_STACK_API_KEY.")
-
-
-def probe_ai_stack(base_url: str, api_key: str, model: str | None) -> dict[str, Any]:
-    """Verify the Jarvis -> AI Stack -> inference path without direct model access."""
-    client = AgentClient(base_url, api_key, timeout=30)
-    health = client.health()
-    capabilities = client.capabilities()
-    models = client.request("GET", "/models/available")
-    model_ids = [str(model_id) for model_id in models.get("models", []) if model_id]
-    selected_model = model or os.getenv("JARVIS_MODEL") or "qwen3:1.7b"
-    if selected_model not in model_ids:
-        raise APIError(
-            f"AI Stack does not advertise model {selected_model!r}; "
-            f"available models: {', '.join(model_ids) or 'none'}"
-        )
-    result = client.request(
-        "POST",
-        "/chat",
-        {
-            "message": "Reply with exactly OK.",
-            "conversation_id": f"jarvis-model-doctor-{uuid.uuid4()}",
-            "model": selected_model,
-            "allow_write": False,
-        },
-    )
-    answer = str(result.get("answer", "")).strip()
-    if not answer:
-        raise APIError("AI Stack returned an empty inference result")
-    return {
-        "architecture": "jarvis -> ai-stack -> jarvis-inference",
-        "ai_stack": health,
-        "api_version": capabilities.get("api_version"),
-        "model": selected_model,
-        "models": model_ids,
-        "inference": "ok",
-        "answer": answer,
-    }
 
 
 def _history_path() -> Path:
@@ -197,15 +181,6 @@ def task_requests_edits(task: str) -> bool:
     return bool(_EDIT_INTENT.search(task))
 
 
-def _import_chat_stream_text():
-    try:
-        from app.llm.client import chat_stream_text
-
-        return chat_stream_text
-    except Exception:
-        return None
-
-
 def simulated_stream(prompt: str):
     text = (
         "Quicksort is a divide-and-conquer sorting algorithm. It picks a pivot, "
@@ -218,24 +193,73 @@ def simulated_stream(prompt: str):
 
 
 def stream_response(prompt: str, simulate: bool = False):
-    """Stream a direct model response without ever fabricating a fallback."""
+    """Stream from the configured OpenAI-compatible inference endpoint."""
 
     if simulate:
         yield from simulated_stream(prompt)
         return
 
-    chat_stream_text = _import_chat_stream_text()
-    if chat_stream_text is None:
+    base_url = os.getenv("INFERENCE_BASE_URL", "").strip().rstrip("/")
+    if not base_url:
         raise APIError(
-            "Direct local streaming is unavailable in the standalone CLI. "
-            "Use 'jarvis run' to connect to the configured remote agent service."
+            "No inference endpoint configured. Set INFERENCE_BASE_URL "
+            "(for example, http://inference-host:8080/v1)."
         )
-
-    messages = [{"role": "user", "content": prompt}]
+    model = os.getenv("JARVIS_MODEL", "qwen3:1.7b").strip()
+    api_key = os.getenv("INFERENCE_API_KEY", "").strip()
+    if not api_key:
+        raise APIError("No inference API key configured. Set INFERENCE_API_KEY.")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        "User-Agent": f"jarvis-agent-cli/{__version__}",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = Request(
+        f"{base_url}/chat/completions",
+        data=json.dumps(
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": True,
+            }
+        ).encode(),
+        headers=headers,
+        method="POST",
+    )
+    total_bytes = 0
     try:
-        yield from chat_stream_text(messages)
-    except Exception as exc:
-        raise APIError(f"Direct model stream failed: {exc}") from exc
+        with urlopen(request, timeout=120) as response:
+            for line in response:
+                total_bytes += len(line)
+                if total_bytes > 8 * 1024 * 1024:
+                    raise APIError("Model stream exceeded the 8 MiB safety limit.")
+                if not line.startswith(b"data:"):
+                    continue
+                data = line[5:].strip()
+                if not data:
+                    continue
+                if data == b"[DONE]":
+                    return
+                try:
+                    event = json.loads(data)
+                except json.JSONDecodeError as exc:
+                    raise APIError(
+                        "Inference endpoint returned invalid SSE JSON."
+                    ) from exc
+                for choice in event.get("choices", []):
+                    delta = choice.get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        yield str(content)
+    except HTTPError as exc:
+        detail = exc.read(16_384).decode(errors="replace")
+        raise APIError(
+            f"Inference endpoint returned HTTP {exc.code}: {detail}"
+        ) from exc
+    except (URLError, OSError, TimeoutError) as exc:
+        raise APIError(f"Could not reach inference endpoint: {exc}") from exc
 
 
 def stream_prompt(args: argparse.Namespace) -> int:
@@ -646,9 +670,9 @@ def interactive_shell(
 
 
 def normalize_argv(argv: list[str], commands: set[str]) -> list[str]:
-    """Route bare tasks to the AI Stack command; keep explicit local mode explicit."""
+    """Route bare tasks to the standalone local agent; keep Server use explicit."""
     if argv and not argv[0].startswith("-") and argv[0] not in commands:
-        return ["run", *argv]
+        return ["local", *argv]
     return argv
 
 
@@ -656,12 +680,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jarvis",
         description="Jarvis: a standalone, open-model coding agent.",
-    )
-    parser.add_argument(
-        "--url",
-        default=os.getenv("AI_STACK_BASE_URL")
-        or os.getenv("JARVIS_SERVER_URL", "http://127.0.0.1:8000"),
-        help="AI Stack API URL (default: %(default)s)",
     )
     parser.add_argument(
         "--workspace",
@@ -743,18 +761,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the coding agent locally against a remote model API",
     )
     local.add_argument("task", nargs="*", help="Task text; reads stdin when omitted")
-    local.add_argument("--provider", choices=("openai", "anthropic"))
+    local.add_argument("--provider", choices=("openai",))
     local.add_argument("--base-url", help="Remote model API base URL")
     local.add_argument("--model", help="Remote model identifier")
-    local.add_argument(
-        "--api-key-env",
-        help="Environment variable containing the model API key",
-    )
-    local.add_argument(
-        "--no-api-key",
-        action="store_true",
-        help="Connect to a trusted private endpoint without authentication",
-    )
     local.add_argument("--workspace", dest="local_workspace")
     local.add_argument(
         "--file",
@@ -791,13 +800,11 @@ def build_parser() -> argparse.ArgumentParser:
         "model-doctor",
         help="Verify a remote model endpoint and native tool calling",
     )
-    model_doctor.add_argument("--provider", choices=("openai", "anthropic"))
+    model_doctor.add_argument("--provider", choices=("openai",))
     model_doctor.add_argument("--base-url", help="Remote model API base URL")
     model_doctor.add_argument("--model", help="Remote model identifier")
-    model_doctor.add_argument("--api-key-env")
-    model_doctor.add_argument("--no-api-key", action="store_true")
     model_doctor.add_argument("--workspace", dest="local_workspace")
-    model_doctor.add_argument("--timeout", type=float, default=30)
+    model_doctor.add_argument("--timeout", type=float, default=120)
     model_doctor.set_defaults(
         max_steps=1,
         multi_agent=False,
@@ -834,11 +841,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     local_resume.add_argument("session_id")
     local_resume.add_argument("task", nargs="*")
-    local_resume.add_argument("--provider", choices=("openai", "anthropic"))
+    local_resume.add_argument("--provider", choices=("openai",))
     local_resume.add_argument("--base-url")
     local_resume.add_argument("--model")
-    local_resume.add_argument("--api-key-env")
-    local_resume.add_argument("--no-api-key", action="store_true")
     local_resume.add_argument("--workspace", dest="local_workspace")
     local_resume.add_argument("--timeout", type=float, default=180)
     local_resume.add_argument("--max-steps", type=int, default=30)
@@ -879,11 +884,9 @@ def build_parser() -> argparse.ArgumentParser:
         "eval", help="Run JSON-defined local agent evaluations"
     )
     evaluate.add_argument("file")
-    evaluate.add_argument("--provider", choices=("openai", "anthropic"))
+    evaluate.add_argument("--provider", choices=("openai",))
     evaluate.add_argument("--base-url")
     evaluate.add_argument("--model")
-    evaluate.add_argument("--api-key-env")
-    evaluate.add_argument("--no-api-key", action="store_true")
     evaluate.add_argument("--workspace", dest="local_workspace")
     evaluate.add_argument("--timeout", type=float, default=180)
     evaluate.add_argument("--max-steps", type=int, default=30)
@@ -912,37 +915,28 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    commands = {
-        "approve",
-        "cancel",
-        "discard",
-        "doctor",
-        "list",
-        "local",
-        "model-doctor",
-        "models",
-        "mcp-tools",
-        "eval",
-        "repo-map",
-        "session-show",
-        "self-update",
-        "session-resume",
-        "session-fork",
-        "session-rename",
-        "session-archive",
-        "sessions",
-        "trace",
-        "undo",
-        "web-search",
-        "projects",
-        "resume",
-        "run",
-        "show",
-        "stream",
-        "workspaces",
-    }
-    argv = normalize_argv(argv, commands)
+    if not argv:
+        argv = ["local"]
+    argv = normalize_argv(argv, CLI_COMMANDS)
     args = build_parser().parse_args(argv)
+    if args.command in {
+        "run",
+        "list",
+        "show",
+        "resume",
+        "approve",
+        "discard",
+        "cancel",
+        "projects",
+        "workspaces",
+        "doctor",
+    }:
+        print(
+            "Error: AI Stack remote commands have been removed. "
+            "Jarvis runs locally and connects directly to jarvis-inference.",
+            file=sys.stderr,
+        )
+        return 2
     if args.command == "self-update":
         try:
             from .update import update_binary
@@ -1143,12 +1137,10 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "model-doctor":
         try:
-            if not args.base_url and not args.provider:
-                result = probe_ai_stack(args.url, resolve_api_key(), args.model)
-            else:
-                from .local_agent import probe_model, resolve_local_config
+            from .local_agent import probe_model, resolve_local_config
 
-                result = probe_model(resolve_local_config(args))
+            result = probe_model(resolve_local_config(args))
+            result["architecture"] = "jarvis-cli -> jarvis-inference -> ollama"
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         except APIError as exc:
@@ -1156,117 +1148,12 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     if args.command == "stream":
         return stream_prompt(args)
-    try:
-        client = AgentClient(args.url, resolve_api_key())
-        if args.command == "list":
-            _print_runs(client.list_runs(args.limit))
-            return 0
-        if args.command == "show":
-            print(json.dumps(client.get_run(args.run_id), default=str, indent=2))
-            return 0
-        if args.command == "resume":
-            run = client.get_run(args.run_id)
-            with cancellation_signals():
-                run = follow_run(
-                    client,
-                    str(run["id"]),
-                    EventRenderer(),
-                    client_id=run.get("client_id"),
-                )
-            review_run(client, run, auto_approve=sys.stdin.isatty())
-            return run_exit_code(run)
-        if args.command in {"approve", "discard", "cancel"}:
-            result = client.action(args.run_id, args.command)
-            print(json.dumps(result))
-            return 0
-        if args.command == "projects":
-            for project in client.projects():
-                print(
-                    f"{str(project.get('id', ''))[:8]}  "
-                    f"{project.get('name')}  {project.get('workspace')}"
-                )
-            return 0
-        if args.command == "workspaces":
-            for workspace in client.workspaces():
-                print(workspace)
-            return 0
-
-        workspace, project_id = resolve_workspace(
-            client,
-            args.workspace,
-            args.project,
-        )
-        if args.command == "doctor":
-            health = client.health()
-            capabilities = client.capabilities()
-            print(f"API: {health.get('status', 'unknown')} ({args.url})")
-            print(f"Protocol: {capabilities.get('api_version', 'unknown')}")
-            print(
-                "Features: "
-                + ", ".join(str(item) for item in capabilities.get("features", []))
-            )
-            print(f"Workspace: {workspace}")
-            print("Authentication: ok")
-            return 0
-        if args.command == "run":
-            task = (
-                sys.stdin.read().strip()
-                if args.task == ["-"]
-                else " ".join(args.task).strip()
-            )
-            if not task:
-                raise APIError("Task cannot be empty")
-            if args.conversation and args.continue_session:
-                raise APIError("Use either --conversation or --continue, not both")
-            conversation_id = (
-                latest_conversation_id(client, workspace)
-                if args.continue_session
-                else args.conversation or str(uuid.uuid4())
-            )
-            allow_write = args.write and task_requests_edits(task)
-            run = run_task(
-                client,
-                task,
-                workspace=workspace,
-                project_id=project_id,
-                conversation_id=conversation_id,
-                allow_write=allow_write,
-                detached=args.detach,
-                output=args.output,
-                review=not args.no_review,
-            )
-            return run_exit_code(run)
-        if args.command == "stream":
-            return stream_prompt(args)
-        configure_shell_history()
-        conversation_id = (
-            latest_conversation_id(client, workspace) if args.continue_session else None
-        )
-        return interactive_shell(
-            client,
-            workspace=workspace,
-            project_id=project_id,
-            allow_write=args.write,
-            detached=args.detach,
-            conversation_id=conversation_id,
-        )
-    except KeyboardInterrupt:
-        print("\nInterrupted.", file=sys.stderr)
-        return 130
-    except BrokenPipeError:
-        # Avoid both a traceback and Python's second broken-pipe warning while
-        # flushing stdout during interpreter shutdown.
-        try:
-            descriptor = sys.stdout.fileno()
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            os.dup2(devnull, descriptor)
-            os.close(devnull)
-        except (AttributeError, OSError):
-            pass
-        return 0
-    except APIError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
+    print(
+        "Error: unsupported command. Jarvis operates locally and connects directly "
+        "to jarvis-inference.",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def run_exit_code(run: dict[str, Any]) -> int:

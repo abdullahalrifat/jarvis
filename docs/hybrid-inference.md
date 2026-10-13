@@ -1,37 +1,33 @@
-# Jarvis + AI Stack architecture
+# Jarvis and AI Stack inference boundary
 
-Production request path:
+Jarvis and AI Stack are independent applications. Each owns its own agent/orchestration features and calls the same dedicated `jarvis-inference` API directly. Jarvis must never call AI Stack, and AI Stack must not call Jarvis.
 
 ```text
-Jarvis CLI
-   -> AI Stack
-      -> tools / memory / RAG / durable runs
-      -> jarvis-inference (only when inference is needed)
-         -> Ollama
+Jarvis CLI (local agent) -----> jarvis-inference <----- AI Stack (independent agent)
+                                      |
+                                model backend
+                                  (Ollama)
 ```
 
-Jarvis owns the user-facing CLI. AI Stack owns orchestration and control-plane concerns. jarvis-inference owns model execution and lifecycle. Ollama is an implementation detail of jarvis-inference.
+Jarvis owns local repository tools, permissions, approvals, sessions and task verification. AI Stack owns its own server-side orchestration, durable Runs, memory/retrieval, integrations and UI. `jarvis-inference` owns the model registry, OpenAI-compatible API, scheduling, queueing and resource limits. Neither consumer calls Ollama directly.
 
-## Configuration
+## Direct Jarvis configuration
 
 ```bash
-export AI_STACK_BASE_URL=http://<ai-stack-host>:8081
-export AI_STACK_API_KEY=<the-AI-Stack-AGENT_API_KEY>
+export INFERENCE_BASE_URL=http://<inference-host>:8080/v1
+export INFERENCE_API_KEY=<inference-secret>
 export JARVIS_MODEL=qwen3:1.7b
+
+jarvis model-doctor
+jarvis "review this repository"
 ```
 
-Do not configure Jarvis with inference credentials for normal operation.
+Jarvis does not read `AI_STACK_BASE_URL` or `AI_STACK_API_KEY`, and no AI Stack deployment is required. If inference is unavailable, Jarvis should fail with an actionable bounded error rather than silently switching to another service or model runtime.
 
 ## Diagnostics
 
 ```bash
-jarvis cloud health --server "$AI_STACK_BASE_URL"
-jarvis cloud capabilities --server "$AI_STACK_BASE_URL"
-jarvis cloud inference-status --server "$AI_STACK_BASE_URL"
+jarvis model-doctor
 ```
 
-Direct model access is reserved for inference diagnostics/development tooling.
-
-## Offline operation
-
-AI Stack and jarvis-inference remain separate services. Provision their images and the inference model volume while connected, then run both on the private network without external providers.
+The command probes the direct inference endpoint, authentication and native tool-calling response. It does not send requests to AI Stack.

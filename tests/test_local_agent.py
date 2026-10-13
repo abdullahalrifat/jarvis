@@ -5,7 +5,13 @@ from urllib.error import HTTPError
 
 import pytest
 
-from jarvis_core import ArtifactResolver, MemoryArtifactStore, TokenBudget, TokenLedger
+from jarvis_core import (
+    ArtifactResolver,
+    InferenceClientError,
+    MemoryArtifactStore,
+    TokenBudget,
+    TokenLedger,
+)
 
 from jarvis_cli import __version__
 from jarvis_cli.client import APIError
@@ -13,6 +19,7 @@ from jarvis_cli.local_agent import (
     LocalConfig,
     LocalTools,
     ModelProvider,
+    _is_ambiguous_inference_timeout,
     _parse_verification_verdict,
     probe_model,
     resolve_local_config,
@@ -23,6 +30,7 @@ from jarvis_cli.local_agent import (
 class Response:
     def __init__(self, payload):
         self.payload = json.dumps(payload).encode()
+        self.headers = {}
 
     def __enter__(self):
         return self
@@ -67,7 +75,7 @@ def test_resolve_local_config_requires_endpoint_and_key(monkeypatch, tmp_path):
         max_steps=5,
         timeout=30,
     )
-    with pytest.raises(APIError, match="No model endpoint"):
+    with pytest.raises(APIError, match="No inference endpoint"):
         resolve_local_config(args)
 
 
@@ -93,6 +101,92 @@ def test_resolve_local_config_prefers_dedicated_inference_endpoint(
     config = resolve_local_config(args)
     assert config.base_url == "http://inference:8080/v1"
     assert config.api_key == "inference-secret"
+
+
+def test_resolve_local_config_ignores_legacy_api_keys(monkeypatch, tmp_path):
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.delenv("INFERENCE_API_KEY", raising=False)
+    monkeypatch.setenv("JARVIS_API_KEY", "legacy-secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "legacy-openai-secret")
+    args = SimpleNamespace(
+        provider="openai",
+        model="qwen3:1.7b",
+        base_url=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=5,
+        timeout=30,
+    )
+
+    with pytest.raises(APIError, match="Set INFERENCE_API_KEY"):
+        resolve_local_config(args)
+
+
+def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
+    monkeypatch.delenv("JARVIS_MULTI_AGENT", raising=False)
+    monkeypatch.delenv("JARVIS_ADAPTIVE_AGENTS", raising=False)
+    args = SimpleNamespace(
+        provider="openai",
+        model="coder",
+        base_url=None,
+        api_key_env=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=20,
+        timeout=30,
+        task="inspect one function",
+        multi_agent=False,
+    )
+
+    resolved = resolve_local_config(args)
+
+    assert resolved.max_input_tokens == 16_000
+    assert resolved.max_output_tokens == 6_000
+    assert resolved.multi_agent is False
+
+
+def test_explicit_multi_agent_override_is_preserved(monkeypatch, tmp_path):
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://inference:8080/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "inference-secret")
+    monkeypatch.setenv("JARVIS_MULTI_AGENT", "true")
+    args = SimpleNamespace(
+        provider="openai",
+        model="coder",
+        base_url=None,
+        api_key_env=None,
+        local_workspace=str(tmp_path),
+        workspace=None,
+        write=False,
+        accept_edits=False,
+        max_steps=20,
+        timeout=30,
+        task="quick check",
+        multi_agent=False,
+    )
+    assert resolve_local_config(args).multi_agent is True
+
+
+def test_ambiguous_inference_timeout_is_not_retried():
+    timeout = InferenceClientError(
+        "Could not reach inference endpoint: read timed out", retryable=True
+    )
+    gateway_timeout = InferenceClientError(
+        "Inference endpoint returned HTTP 504", status_code=504, retryable=False
+    )
+
+    assert _is_ambiguous_inference_timeout(timeout) is True
+    assert _is_ambiguous_inference_timeout(gateway_timeout) is True
+    assert (
+        _is_ambiguous_inference_timeout(ConnectionError("connection refused")) is False
+    )
 
 
 def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
@@ -148,6 +242,88 @@ def test_openai_provider_sends_tools_and_normalizes_call(tmp_path):
     assert request.get_header("User-agent") == f"jarvis-agent-cli/{__version__}"
     assert request.get_header("Accept") == "application/json"
     assert json.loads(request.data)["tools"][0]["type"] == "function"
+
+
+def test_openai_provider_accepts_decoded_tool_arguments_and_missing_id(tmp_path):
+    def opener(_request, timeout):
+        return Response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "function": {
+                                        "name": "read_file",
+                                        "arguments": {"path": "README.md"},
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+    provider = ModelProvider(config(tmp_path), opener=opener)
+    _text, calls, _raw = provider.complete(
+        [{"role": "user", "content": "inspect"}],
+        [
+            {
+                "name": "read_file",
+                "description": "read",
+                "parameters": {"type": "object"},
+            }
+        ],
+    )
+
+    assert calls == [
+        {
+            "id": "jarvis-tool-1",
+            "name": "read_file",
+            "arguments": {"path": "README.md"},
+        }
+    ]
+
+
+def test_openai_provider_reports_malformed_tool_arguments_actionably(tmp_path):
+    def opener(_request, timeout):
+        return Response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "function": {
+                                        "name": "read_file",
+                                        "arguments": "{not-json",
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+    provider = ModelProvider(config(tmp_path), opener=opener)
+    with pytest.raises(APIError, match="malformed tool call.*coder"):
+        provider.complete(
+            [{"role": "user", "content": "inspect"}],
+            [
+                {
+                    "name": "read_file",
+                    "description": "read",
+                    "parameters": {"type": "object"},
+                }
+            ],
+        )
 
 
 def test_anthropic_provider_uses_native_messages_api(tmp_path):
@@ -334,3 +510,19 @@ def test_probe_model_rejects_prose_only_endpoint(tmp_path):
 
     with pytest.raises(APIError, match="native tool calling failed"):
         probe_model(config(tmp_path), Provider())
+
+
+def test_local_provider_does_not_replay_ambiguous_inference_timeout(tmp_path):
+    calls = []
+
+    def opener(_request, timeout):
+        calls.append(timeout)
+        raise TimeoutError("read timed out after server may have accepted request")
+
+    provider = ModelProvider(
+        config(tmp_path, base_url="http://inference:8080/v1"),
+        opener=opener,
+    )
+    with pytest.raises((TimeoutError, APIError)):
+        provider.complete([{"role": "user", "content": "inspect"}], [])
+    assert len(calls) == 1

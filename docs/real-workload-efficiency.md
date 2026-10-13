@@ -1,6 +1,6 @@
 # Real workload efficiency benchmark
 
-Jarvis owns the task-level workload corpus and quality evaluation. AI Stack owns runtime model telemetry, cost/latency accounting and empirical route calibration. `jarvis-core` remains provider-neutral and supplies reusable benchmark/calibration primitives.
+Jarvis owns local runtime observations, the task-level workload corpus and quality evaluation. AI Stack owns telemetry, cost/latency accounting and empirical calibration for server-side Runs. Each consumer adapts its own measurements to the provider-neutral `jarvis-core` observation/calibration primitives.
 
 Run the corpus through the normal benchmark runner and compare local-only, automatic and cloud-first routes using success rate, incorrect completions, tool failures, latency, input/output/cache tokens and estimated cost.
 
