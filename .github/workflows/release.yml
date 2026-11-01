@@ -113,7 +113,7 @@ jobs:
       - name: Create checksums
         if: steps.release.outputs.needed == 'true'
         run: cd dist && sha256sum * > SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.release.outputs.needed == 'true'
         with:
           name: python-package-distributions-${{ steps.validated.outputs.sha }}
@@ -123,7 +123,7 @@ jobs:
       - name: Package validated source for standalone builds
         if: steps.release.outputs.needed == 'true'
         run: git archive --format=tar.gz --output=/tmp/jarvis-source.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.release.outputs.needed == 'true'
         with:
           name: validated-source-${{ steps.validated.outputs.sha }}
@@ -179,7 +179,7 @@ jobs:
         shell: bash
         run: |
           dist/"jarvis-${{ needs.validate-and-build.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.suffix }}" --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/jarvis-*
