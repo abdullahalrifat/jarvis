@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0
+
+- Control Qwen3-family reasoning mode: the agent now passes an explicit `think`
+  flag to the gateway (`JARVIS_THINK` env, default `false`). Thinking mode on CPU
+  burned thousands of reasoning tokens per turn with no answer bit emitted; the
+  default now yields immediate answers and a large effective speedup.
+- Validate tool-call arguments against each tool's JSON schema before execution
+  (`validate_tool_arguments`), so missing required keys or wrong value types fail
+  fast with a schema-specific message into the existing recovery path instead of
+  reaching the filesystem or shell mid-call.
+- Rebuilt development environments result in a working out-of-the-box CLI.
+
 ## 0.11.4
 
 - Consume the published `jarvis-agent-core==0.17.3` release, including bounded retries for explicit pre-admission inference queue rejections while preventing replay after ambiguous generation timeouts or partial streams.

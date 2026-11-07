@@ -53,6 +53,63 @@ from .web import fetch_web, search_web
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_TOOL_OUTPUT_CHARS = 20_000
+
+_JSON_TYPE_MAP: dict[str, tuple[type, ...]] = {
+    "string": (str,),
+    "number": (int, float),
+    "integer": (int,),
+    "boolean": (bool,),
+    "array": (list,),
+    "object": (dict,),
+    "null": (type(None),),
+}
+
+
+def validate_tool_arguments(
+    name: str, arguments: dict[str, Any], tool_schemas: list[dict[str, Any]]
+) -> None:
+    """Validate tool-call arguments against the tool's JSON schema.
+
+    Small models frequently emit malformed tool calls (missing required keys,
+    wrong types). Raising a schema-specific error lets the caller recover with
+    a targeted re-ask instead of executing broken calls.
+    """
+    schema = next(
+        (tool for tool in tool_schemas if tool.get("name") == name), None
+    )
+    if schema is None:
+        raise ValueError(f"unknown tool {name!r}")
+    parameters = schema.get("parameters") or {}
+    properties = parameters.get("properties") or {}
+    required = list(parameters.get("required") or [])
+    missing = [key for key in required if key not in arguments]
+    if missing:
+        raise ValueError(
+            f"missing required argument(s): {', '.join(missing)}"
+        )
+    for key, value in arguments.items():
+        spec = properties.get(key)
+        if not isinstance(spec, dict):
+            continue  # allow extra keys; schemas stay permissive
+        expected = spec.get("type")
+        if isinstance(expected, str) and expected in _JSON_TYPE_MAP:
+            allowed = _JSON_TYPE_MAP[expected]
+            if not isinstance(value, allowed) or (
+                expected in {"number", "integer"} and isinstance(value, bool)
+            ):
+                raise ValueError(
+                    f"argument {key!r} must be type {expected}, "
+                    f"got {type(value).__name__}"
+                )
+        if isinstance(value, dict) and isinstance(spec.get("required"), list):
+            sub_missing = [k for k in spec["required"] if k not in value]
+            if sub_missing:
+                raise ValueError(
+                    f"argument {key!r} is missing required key(s): "
+                    f"{', '.join(sub_missing)}"
+                )
+
+
 DEFAULT_ALLOWED_COMMANDS = {
     "git",
     "pytest",
@@ -106,6 +163,7 @@ class LocalConfig:
     multi_agent: bool = False
     max_input_tokens: int = 16_000
     max_output_tokens: int = 6_000
+    think: bool = False
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
@@ -201,6 +259,10 @@ def resolve_local_config(args: Any) -> LocalConfig:
         max_output_tokens=max(
             1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
         ),
+        # Qwen3-family thinking mode is unusable on CPU (burns ~3k tokens of
+        # budget per turn with no answer). Opt in explicitly via JARVIS_THINK.
+        think=os.getenv("JARVIS_THINK", "false").strip().lower()
+        in {"1", "true", "yes"},
     )
 
 
@@ -334,6 +396,7 @@ class ModelProvider:
                 tool_choice="auto",
                 max_tokens=min(4_096, self.config.max_output_tokens),
                 timeout=self.config.timeout,
+                think=self.config.think,
             )
         except InferenceClientError as exc:
             raise APIError(str(exc)) from exc
@@ -361,6 +424,7 @@ class ModelProvider:
                     raise TypeError("tool arguments must be a JSON object")
                 if not isinstance(arguments, dict):
                     raise TypeError("tool arguments must decode to a JSON object")
+                validate_tool_arguments(name, arguments, tools)
                 call_id = call.get("id") or f"jarvis-tool-{index + 1}"
                 calls.append(
                     {
