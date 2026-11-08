@@ -74,9 +74,7 @@ def validate_tool_arguments(
     wrong types). Raising a schema-specific error lets the caller recover with
     a targeted re-ask instead of executing broken calls.
     """
-    schema = next(
-        (tool for tool in tool_schemas if tool.get("name") == name), None
-    )
+    schema = next((tool for tool in tool_schemas if tool.get("name") == name), None)
     if schema is None:
         raise ValueError(f"unknown tool {name!r}")
     parameters = schema.get("parameters") or {}
@@ -84,9 +82,7 @@ def validate_tool_arguments(
     required = list(parameters.get("required") or [])
     missing = [key for key in required if key not in arguments]
     if missing:
-        raise ValueError(
-            f"missing required argument(s): {', '.join(missing)}"
-        )
+        raise ValueError(f"missing required argument(s): {', '.join(missing)}")
     for key, value in arguments.items():
         spec = properties.get(key)
         if not isinstance(spec, dict):
@@ -1095,9 +1091,7 @@ def _run_single_agent(
                 role, turn_input, min(4_096, config.max_output_tokens)
             )
         except BudgetExceeded as exc:
-            trace.record(
-                "budget_exhausted", role=role, step=_step, reason=str(exc)
-            )
+            trace.record("budget_exhausted", role=role, step=_step, reason=str(exc))
             return _budget_stop_summary(messages, str(exc))
         trace.record(
             "model_call",
@@ -1149,9 +1143,7 @@ def _run_single_agent(
         try:
             ledger.commit(reservation, actual_usage)
         except BudgetExceeded as exc:
-            trace.record(
-                "budget_exhausted", role=role, step=_step, reason=str(exc)
-            )
+            trace.record("budget_exhausted", role=role, step=_step, reason=str(exc))
             return _budget_stop_summary(messages, str(exc))
         if isinstance(raw_assistant, dict):
             messages.append(raw_assistant)
