@@ -142,10 +142,6 @@ jobs:
             platform: linux
             arch: amd64
             suffix: ""
-          - os: macos-14
-            platform: darwin
-            arch: arm64
-            suffix: ""
           - os: windows-latest
             platform: windows
             arch: amd64
