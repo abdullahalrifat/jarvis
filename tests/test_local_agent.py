@@ -703,3 +703,27 @@ def test_apply_patch_normalizes_missing_trailing_newline(tmp_path):
         {"patch": '--- /dev/null\n+++ b/hello.py\n@@ -0,0 +1,1 @@\n+print("hi")'},
     )
     assert (tmp_path / "hello.py").read_text() == 'print("hi")\n'
+
+
+def test_web_search_hidden_when_endpoint_unconfigured(monkeypatch):
+    """An unusable tool is not advertised to the model."""
+    from jarvis_cli.local_agent import (
+        TOOL_SCHEMAS,
+        VERDICT_TOOL_SCHEMA,
+        _ready_schemas,
+        web_search_ready,
+    )
+
+    monkeypatch.delenv("JARVIS_SEARCH_URL", raising=False)
+    assert not web_search_ready()
+    names = [s["name"] for s in _ready_schemas(list(TOOL_SCHEMAS))]
+    assert "web_search" not in names
+    assert "apply_patch" in names
+    verifier_names = [
+        s["name"] for s in _ready_schemas([*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA])
+    ]
+    assert "submit_verdict" in verifier_names
+
+    monkeypatch.setenv("JARVIS_SEARCH_URL", "http://searx.test")
+    assert web_search_ready()
+    assert "web_search" in [s["name"] for s in _ready_schemas(list(TOOL_SCHEMAS))]
