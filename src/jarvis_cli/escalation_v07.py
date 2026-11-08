@@ -92,10 +92,12 @@ def install_failure_escalation() -> None:
     def run(task: str, config, **kwargs):
         initial_multi = bool(config.multi_agent)
         result = base_run(task, config, **kwargs)
-        if initial_multi or os.getenv("JARVIS_ESCALATE_ON_FAILURE", "1").casefold() in {
-            "0",
-            "false",
-            "off",
+        if initial_multi or os.getenv(
+            "JARVIS_ESCALATE_ON_FAILURE", "0"
+        ).casefold() not in {
+            "1",
+            "true",
+            "on",
         }:
             return result
         evidence = _footer(result)

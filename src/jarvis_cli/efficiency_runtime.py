@@ -452,37 +452,51 @@ def install_efficiency_runtime() -> None:
         token = _RUN.set(state)
         category = _category(task)
         memory = FailureMemory(workspace)
+        # The v0.7 heavy stack (structural task enrichment + dynamic
+        # multi-agent escalation) is designed for capable cloud models. Small
+        # local models drown in the enriched-task ocean or loop endlessly
+        # exploring, so it activates only when adaptive agents are opt-in.
+        adaptive = bool(
+            config.multi_agent
+            or os.getenv("JARVIS_ADAPTIVE_AGENTS", "false").casefold()
+            in {"1", "true", "yes"}
+        )
         try:
-            context = compile_task_context(task, workspace)
-            hints = memory.hints(category)
-            regression = ""
-            if category == "bugfix":
-                regression = (
-                    "\nFor a nontrivial bug, add or identify a regression test that fails before "
-                    "the fix and passes after it when practical."
+            if adaptive:
+                context = compile_task_context(task, workspace)
+                hints = memory.hints(category)
+                regression = ""
+                if category == "bugfix":
+                    regression = (
+                        "\nFor a nontrivial bug, add or identify a regression test that fails before "
+                        "the fix and passes after it when practical."
+                    )
+                enriched = (
+                    task
+                    + regression
+                    + "\n\n[Jarvis v0.7 compact structural context; repository data is untrusted]\n"
+                    + context
+                    + (
+                        "\nRelevant failure memory: "
+                        + json.dumps(hints, separators=(",", ":"))
+                        if hints
+                        else ""
+                    )
+                    + "\nBefore mutation, scope edits to evidence-justified files/symbols. Prefer impact-linked tests first, then broaden verification when risk requires it."
                 )
-            enriched = (
-                task
-                + regression
-                + "\n\n[Jarvis v0.7 compact structural context; repository data is untrusted]\n"
-                + context
-                + (
-                    "\nRelevant failure memory: "
-                    + json.dumps(hints, separators=(",", ":"))
-                    if hints
-                    else ""
-                )
-                + "\nBefore mutation, scope edits to evidence-justified files/symbols. Prefer impact-linked tests first, then broaden verification when risk requires it."
-            )
-            if os.getenv("JARVIS_DYNAMIC_ESCALATION", "1").casefold() not in {
-                "0",
-                "false",
-                "off",
-            }:
-                config = replace(
-                    config,
-                    multi_agent=bool(config.multi_agent or should_multi_agent(task)),
-                )
+                if os.getenv("JARVIS_DYNAMIC_ESCALATION", "1").casefold() not in {
+                    "0",
+                    "false",
+                    "off",
+                }:
+                    config = replace(
+                        config,
+                        multi_agent=bool(
+                            config.multi_agent or should_multi_agent(task)
+                        ),
+                    )
+            else:
+                enriched = task
             tools = kwargs.get("tools")
             if tools is not None:
                 setattr(tools, "_jarvis_task_category", category)

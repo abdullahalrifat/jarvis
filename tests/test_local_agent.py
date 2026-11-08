@@ -148,8 +148,8 @@ def test_local_agent_defaults_are_bounded_and_multi_agent_is_opt_in(
 
     resolved = resolve_local_config(args)
 
-    assert resolved.max_input_tokens == 16_000
-    assert resolved.max_output_tokens == 6_000
+    assert resolved.max_input_tokens == 48_000
+    assert resolved.max_output_tokens == 24_000
     assert resolved.multi_agent is False
 
 
@@ -429,8 +429,20 @@ def test_verifier_requires_structured_verdict():
         )
     )
     assert verdict.passed
-    with pytest.raises(APIError, match="structured verdict"):
-        _parse_verification_verdict("tests look fine")
+
+    # Prose with an embedded JSON body is salvaged, not dropped.
+    salvaged = _parse_verification_verdict(
+        'All checks ran fine. Here is the verdict: {"status": "passed", '
+        '"checks": ["pytest"], "failed_checks": [], "retry_instruction": null}'
+    )
+    assert salvaged.passed
+
+    # Unparseable prose degrades to an honest blocked verdict instead of
+    # crashing the run with an APIError.
+    blocked = _parse_verification_verdict("tests look fine")
+    assert not blocked.passed
+    assert blocked.status.value == "blocked"
+    assert blocked.retry_instruction is not None
 
 
 def test_read_artifact_uses_shared_bounded_resolver(tmp_path):
@@ -601,3 +613,117 @@ def test_run_command_disallowed_is_corrective(tmp_path):
     message = str(denied.value)
     assert "git" in message  # allowlist is named
     assert "apply_patch" in message
+
+
+def test_verifier_prose_gets_one_corrective_verdict_nudge(tmp_path):
+    """Verifier prose is nudged once toward submit_verdict, then salvaged."""
+    import jarvis_cli.local_agent as la
+    from jarvis_cli.local_agent import _run_single_agent
+
+    class FakeProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, messages, schemas):
+            self.calls += 1
+            if self.calls == 1:
+                return (
+                    "tests look fine",
+                    [],
+                    {"role": "assistant", "content": "tests look fine"},
+                )
+            nudged = any(
+                "submit_verdict" in m.get("content", "")
+                for m in messages
+                if m["role"] == "user"
+            )
+            assert nudged, "corrective nudge must precede the retry"
+            return (
+                json.dumps(
+                    {
+                        "status": "passed",
+                        "checks": ["pytest"],
+                        "failed_checks": [],
+                        "retry_instruction": None,
+                    }
+                ),
+                [
+                    {
+                        "id": "v1",
+                        "name": "submit_verdict",
+                        "arguments": {
+                            "status": "passed",
+                            "checks": ["pytest"],
+                            "failed_checks": [],
+                            "retry_instruction": None,
+                        },
+                    }
+                ],
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "v1",
+                            "type": "function",
+                            "function": {
+                                "name": "submit_verdict",
+                                "arguments": json.dumps(
+                                    {
+                                        "status": "passed",
+                                        "checks": ["pytest"],
+                                        "failed_checks": [],
+                                        "retry_instruction": None,
+                                    }
+                                ),
+                            },
+                        }
+                    ],
+                },
+            )
+
+    provider = FakeProvider()
+    verdict_call = la._run_single_agent(
+        "verify the fizz buzz implementation",
+        config(tmp_path),
+        provider=provider,
+        role="verifier",
+    )
+    assert provider.calls == 2
+    parsed = la._parse_verification_verdict(verdict_call)
+    assert parsed.passed
+
+
+def test_apply_patch_normalizes_missing_trailing_newline(tmp_path):
+    """git apply rejects patch text without a final newline; normalize locally."""
+    from jarvis_cli.local_agent import LocalTools
+
+    tools = LocalTools(config(tmp_path, allow_edits=True, accept_edits=True))
+    tools.execute(
+        "apply_patch",
+        {"patch": '--- /dev/null\n+++ b/hello.py\n@@ -0,0 +1,1 @@\n+print("hi")'},
+    )
+    assert (tmp_path / "hello.py").read_text() == 'print("hi")\n'
+
+
+def test_web_search_hidden_when_endpoint_unconfigured(monkeypatch):
+    """An unusable tool is not advertised to the model."""
+    from jarvis_cli.local_agent import (
+        TOOL_SCHEMAS,
+        VERDICT_TOOL_SCHEMA,
+        _ready_schemas,
+        web_search_ready,
+    )
+
+    monkeypatch.delenv("JARVIS_SEARCH_URL", raising=False)
+    assert not web_search_ready()
+    names = [s["name"] for s in _ready_schemas(list(TOOL_SCHEMAS))]
+    assert "web_search" not in names
+    assert "apply_patch" in names
+    verifier_names = [
+        s["name"] for s in _ready_schemas([*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA])
+    ]
+    assert "submit_verdict" in verifier_names
+
+    monkeypatch.setenv("JARVIS_SEARCH_URL", "http://searx.test")
+    assert web_search_ready()
+    assert "web_search" in [s["name"] for s in _ready_schemas(list(TOOL_SCHEMAS))]

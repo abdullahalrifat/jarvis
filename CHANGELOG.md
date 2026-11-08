@@ -2,6 +2,13 @@
 
 ## 0.12.0
 
+- Lean local harness: the v0.7 heavy stack (structural task enrichment,
+  dynamic multi-agent escalation, failure escalation passes) is now opt-in
+  via `JARVIS_ADAPTIVE_AGENTS=true` / `JARVIS_ESCALATE_ON_FAILURE=true`.
+  Small local models (qwen3 4b/8b) drowned in the enriched-task context
+  and burned whole runs on failed research instead of acting; default runs
+  now pass the task through lean with the minimal system prompt. Evidence
+  footers are still recorded either way.
 - Control Qwen3-family reasoning mode: the agent now passes an explicit `think`
   flag to the gateway (`JARVIS_THINK` env, default `false`). Thinking mode on CPU
   burned thousands of reasoning tokens per turn with no answer bit emitted; the

@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -231,7 +232,12 @@ def install_patch_guard() -> None:
         discovered_token = _DISCOVERED.set(discovered)
         before = set(_git(workspace, "diff", "--name-only").splitlines())
         try:
-            if plan is not None:
+            plan_pill = os.getenv("JARVIS_MUTATION_PLAN_PILL", "true").casefold() in {
+                "1",
+                "true",
+                "yes",
+            }
+            if plan is not None and plan_pill:
                 task = (
                     task
                     + "\n\n[Structured mutation plan]\n"
