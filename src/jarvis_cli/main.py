@@ -793,13 +793,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Attach one bounded workspace-relative text file; repeat as needed",
     )
-    local.add_argument("--max-steps", type=int, default=30)
+    local.add_argument(
+        "--max-steps", type=int, default=int(os.getenv("JARVIS_MAX_STEPS", "30"))
+    )
     local.add_argument(
         "--multi-agent",
         action="store_true",
         help="Use selective Explorer, Implementer, and Verifier roles",
     )
-    local.add_argument("--timeout", type=float, default=180)
+    local.add_argument(
+        "--timeout", type=float, default=float(os.getenv("JARVIS_TIMEOUT", "180"))
+    )
     local.add_argument(
         "--accept-edits",
         action="store_true",
