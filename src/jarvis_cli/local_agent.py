@@ -1074,6 +1074,7 @@ def _run_single_agent(
     trace.record("agent_started", role=role, model=config.model, task=task)
     web_required = requires_web_search(task)
     web_attempted = False
+    verdict_nudged = False
     recovery_retries = 0
     idempotency = IdempotencyLedger()
     mutating_tools = {"apply_patch", "run_command"}
@@ -1167,6 +1168,21 @@ def _run_single_agent(
                 )
                 web_attempted = True
                 continue
+            if role == "verifier" and not verdict_nudged:
+                verdict_nudged = True
+                trace.record("verdict_nudged", role=role)
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Reply in prose is not acceptable. Call the "
+                            "submit_verdict tool once with the final JSON "
+                            "verdict: status (passed|failed|blocked), checks, "
+                            "failed_checks, retry_instruction (string or null)."
+                        ),
+                    }
+                )
+                continue
             trace.record("agent_completed", role=role)
             return text
         for call in calls:
@@ -1225,22 +1241,63 @@ def _run_single_agent(
 
 
 def _parse_verification_verdict(summary: str) -> VerificationVerdict:
-    try:
-        payload = json.loads(summary)
-        status = VerificationStatus(payload["status"])
-        checks = tuple(str(item) for item in payload.get("checks", []))
-        failed_checks = tuple(str(item) for item in payload.get("failed_checks", []))
-        retry_instruction = payload.get("retry_instruction")
-        if retry_instruction is not None:
-            retry_instruction = str(retry_instruction)
-        return VerificationVerdict(
-            status=status,
-            checks=checks,
-            failed_checks=failed_checks,
-            retry_instruction=retry_instruction,
-        )
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise APIError("Verifier returned an invalid structured verdict.") from exc
+    """Parse the verifier's machine-readable verdict, salvaging embedded JSON.
+
+    Small local models sometimes answer the verdict request in prose with the
+    JSON body embedded. Naive parsing kills the whole run with an unrelated
+    APIError; instead salvage the first JSON object in the text and, failing
+    that, degrade to an honest blocked verdict that requests re-verification
+    instead of crashing the run.
+    """
+    candidates = []
+    text = summary.strip()
+    if text.startswith("{"):
+        candidates.append(text)
+        try:
+            depth = 0
+            for index, char in enumerate(text):
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidates.append(text[: index + 1])
+                        break
+        except ValueError:
+            pass
+    if not candidates:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate)
+            status = VerificationStatus(payload["status"])
+            checks = tuple(str(item) for item in payload.get("checks", []))
+            failed_checks = tuple(
+                str(item) for item in payload.get("failed_checks", [])
+            )
+            retry_instruction = payload.get("retry_instruction")
+            if retry_instruction is not None:
+                retry_instruction = str(retry_instruction)
+            return VerificationVerdict(
+                status=status,
+                checks=checks,
+                failed_checks=failed_checks,
+                retry_instruction=retry_instruction,
+            )
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+    trace_note = text[:240] if text else "<empty verifier output>"
+    return VerificationVerdict(
+        status=VerificationStatus("blocked"),
+        checks=(),
+        failed_checks=(f"verifier output was not machine-readable: {trace_note}",),
+        retry_instruction=(
+            "Re-run verification and call submit_verdict with the JSON verdict."
+        ),
+    )
 
 
 class _LocalAgentBackend:
