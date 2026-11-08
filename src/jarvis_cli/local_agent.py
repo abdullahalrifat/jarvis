@@ -251,9 +251,9 @@ def resolve_local_config(args: Any) -> LocalConfig:
                 ).needs_multi_agent
             )
         ),
-        max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "16000"))),
+        max_input_tokens=max(4_000, int(os.getenv("JARVIS_MAX_INPUT_TOKENS", "48000"))),
         max_output_tokens=max(
-            1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
+            1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "24000"))
         ),
         # Qwen3-family thinking mode is unusable on CPU (burns ~3k tokens of
         # budget per turn with no answer). Opt in explicitly via JARVIS_THINK.
