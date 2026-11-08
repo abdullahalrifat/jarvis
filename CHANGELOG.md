@@ -8,6 +8,7 @@
   `~/.jarvis/.env` as a user-level fallback, and `$JARVIS_GLOBAL_ENV` as a
   custom file path. Process-environment variables always take precedence over
   all CWD/global values, allowing explicit overrides.
+- JARVIS_MAX_STEPS and JARVIS_TIMEOUT environment variables now control the local agent's step limit and timeout defaults respectively, with hardcoded defaults of 30 steps and 180 seconds when not set.
 - All other 0.12.1 changes remain in effect.
 
 ## 0.12.1
