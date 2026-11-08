@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1
+
+- Auto-source `.env` from current working directory so `jarvis local`
+  picks up `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, `JARVIS_THINK`,
+  `JARVIS_MAX_INPUT_TOKENS`, `JARVIS_MAX_OUTPUT_TOKENS`, and any other
+  environment variables without manual exports.
+- All other 0.12.0 changes remain in effect.
+
 ## 0.12.0
 
 - Lean local harness: the v0.7 heavy stack (structural task enrichment,

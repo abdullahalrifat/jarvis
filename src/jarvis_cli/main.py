@@ -22,6 +22,20 @@ from . import __version__
 from .client import AgentClient, APIError
 from .render import EventRenderer
 
+# Auto-source .env from CWD (if present), so callers don't need to export
+# every variable manually. Format: KEY=VALUE one per line; blank lines and
+# lines starting with # are ignored. Process-environment values take precedence
+# over CWD values, allowing overrides.
+_env_path = Path.cwd() / ".env"
+if _env_path.exists():
+    with _env_path.open() as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _key, _, _val = _line.partition("=")
+            os.environ.setdefault(_key.strip(), _val.strip())
+
 TERMINAL_STATUSES = {
     "awaiting_approval",
     "cancelled",
