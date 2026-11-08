@@ -1,15 +1,16 @@
 # Changelog
 
+## 0.12.2
+
+- Support global `.env` config via `~/.jarvis/.env` and `$JARVIS_GLOBAL_ENV`.
+  `jarvis local` now auto-loads environment variables from three sources in
+  priority order: project-local `.env` in the current working directory,
+  `~/.jarvis/.env` as a user-level fallback, and `$JARVIS_GLOBAL_ENV` as a
+  custom file path. Process-environment variables always take precedence over
+  all CWD/global values, allowing explicit overrides.
+- All other 0.12.1 changes remain in effect.
+
 ## 0.12.1
-
-- Auto-source `.env` from current working directory, global `~/.jarvis/.env`,
-  or `$JARVIS_GLOBAL_ENV` so `jarvis local` picks up environment variables
-  without manual exports.
-- Project-local `.env` takes precedence over global config, and process
-  environment variables always override both.
-- All other 0.12.0 changes remain in effect.
-
-## 0.12.0
 
 - Lean local harness: the v0.7 heavy stack (structural task enrichment,
   dynamic multi-agent escalation, failure escalation passes) is now opt-in
