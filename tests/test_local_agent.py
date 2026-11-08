@@ -691,3 +691,15 @@ def test_verifier_prose_gets_one_corrective_verdict_nudge(tmp_path):
     assert provider.calls == 2
     parsed = la._parse_verification_verdict(verdict_call)
     assert parsed.passed
+
+
+def test_apply_patch_normalizes_missing_trailing_newline(tmp_path):
+    """git apply rejects patch text without a final newline; normalize locally."""
+    from jarvis_cli.local_agent import LocalTools
+
+    tools = LocalTools(config(tmp_path, accept_edits=True))
+    tools.execute(
+        "apply_patch",
+        {"patch": '--- /dev/null\n+++ b/hello.py\n@@ -0,0 +1,1 @@\n+print("hi")'},
+    )
+    assert (tmp_path / "hello.py").read_text() == 'print("hi")\n'

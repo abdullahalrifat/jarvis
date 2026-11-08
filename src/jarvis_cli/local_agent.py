@@ -903,6 +903,9 @@ class LocalTools:
             raise APIError("This local run is read-only.")
         if not patch.strip() or len(patch) > 1_000_000:
             raise APIError("Patch is empty or exceeds the 1 MiB safety limit.")
+        # Models frequently omit the trailing newline git apply requires
+        # ("corrupt patch at line N"); normalize it centrally.
+        patch = patch.rstrip("\n") + "\n"
         if not self.config.accept_edits and not self.approval("Apply proposed patch?"):
             raise APIError("User rejected the proposed patch.")
         check = subprocess.run(
