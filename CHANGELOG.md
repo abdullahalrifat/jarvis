@@ -1,17 +1,17 @@
 # Changelog
 
-## 0.12.2
+## 0.12.3
 
+- `JARVIS_MAX_STEPS` and `JARVIS_TIMEOUT` environment variables now control the local agent's step limit and timeout defaults respectively, with hardcoded defaults of 30 steps and 180 seconds when not set.
 - Support global `.env` config via `~/.jarvis/.env` and `$JARVIS_GLOBAL_ENV`.
   `jarvis local` now auto-loads environment variables from three sources in
   priority order: project-local `.env` in the current working directory,
   `~/.jarvis/.env` as a user-level fallback, and `$JARVIS_GLOBAL_ENV` as a
   custom file path. Process-environment variables always take precedence over
   all CWD/global values, allowing explicit overrides.
-- JARVIS_MAX_STEPS and JARVIS_TIMEOUT environment variables now control the local agent's step limit and timeout defaults respectively, with hardcoded defaults of 30 steps and 180 seconds when not set.
-- All other 0.12.1 changes remain in effect.
+- All other 0.12.2 changes remain in effect.
 
-## 0.12.1
+## 0.12.2
 
 - Lean local harness: the v0.7 heavy stack (structural task enrichment,
   dynamic multi-agent escalation, failure escalation passes) is now opt-in
