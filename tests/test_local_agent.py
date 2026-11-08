@@ -697,7 +697,7 @@ def test_apply_patch_normalizes_missing_trailing_newline(tmp_path):
     """git apply rejects patch text without a final newline; normalize locally."""
     from jarvis_cli.local_agent import LocalTools
 
-    tools = LocalTools(config(tmp_path, accept_edits=True))
+    tools = LocalTools(config(tmp_path, allow_edits=True, accept_edits=True))
     tools.execute(
         "apply_patch",
         {"patch": '--- /dev/null\n+++ b/hello.py\n@@ -0,0 +1,1 @@\n+print("hi")'},
