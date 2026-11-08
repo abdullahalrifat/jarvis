@@ -39,7 +39,7 @@ from jarvis_core import (
     compact_messages,
     summarize_tool_result,
 )
-from jarvis_core.tokens import estimate_tokens
+from jarvis_core.tokens import BudgetExceeded, estimate_tokens
 
 from . import __version__
 from .client import APIError
@@ -53,6 +53,59 @@ from .web import fetch_web, search_web
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 MAX_TOOL_OUTPUT_CHARS = 20_000
+
+_JSON_TYPE_MAP: dict[str, tuple[type, ...]] = {
+    "string": (str,),
+    "number": (int, float),
+    "integer": (int,),
+    "boolean": (bool,),
+    "array": (list,),
+    "object": (dict,),
+    "null": (type(None),),
+}
+
+
+def validate_tool_arguments(
+    name: str, arguments: dict[str, Any], tool_schemas: list[dict[str, Any]]
+) -> None:
+    """Validate tool-call arguments against the tool's JSON schema.
+
+    Small models frequently emit malformed tool calls (missing required keys,
+    wrong types). Raising a schema-specific error lets the caller recover with
+    a targeted re-ask instead of executing broken calls.
+    """
+    schema = next((tool for tool in tool_schemas if tool.get("name") == name), None)
+    if schema is None:
+        raise ValueError(f"unknown tool {name!r}")
+    parameters = schema.get("parameters") or {}
+    properties = parameters.get("properties") or {}
+    required = list(parameters.get("required") or [])
+    missing = [key for key in required if key not in arguments]
+    if missing:
+        raise ValueError(f"missing required argument(s): {', '.join(missing)}")
+    for key, value in arguments.items():
+        spec = properties.get(key)
+        if not isinstance(spec, dict):
+            continue  # allow extra keys; schemas stay permissive
+        expected = spec.get("type")
+        if isinstance(expected, str) and expected in _JSON_TYPE_MAP:
+            allowed = _JSON_TYPE_MAP[expected]
+            if not isinstance(value, allowed) or (
+                expected in {"number", "integer"} and isinstance(value, bool)
+            ):
+                raise ValueError(
+                    f"argument {key!r} must be type {expected}, "
+                    f"got {type(value).__name__}"
+                )
+        if isinstance(value, dict) and isinstance(spec.get("required"), list):
+            sub_missing = [k for k in spec["required"] if k not in value]
+            if sub_missing:
+                raise ValueError(
+                    f"argument {key!r} is missing required key(s): "
+                    f"{', '.join(sub_missing)}"
+                )
+
+
 DEFAULT_ALLOWED_COMMANDS = {
     "git",
     "pytest",
@@ -106,6 +159,7 @@ class LocalConfig:
     multi_agent: bool = False
     max_input_tokens: int = 16_000
     max_output_tokens: int = 6_000
+    think: bool = False
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
@@ -201,6 +255,10 @@ def resolve_local_config(args: Any) -> LocalConfig:
         max_output_tokens=max(
             1_000, int(os.getenv("JARVIS_MAX_OUTPUT_TOKENS", "6000"))
         ),
+        # Qwen3-family thinking mode is unusable on CPU (burns ~3k tokens of
+        # budget per turn with no answer). Opt in explicitly via JARVIS_THINK.
+        think=os.getenv("JARVIS_THINK", "false").strip().lower()
+        in {"1", "true", "yes"},
     )
 
 
@@ -334,6 +392,7 @@ class ModelProvider:
                 tool_choice="auto",
                 max_tokens=min(4_096, self.config.max_output_tokens),
                 timeout=self.config.timeout,
+                think=self.config.think,
             )
         except InferenceClientError as exc:
             raise APIError(str(exc)) from exc
@@ -361,6 +420,7 @@ class ModelProvider:
                     raise TypeError("tool arguments must be a JSON object")
                 if not isinstance(arguments, dict):
                     raise TypeError("tool arguments must decode to a JSON object")
+                validate_tool_arguments(name, arguments, tools)
                 call_id = call.get("id") or f"jarvis-tool-{index + 1}"
                 calls.append(
                     {
@@ -797,8 +857,20 @@ class LocalTools:
         raise APIError(f"Unknown local tool: {name}")
 
     def _command(self, argv: list[str], *, require_approval: bool = False) -> str:
+        if argv and argv[0] in {"sh", "bash", "sudo", "eval"}:
+            raise APIError(
+                f"'{argv[0]}' is not allowed. run_command only executes one "
+                "allowlisted program directly without a shell. To create or "
+                "change files, call apply_patch instead of shell redirection."
+            )
         if not argv or argv[0] not in DEFAULT_ALLOWED_COMMANDS:
-            raise APIError("Command is not in the local allowlist.")
+            raise APIError(
+                f"Command {argv[0] if argv else repr('')} is not in the local "
+                "allowlist. Allowed programs: "
+                + ", ".join(sorted(DEFAULT_ALLOWED_COMMANDS))
+                + ". To create or modify files, call apply_patch "
+                "(unified diff) instead of shell redirection."
+            )
         if argv[0] == "git" and len(argv) > 1 and argv[1] in MUTATING_GIT_SUBCOMMANDS:
             raise APIError("Mutating Git commands are not allowed through run_command.")
         if require_approval and not self.config.accept_commands:
@@ -912,6 +984,56 @@ def _tool_result_message(provider: str, call: dict[str, Any], result: str):
     return {"role": "tool", "tool_call_id": call["id"], "content": result}
 
 
+def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
+    """Deterministic end-of-run report when the token budget is exhausted.
+
+    A frontier-grade agent stops with status and context instead of crashing
+    with a BudgetExceeded traceback. No model call happens here: there is no
+    budget left to spend on a summarization turn.
+    """
+    actions: list[str] = []
+    edits: list[str] = []
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        for call in message.get("tool_calls") or []:
+            function = call.get("function") or {}
+            name = function.get("name")
+            if not name:
+                continue
+            actions.append(str(name))
+            if str(name) == "apply_patch":
+                arguments = function.get("arguments") or {}
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except ValueError:
+                        arguments = {}
+                if not isinstance(arguments, dict):
+                    arguments = {}
+                for path in arguments.get("files") or arguments.get("paths") or []:
+                    edits.append(str(path))
+                target = arguments.get("path") or arguments.get("file")
+                if target:
+                    edits.append(str(target))
+    lines = [f"Run stopped: {reason}."]
+    if actions:
+        lines.append(
+            "Completed tool sequence (last 5): " + ", ".join(actions[-5:]) + "."
+        )
+    if edits:
+        unique = list(dict.fromkeys(edits))[-5:]
+        lines.append(
+            "Patches were applied to: " + ", ".join(unique) + ". "
+            "Run 'jarvis undo' before starting the next attempt to reverse them."
+        )
+    lines.append(
+        "Raise the budget with JARVIS_MAX_OUTPUT_TOKENS / JARVIS_MAX_INPUT_TOKENS "
+        "and retry, or narrow the task."
+    )
+    return "\n".join(lines)
+
+
 def _run_single_agent(
     task: str,
     config: LocalConfig,
@@ -964,9 +1086,13 @@ def _run_single_agent(
         else:
             saved = 0
         turn_input = estimate_tokens({"messages": messages, "tools": active_schemas})
-        reservation = ledger.reserve(
-            role, turn_input, min(4_096, config.max_output_tokens)
-        )
+        try:
+            reservation = ledger.reserve(
+                role, turn_input, min(4_096, config.max_output_tokens)
+            )
+        except BudgetExceeded as exc:
+            trace.record("budget_exhausted", role=role, step=_step, reason=str(exc))
+            return _budget_stop_summary(messages, str(exc))
         trace.record(
             "model_call",
             role=role,
@@ -1014,7 +1140,11 @@ def _run_single_agent(
             output_tokens=estimate_tokens(text),
         )
         actual_usage.compaction_saved_tokens = saved
-        ledger.commit(reservation, actual_usage)
+        try:
+            ledger.commit(reservation, actual_usage)
+        except BudgetExceeded as exc:
+            trace.record("budget_exhausted", role=role, step=_step, reason=str(exc))
+            return _budget_stop_summary(messages, str(exc))
         if isinstance(raw_assistant, dict):
             messages.append(raw_assistant)
         else:

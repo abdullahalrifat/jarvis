@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.0
+
+- Control Qwen3-family reasoning mode: the agent now passes an explicit `think`
+  flag to the gateway (`JARVIS_THINK` env, default `false`). Thinking mode on CPU
+  burned thousands of reasoning tokens per turn with no answer bit emitted; the
+  default now yields immediate answers and a large effective speedup.
+- Validate tool-call arguments against each tool's JSON schema before execution
+  (`validate_tool_arguments`), so missing required keys or wrong value types fail
+  fast with a schema-specific message into the existing recovery path instead of
+  reaching the filesystem or shell mid-call.
+- Token-budget exhaustion no longer crashes the run with a `BudgetExceeded`
+  traceback: both the reservation and commit paths are caught and the agent ends
+  with a deterministic stop summary (completed tools, patched files, and how to
+  raise `JARVIS_MAX_OUTPUT_TOKENS` / `JARVIS_MAX_INPUT_TOKENS`).
+- `run_command` denials are corrective instead of bare: shell wrappers
+  (`sh`/`bash`/`sudo`/`eval`) point the model at `apply_patch` rather than shell
+  redirection, and allowlist denials enumerate the allowed programs. Small local
+  models previously looped on identical denials for entire runs.
+- Rebuilt development environments result in a working out-of-the-box CLI.
+
 ## 0.11.4
 
 - Consume the published `jarvis-agent-core==0.17.3` release, including bounded retries for explicit pre-admission inference queue rejections while preventing replay after ambiguous generation timeouts or partial streams.

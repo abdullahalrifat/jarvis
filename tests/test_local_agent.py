@@ -526,3 +526,78 @@ def test_local_provider_does_not_replay_ambiguous_inference_timeout(tmp_path):
     with pytest.raises((TimeoutError, APIError)):
         provider.complete([{"role": "user", "content": "inspect"}], [])
     assert len(calls) == 1
+
+
+def test_run_budget_exhaustion_ends_gracefully(tmp_path):
+    """Exhausted run output budget must return a summary, not raise."""
+    import jarvis_cli.local_agent as la
+    from jarvis_core.tokens import TokenBudget, TokenLedger as _TokenLedger
+
+    class FakeProvider:
+        last_usage = {"prompt_tokens": 10, "completion_tokens": 7_000}
+
+        def complete(self, messages, tools):
+            return (
+                "working",
+                [
+                    {
+                        "id": "t1",
+                        "name": "apply_patch",
+                        "arguments": {"file": "a.txt"},
+                    }
+                ],
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "t1",
+                            "type": "function",
+                            "function": {
+                                "name": "apply_patch",
+                                "arguments": '{"file": "a.txt", "patch": "-x\\n+y"}',
+                            },
+                        }
+                    ],
+                },
+            )
+
+    cfg = config(tmp_path, max_output_tokens=100)
+    # Real ledger: turn 1 commits 7k actual output tokens, turn 2 reservation
+    # then exceeds the remaining run-output budget.
+    ledger = _TokenLedger(
+        TokenBudget(
+            max_run_input=32_000,
+            max_run_output=8_000,
+            max_turn_input=32_000,
+            max_turn_output=8_000,
+            max_agent_input=32_000,
+            max_agent_output=1_000_000,
+        )
+    )
+    result = la._run_single_agent(
+        "patch a.txt manually", cfg, provider=FakeProvider(), ledger=ledger
+    )
+
+    assert isinstance(result, str)
+    assert result.startswith("Run stopped:")
+    assert "budget exceeded" in result
+    assert "apply_patch" in result
+    assert "JARVIS_MAX_OUTPUT_TOKENS" in result
+
+
+def test_run_command_shell_deny_is_corrective(tmp_path):
+    tool = LocalTools(config(tmp_path, accept_commands=True))
+    with pytest.raises(APIError) as denied_shell:
+        tool.execute("run_command", {"argv": ["sh", "-c", "echo hi > f.txt"]})
+    message = str(denied_shell.value)
+    assert "apply_patch" in message
+    assert "shell" in message.lower()
+
+
+def test_run_command_disallowed_is_corrective(tmp_path):
+    tool = LocalTools(config(tmp_path, accept_commands=True))
+    with pytest.raises(APIError) as denied:
+        tool.execute("run_command", {"argv": ["echo", "hi", ">", "f.txt"]})
+    message = str(denied.value)
+    assert "git" in message  # allowlist is named
+    assert "apply_patch" in message
