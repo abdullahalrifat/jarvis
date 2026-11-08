@@ -39,7 +39,7 @@ from jarvis_core import (
     compact_messages,
     summarize_tool_result,
 )
-from jarvis_core.tokens import estimate_tokens
+from jarvis_core.tokens import BudgetExceeded, estimate_tokens
 
 from . import __version__
 from .client import APIError
@@ -861,8 +861,20 @@ class LocalTools:
         raise APIError(f"Unknown local tool: {name}")
 
     def _command(self, argv: list[str], *, require_approval: bool = False) -> str:
+        if argv and argv[0] in {"sh", "bash", "sudo", "eval"}:
+            raise APIError(
+                f"'{argv[0]}' is not allowed. run_command only executes one "
+                "allowlisted program directly without a shell. To create or "
+                "change files, call apply_patch instead of shell redirection."
+            )
         if not argv or argv[0] not in DEFAULT_ALLOWED_COMMANDS:
-            raise APIError("Command is not in the local allowlist.")
+            raise APIError(
+                f"Command {argv[0] if argv else repr('')} is not in the local "
+                "allowlist. Allowed programs: "
+                + ", ".join(sorted(DEFAULT_ALLOWED_COMMANDS))
+                + ". To create or modify files, call apply_patch "
+                "(unified diff) instead of shell redirection."
+            )
         if argv[0] == "git" and len(argv) > 1 and argv[1] in MUTATING_GIT_SUBCOMMANDS:
             raise APIError("Mutating Git commands are not allowed through run_command.")
         if require_approval and not self.config.accept_commands:
@@ -976,6 +988,56 @@ def _tool_result_message(provider: str, call: dict[str, Any], result: str):
     return {"role": "tool", "tool_call_id": call["id"], "content": result}
 
 
+def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
+    """Deterministic end-of-run report when the token budget is exhausted.
+
+    A frontier-grade agent stops with status and context instead of crashing
+    with a BudgetExceeded traceback. No model call happens here: there is no
+    budget left to spend on a summarization turn.
+    """
+    actions: list[str] = []
+    edits: list[str] = []
+    for message in messages:
+        if message.get("role") != "assistant":
+            continue
+        for call in message.get("tool_calls") or []:
+            function = call.get("function") or {}
+            name = function.get("name")
+            if not name:
+                continue
+            actions.append(str(name))
+            if str(name) == "apply_patch":
+                arguments = function.get("arguments") or {}
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except ValueError:
+                        arguments = {}
+                if not isinstance(arguments, dict):
+                    arguments = {}
+                for path in arguments.get("files") or arguments.get("paths") or []:
+                    edits.append(str(path))
+                target = arguments.get("path") or arguments.get("file")
+                if target:
+                    edits.append(str(target))
+    lines = [f"Run stopped: {reason}."]
+    if actions:
+        lines.append(
+            "Completed tool sequence (last 5): " + ", ".join(actions[-5:]) + "."
+        )
+    if edits:
+        unique = list(dict.fromkeys(edits))[-5:]
+        lines.append(
+            "Patches were applied to: " + ", ".join(unique) + ". "
+            "Run 'jarvis undo' before starting the next attempt to reverse them."
+        )
+    lines.append(
+        "Raise the budget with JARVIS_MAX_OUTPUT_TOKENS / JARVIS_MAX_INPUT_TOKENS "
+        "and retry, or narrow the task."
+    )
+    return "\n".join(lines)
+
+
 def _run_single_agent(
     task: str,
     config: LocalConfig,
@@ -1028,9 +1090,15 @@ def _run_single_agent(
         else:
             saved = 0
         turn_input = estimate_tokens({"messages": messages, "tools": active_schemas})
-        reservation = ledger.reserve(
-            role, turn_input, min(4_096, config.max_output_tokens)
-        )
+        try:
+            reservation = ledger.reserve(
+                role, turn_input, min(4_096, config.max_output_tokens)
+            )
+        except BudgetExceeded as exc:
+            trace.record(
+                "budget_exhausted", role=role, step=_step, reason=str(exc)
+            )
+            return _budget_stop_summary(messages, str(exc))
         trace.record(
             "model_call",
             role=role,
@@ -1078,7 +1146,13 @@ def _run_single_agent(
             output_tokens=estimate_tokens(text),
         )
         actual_usage.compaction_saved_tokens = saved
-        ledger.commit(reservation, actual_usage)
+        try:
+            ledger.commit(reservation, actual_usage)
+        except BudgetExceeded as exc:
+            trace.record(
+                "budget_exhausted", role=role, step=_step, reason=str(exc)
+            )
+            return _budget_stop_summary(messages, str(exc))
         if isinstance(raw_assistant, dict):
             messages.append(raw_assistant)
         else:
