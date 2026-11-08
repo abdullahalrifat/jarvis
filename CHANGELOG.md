@@ -2,10 +2,11 @@
 
 ## 0.12.1
 
-- Auto-source `.env` from current working directory so `jarvis local`
-  picks up `INFERENCE_BASE_URL`, `INFERENCE_API_KEY`, `JARVIS_THINK`,
-  `JARVIS_MAX_INPUT_TOKENS`, `JARVIS_MAX_OUTPUT_TOKENS`, and any other
-  environment variables without manual exports.
+- Auto-source `.env` from current working directory, global `~/.jarvis/.env`,
+  or `$JARVIS_GLOBAL_ENV` so `jarvis local` picks up environment variables
+  without manual exports.
+- Project-local `.env` takes precedence over global config, and process
+  environment variables always override both.
 - All other 0.12.0 changes remain in effect.
 
 ## 0.12.0

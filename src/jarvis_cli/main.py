@@ -23,18 +23,26 @@ from .client import AgentClient, APIError
 from .render import EventRenderer
 
 # Auto-source .env from CWD (if present), so callers don't need to export
-# every variable manually. Format: KEY=VALUE one per line; blank lines and
-# lines starting with # are ignored. Process-environment values take precedence
-# over CWD values, allowing overrides.
-_env_path = Path.cwd() / ".env"
-if _env_path.exists():
-    with _env_path.open() as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if not _line or _line.startswith("#") or "=" not in _line:
-                continue
-            _key, _, _val = _line.partition("=")
-            os.environ.setdefault(_key.strip(), _val.strip())
+# every variable manually. Also checks ~/.jarvis/.env and $JARVIS_GLOBAL_ENV.
+# Format: KEY=VALUE one per line; blank lines and # comments ignored.
+# Process-environment values always take precedence over CWD/global values,
+# allowing overrides.
+_env_paths = [Path.cwd() / ".env"]
+_home_jarvis_env = Path.home() / ".jarvis" / ".env"
+if _home_jarvis_env.exists():
+    _env_paths.insert(1, _home_jarvis_env)
+_jars_env = os.getenv("JARVIS_GLOBAL_ENV")
+if _jars_env and Path(_jars_env).exists():
+    _env_paths.insert(1, Path(_jars_env))
+for _env_path in _env_paths:
+    if _env_path.exists():
+        with _env_path.open() as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if not _line or _line.startswith("#") or "=" not in _line:
+                    continue
+                _key, _, _val = _line.partition("=")
+                os.environ.setdefault(_key.strip(), _val.strip())
 
 TERMINAL_STATUSES = {
     "awaiting_approval",
