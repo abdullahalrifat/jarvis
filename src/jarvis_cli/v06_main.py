@@ -420,7 +420,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
 
-    if argv and argv[0] in {"local", "plan", "tui"}:
+    # Normalize argv before gating the platform runtime so bare tasks
+    # (`jarvis "task"`) map to "local" and session resumes reach the agent
+    # loop with the security stack installed.
+    from .main import CLI_COMMANDS, normalize_argv
+
+    argv = normalize_argv(list(argv), CLI_COMMANDS)
+    if argv and argv[0] in {"local", "plan", "tui", "session-resume"}:
         install_platform_runtime()
     from .v05_main import main as v05_main
 

@@ -20,7 +20,7 @@ Because private GitHub Actions currently fail before runner provisioning, curren
 | Resumable sessions / protocol-safe transcripts | INTEGRATED |
 | Provider profiles, fallback and health | INTEGRATED |
 | Evidence and independent verification | INTEGRATED |
-| Per-hunk review and reversible changes | INTEGRATED |
+| Per-hunk review and reversible changes | PARTIAL — single-patch undo; per-hunk UI not wired |
 | Attachments / native image / PDF context | INTEGRATED |
 | Hierarchical instructions and durable memory | INTEGRATED |
 | Persistent deny-by-default MCP | INTEGRATED |

@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.12.4
+
+### Platform runtime & secrets (security)
+
+- The platform runtime (permission/proof stack, MCP approval enforcement,
+  secret-scrubbed subprocess environment, telemetry) now installs for every
+  code-path that reaches the agent loop: bare task invocations
+  (`jarvis "task"`) and `session-resume` included — previously it was gated on
+  the literal `local`/`plan`/`tui` spelling of `argv[0]`.
+- The base `LocalTools` command runner now runs every agent subprocess under
+  the credential-scrubbed environment (`sanitized_subprocess_env()`), so model
+  or provider secrets such as `INFERENCE_API_KEY` never leak into child
+  processes even without the platform runtime override.
+
+### Agent loop correctness
+
+- `run_command` / `apply_patch` idempotency is now scoped to the loop step:
+  a later legitimate replay (running pytest again after fixing tests with the
+  same argv) executes fresh instead of returning the stale first result,
+  while same-step crash replays still dedupe.
+- Interrupted runs (including `KeyboardInterrupt` mid-tool) backfill explicit
+  synthetic tool results before the transcript is checkpointed, so sessions
+  can no longer end with dangling `tool_calls` that made `session-resume`
+  fail with HTTP 400 forever.
+- `provider_messages.to_openai()` performs a repair pass that closes any
+  unanswered tool calls with an interruption notice, keeping persisted
+  transcripts protocol-valid in all cases (including the verifier's
+  `submit_verdict` early return).
+- Session checkpoints are transactional: the DELETE and every INSERT share
+  one transaction, so a crash can no longer truncate the transcript.
+- The `.env` loader strips one matching pair of surrounding quotes and
+  accepts an `export KEY=value` prefix, so a quoted `INFERENCE_API_KEY`
+  no longer silently breaks authentication.
+- `patch_guard` no longer launders `../` traversal via `lstrip("./")`:
+  only a literal leading `./` is stripped, and absolute paths / parent
+  traversal are rejected outright.
+- Budget-stop reports list patched filenames recovered from `apply_patch`
+  patch text ("Patches were applied to:" is no longer empty).
+- `list_files` announces truncation at the 500-entry cap; `read_file`
+  answers out-of-range windows with corrective guidance instead of an
+  empty response.
+- `model-doctor --full-agent` is documented again and implemented: one real
+  agent turn runs through the complete loop when you ask for it.
+
+### Metadata
+
+- `jarvis-agent-core` dependency pin moves to 0.17.4 (Core reservation,
+  retry-bound, and tool-call decoding fixes).
+- README/ROADMAP drift corrected: documented step/token defaults (30 steps,
+  48,000/24,000 tokens), version notices, and the honest per-hunk review
+  status (single-patch undo is PARTIAL).
+
 ## 0.12.3
 
 - `JARVIS_MAX_STEPS` and `JARVIS_TIMEOUT` environment variables now control the local agent's step limit and timeout defaults respectively, with hardcoded defaults of 30 steps and 180 seconds when not set.

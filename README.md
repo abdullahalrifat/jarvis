@@ -4,13 +4,13 @@ Jarvis is a distributable terminal AI coding agent. Install it from PyPI with pi
 
 ## Efficient local-agent defaults
 
-The local agent defaults to 20 steps, a 16,000-token input budget and a 6,000-token output budget. Adaptive multi-agent execution is off by default to avoid speculative extra model calls; enable it with `JARVIS_ADAPTIVE_AGENTS=true` or explicitly pass `--multi-agent` / `JARVIS_MULTI_AGENT=true` for tasks that benefit from parallel analysis. Override token ceilings with `JARVIS_MAX_INPUT_TOKENS` and `JARVIS_MAX_OUTPUT_TOKENS` when a task demonstrably needs more context. Adaptive mode also switches on the v0.7 structural task-enrichment stack, and `JARVIS_ESCALATE_ON_FAILURE=true` enables repair passes after a failed first attempt. On small local models keep both off: lean prompts reliably outperform the enriched multi-step stack.
+The local agent defaults to 30 steps, a 48,000-token input budget and a 24,000-token output budget. Step and wall-clock limits can be pre-seeded with `JARVIS_MAX_STEPS` and `JARVIS_TIMEOUT` (overridable per run with `--max-steps`/`--timeout`). Adaptive multi-agent execution is off by default to avoid speculative extra model calls; enable it with `JARVIS_ADAPTIVE_AGENTS=true` or explicitly pass `--multi-agent` / `JARVIS_MULTI_AGENT=true` for tasks that benefit from parallel analysis. Override token ceilings with `JARVIS_MAX_INPUT_TOKENS` and `JARVIS_MAX_OUTPUT_TOKENS` when a task demonstrably needs more context. Adaptive mode also switches on the v0.7 structural task-enrichment stack, and `JARVIS_ESCALATE_ON_FAILURE=true` enables repair passes after a failed first attempt. On small local models keep both off: lean prompts reliably outperform the enriched multi-step stack.
 
 Qwen3-family models always claim a reasoning capability, but reasoning mode on CPU burns thousands of tokens per turn before any answer appears. Jarvis therefore always requests `think: false` from the gateway unless `JARVIS_THINK=true` is set. Enable it only for tasks where slower, deliberate reasoning is worth the wall-clock cost.
 
 ## Current contract line
 
-Jarvis **0.11.4** consumes the provider-neutral Jarvis Core **0.17.3** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
+Jarvis **0.12.4** consumes the provider-neutral Jarvis Core **0.17.4** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
 
 Jarvis Core 0.17.3 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
@@ -67,7 +67,7 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.11.4 consumes `jarvis-agent-core==0.17.3` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.12.4 consumes `jarvis-agent-core==0.17.4` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 

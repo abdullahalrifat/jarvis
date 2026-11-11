@@ -61,7 +61,61 @@ def _anthropic_content(content: Any) -> Any:
     return blocks
 
 
+def sanitize_tool_call_transcript(
+    converted: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Ensure every assistant tool_call is answered by a tool result.
+
+    Crash checkpoints can persist a transcript whose later tool results were
+    never recorded (interrupted between the assistant turn and tool
+    execution, SIGKILL mid-tools). Gateways reject such dangling tool_calls
+    with HTTP 400 and make session-resume unrecoverable; repair them with an
+    explicit interruption notice instead (CLI-4).
+    """
+    repaired: list[dict[str, Any]] = []
+    unanswered: dict[str, str] = {}
+
+    def flush_unanswered() -> None:
+        for call_id, name in unanswered.items():
+            repaired.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "content": (
+                        f"Tool '{name}' was interrupted in the previous session "
+                        "before its result was recorded."
+                    ),
+                }
+            )
+        unanswered.clear()
+
+    for message in converted:
+        role = message.get("role")
+        if role == "tool":
+            call_id = message.get("tool_call_id")
+            if call_id in unanswered:
+                del unanswered[call_id]
+        elif role == "assistant":
+            if unanswered:
+                flush_unanswered()
+            for call in message.get("tool_calls") or []:
+                call_id = str(call.get("id") or "")
+                name = str((call.get("function") or {}).get("name") or "tool")
+                if call_id:
+                    unanswered[call_id] = name
+        elif unanswered:
+            flush_unanswered()
+        repaired.append(message)
+    flush_unanswered()
+    return repaired
+
+
 def to_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    converted = _to_openai_messages(messages)
+    return sanitize_tool_call_transcript(converted)
+
+
+def _to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     converted: list[dict[str, Any]] = []
     for source in messages:
         message = {key: value for key, value in source.items() if key != "metadata"}
