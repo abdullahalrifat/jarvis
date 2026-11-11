@@ -7,7 +7,7 @@ Jarvis is distributed in two forms:
 
 ## Current release: 0.11.4
 
-Jarvis 0.11.4 runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. The CLI has no AI Stack remote execution mode. The inference URL includes `/v1`. Jarvis pins the published `jarvis-agent-core==0.17.3` release.
+Jarvis 0.12.4 runs the agent loop and tools locally and calls `jarvis-inference` directly for model requests. The CLI has no AI Stack remote execution mode. The inference URL includes `/v1`. Jarvis pins the published `jarvis-agent-core==0.17.4` release.
 
 Jarvis connects to the separately deployed `jarvis-inference` HTTP API; it does not install the gateway as a Python dependency. Verify the deployed gateway source commit or image digest and API compatibility. If you deploy a prebuilt GHCR image, use a published immutable tag or digest; a release is not required when building the gateway from source.
 

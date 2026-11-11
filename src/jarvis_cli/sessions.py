@@ -187,21 +187,39 @@ class SessionStore:
         return transcript
 
     def checkpoint(self, session_id: str, messages: list[dict[str, Any]]) -> None:
-        self.connection.execute(
-            "DELETE FROM messages WHERE session_id=?", (session_id,)
-        )
-        for message in messages:
-            content = message.get("content", "")
-            display = (
-                content
-                if isinstance(content, str)
-                else json.dumps(content, ensure_ascii=False)
+        """Replace the transcript atomically (CLI-7).
+
+        DELETE plus every INSERT shares one transaction, so a crash can no
+        longer leave a truncated (half-checkpointed) transcript behind.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection:
+            self.connection.execute(
+                "DELETE FROM messages WHERE session_id=?", (session_id,)
             )
-            self.append_message(
-                session_id,
-                str(message["role"]),
-                display,
-                {"canonical_message": message},
+            for sequence, message in enumerate(messages, start=1):
+                content = message.get("content", "")
+                display = (
+                    content
+                    if isinstance(content, str)
+                    else json.dumps(content, ensure_ascii=False)
+                )
+                self.connection.execute(
+                    """
+                    INSERT INTO messages(session_id, sequence, role, content, metadata, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        session_id,
+                        sequence,
+                        str(message["role"]),
+                        display,
+                        json.dumps({"canonical_message": message}),
+                        now,
+                    ),
+                )
+            self.connection.execute(
+                "UPDATE sessions SET updated_at=? WHERE id=?", (now, session_id)
             )
 
     def request_approval(

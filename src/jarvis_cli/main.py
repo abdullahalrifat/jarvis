@@ -42,7 +42,17 @@ for _env_path in _env_paths:
                 if not _line or _line.startswith("#") or "=" not in _line:
                     continue
                 _key, _, _val = _line.partition("=")
-                os.environ.setdefault(_key.strip(), _val.strip())
+                _key = _key.strip()
+                # Optional shell prefix (`export KEY=value`).
+                if _key.startswith("export "):
+                    _key = _key[len("export ") :].strip()
+                _val = _val.strip()
+                # Strip one matching pair of surrounding quotes so a quoted
+                # INFERENCE_API_KEY does not silently break auth (CLI-8).
+                if len(_val) >= 2 and _val[0] == _val[-1] and _val[0] in {"'", '"'}:
+                    _val = _val[1:-1]
+                if _key:
+                    os.environ.setdefault(_key, _val)
 
 TERMINAL_STATUSES = {
     "awaiting_approval",
@@ -124,7 +134,7 @@ _EDIT_INTENT = re.compile(
 
 
 def _history_path() -> Path:
-    configured = os.getenv("JARVIS_HISTORY_FILE") or os.getenv("JARVIS_HISTORY_FILE")
+    configured = os.getenv("JARVIS_HISTORY_FILE")
     if configured:
         return Path(configured).expanduser()
     state_home = os.getenv("XDG_STATE_HOME")
@@ -831,6 +841,11 @@ def build_parser() -> argparse.ArgumentParser:
     model_doctor.add_argument("--model", help="Remote model identifier")
     model_doctor.add_argument("--workspace", dest="local_workspace")
     model_doctor.add_argument("--timeout", type=float, default=120)
+    model_doctor.add_argument(
+        "--full-agent",
+        action="store_true",
+        help="Also run one stepless local agent turn end-to-end through the loop",
+    )
     model_doctor.set_defaults(
         max_steps=1,
         multi_agent=False,
@@ -1165,8 +1180,21 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from .local_agent import probe_model, resolve_local_config
 
-            result = probe_model(resolve_local_config(args))
+            config = resolve_local_config(args)
+            result = probe_model(config)
             result["architecture"] = "jarvis-cli -> jarvis-inference -> ollama"
+            if getattr(args, "full_agent", False):
+                # One real agent turn through the complete loop (provider +
+                # budget + tools wiring) so the doctor checks the whole path,
+                # not just the /chat protocol (CLI-10).
+                from .local_agent import _run_single_agent
+
+                answer = _run_single_agent(
+                    "Reply with exactly one word: ok.",
+                    config,
+                )
+                result["full_agent_ok"] = answer.strip().lower() == "ok"
+                result["full_agent_output"] = answer
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         except APIError as exc:

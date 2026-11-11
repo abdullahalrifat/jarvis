@@ -44,6 +44,7 @@ from jarvis_core.tokens import BudgetExceeded, estimate_tokens
 from . import __version__
 from .client import APIError
 from .mcp_registry import call_configured_tool
+from .process_env import sanitized_subprocess_env
 from .profiles import load_profiles, select_calibrated
 from .provider_messages import to_anthropic, to_openai
 from .quality_runtime import classify_request
@@ -800,13 +801,35 @@ class LocalTools:
                 str(item.relative_to(self.root))
                 for item in sorted(path.rglob("*"))
                 if item.is_file() and ".git" not in item.parts
-            ][:500]
+            ]
+            if len(files) > 500:
+                # Tell the model the listing is incomplete instead of letting
+                # it assume the truncated tail is everything (CLI-17).
+                files = files[:500] + [
+                    "(...listing truncated at 500 entries; use search_text "
+                    "or read_file on directories for more)"
+                ]
             return "\n".join(files)
         if name == "read_file":
             path = self._path(str(arguments["path"]))
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
             start = max(1, int(arguments.get("start_line", 1)))
-            end = min(len(lines), int(arguments.get("end_line", len(lines))))
+            end = int(arguments.get("end_line", len(lines)))
+            if not lines:
+                return f"{arguments['path']} is empty (0 lines)."
+            if start > len(lines):
+                # Corrective, not silent: mirrors the run_command denials that
+                # keep small models unstuck (CLI-17).
+                return (
+                    f"start_line {start} is beyond the end of {arguments['path']} "
+                    f"({len(lines)} lines). Use start_line 1..{len(lines)}."
+                )
+            end = min(end, len(lines))
+            if end < start:
+                return (
+                    f"end_line {end} is before start_line {start}; request a valid "
+                    "line window inside the file."
+                )
             return self._bounded(
                 "\n".join(f"{i}: {lines[i - 1]}" for i in range(start, end + 1))
             )
@@ -901,6 +924,9 @@ class LocalTools:
                 raise APIError("User rejected the proposed command.")
         try:
             executed = sandbox_command(argv, self.root)
+            # Base class must never leak credentials (INFERENCE_API_KEY et
+            # al.) into agent-run subprocesses (CLI-2); the platform runtime
+            # overrides this method with the same sanitizer.
             result = subprocess.run(
                 executed,
                 cwd=self.root,
@@ -909,6 +935,7 @@ class LocalTools:
                 timeout=300,
                 shell=False,
                 check=False,
+                env=sanitized_subprocess_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise APIError(f"Command failed to start or timed out: {exc}") from exc
@@ -1014,6 +1041,24 @@ def _tool_result_message(provider: str, call: dict[str, Any], result: str):
     return {"role": "tool", "tool_call_id": call["id"], "content": result}
 
 
+_PATCH_FILE_HEADERS = re.compile(
+    # V4A style ("*** Add File: path") plus standard Git unified diffs
+    # ("+++ b/<path>"), both used by agents writing apply_patch payloads.
+    r"^(?:\*\*\* (?:Add|Update|Delete) File: |[+]{3} (?:b/)?)(.*)$",
+    re.MULTILINE,
+)
+
+
+def _patch_filenames(patch: str) -> list[str]:
+    """Extract target filenames from a patch payload (CLI-16)."""
+    names: list[str] = []
+    for match in _PATCH_FILE_HEADERS.finditer(patch):
+        name = match.group(1).strip()
+        if name and name != "/dev/null":
+            names.append(name)
+    return names
+
+
 def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
     """Deterministic end-of-run report when the token budget is exhausted.
 
@@ -1046,6 +1091,11 @@ def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
                 target = arguments.get("path") or arguments.get("file")
                 if target:
                     edits.append(str(target))
+                # apply_patch arguments only contain the patch text (CLI-16);
+                # recover the touched files from the unified-diff headers.
+                patch_text = str(arguments.get("patch") or "")
+                if patch_text:
+                    edits.extend(_patch_filenames(patch_text))
     lines = [f"Run stopped: {reason}."]
     if actions:
         lines.append(
@@ -1218,58 +1268,100 @@ def _run_single_agent(
                 continue
             trace.record("agent_completed", role=role)
             return text
-        for call in calls:
-            if call["name"] in {"web_search", "web_fetch"}:
-                web_attempted = True
-            if role == "verifier" and call["name"] == "submit_verdict":
-                return json.dumps(call["arguments"], ensure_ascii=False)
-            trace.record(
-                "tool_call",
-                role=role,
-                tool=call["name"],
-                arguments=call["arguments"],
-            )
-            try:
-                if call["name"] in mutating_tools:
-                    key = json.dumps(
-                        [call["name"], call["arguments"]],
-                        sort_keys=True,
-                        separators=(",", ":"),
+        replied = 0
+        # CLI-4: if anything hooks the loop out from under us mid-tools
+        # (KeyboardInterrupt, SIGKILL-like exits), the transcript must not be
+        # left with unanswered tool_calls that make session-resume unusable.
+        try:
+            for call in calls:
+                if call["name"] in {"web_search", "web_fetch"}:
+                    web_attempted = True
+                if role == "verifier" and call["name"] == "submit_verdict":
+                    # Close the tool call before returning so the persisted
+                    # checkpoint stays protocol-valid.
+                    messages.append(
+                        _tool_result_message(
+                            getattr(provider, "active_provider", config.provider),
+                            call,
+                            json.dumps({"submitted": True}, ensure_ascii=False),
+                        )
                     )
-                    result = idempotency.execute(
-                        key,
-                        lambda: tools.execute(call["name"], call["arguments"]),
-                    )
-                else:
-                    result = tools.execute(call["name"], call["arguments"])
-            except Exception as exc:
-                decision = classify_failure(exc)
+                    if checkpoint:
+                        checkpoint(messages)
+                    return json.dumps(call["arguments"], ensure_ascii=False)
                 trace.record(
-                    "tool_error",
+                    "tool_call",
+                    role=role,
                     tool=call["name"],
-                    failure=decision.kind.value,
-                    recovery=decision.action,
+                    arguments=call["arguments"],
                 )
-                result = f"Tool error: {exc}"
-            compact = summarize_tool_result(
-                call["name"], result, max_chars=6_000, artifact_store=artifacts
-            )
-            ledger.record(
-                Usage(
-                    agent=role,
-                    model=config.model,
-                    tool_result_tokens=estimate_tokens(compact),
+                try:
+                    if call["name"] in mutating_tools:
+                        # Key on the loop position as well as the arguments so
+                        # a later legitimate replay (pytest after fixing tests)
+                        # executes instead of returning the stale first result
+                        # (CLI-3). Same-step replays still dedupe.
+                        key = json.dumps(
+                            [_step, call["name"], call["arguments"]],
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        )
+                        result = idempotency.execute(
+                            key,
+                            lambda: tools.execute(call["name"], call["arguments"]),
+                        )
+                    else:
+                        result = tools.execute(call["name"], call["arguments"])
+                except Exception as exc:
+                    decision = classify_failure(exc)
+                    trace.record(
+                        "tool_error",
+                        tool=call["name"],
+                        failure=decision.kind.value,
+                        recovery=decision.action,
+                    )
+                    result = f"Tool error: {exc}"
+                compact = summarize_tool_result(
+                    call["name"], result, max_chars=6_000, artifact_store=artifacts
                 )
-            )
-            messages.append(
-                _tool_result_message(
-                    getattr(provider, "active_provider", config.provider),
-                    call,
-                    json.dumps(compact, ensure_ascii=False),
+                ledger.record(
+                    Usage(
+                        agent=role,
+                        model=config.model,
+                        tool_result_tokens=estimate_tokens(compact),
+                    )
                 )
-            )
+                messages.append(
+                    _tool_result_message(
+                        getattr(provider, "active_provider", config.provider),
+                        call,
+                        json.dumps(compact, ensure_ascii=False),
+                    )
+                )
+                replied += 1
+                if checkpoint:
+                    checkpoint(messages)
+        except BaseException:
+            for call in calls[replied:]:
+                messages.append(
+                    _tool_result_message(
+                        getattr(provider, "active_provider", config.provider),
+                        call,
+                        json.dumps(
+                            {
+                                "error": (
+                                    "Tool was interrupted before its result was "
+                                    "recorded; if it mutated anything, re-check "
+                                    "the workspace state before retrying."
+                                )
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                )
             if checkpoint:
                 checkpoint(messages)
+            raise
     raise APIError(f"Local agent exceeded the {config.max_steps}-step limit.")
 
 

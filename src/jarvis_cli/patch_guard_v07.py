@@ -153,7 +153,16 @@ def _allowed(
     discovered: set[str],
     workspace: Path,
 ) -> bool:
-    normalized = path.lstrip("./")
+    # Only strip a literal leading "./" — lstrip("./") previously collapsed
+    # "../etc-placeholder" into "etc-placeholder", laundering an out-of-scope
+    # traversal into an allowed relative path (CLI-5).
+    normalized = path
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    parts = Path(normalized).parts
+    if normalized.startswith("/") or ".." in parts:
+        # Absolute paths and parent traversal never leave the guard here.
+        return False
     if normalized in plan.paths or normalized in discovered:
         return True
     candidate = workspace / normalized
