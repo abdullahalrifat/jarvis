@@ -59,7 +59,7 @@ jobs:
           python -m pytest -q --cache-clear --cov=. --cov-report=term-missing --cov-fail-under=70 2>&1 | tee /tmp/jarvis-pytest.log
       - name: Upload pytest log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-log-${{ matrix.python-version }}
           path: /tmp/jarvis-pytest.log
@@ -78,7 +78,7 @@ jobs:
         run: python scripts/write_certification_manifest.py certification-evidence.json
       - name: Upload certification evidence manifest
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: certification-evidence-${{ github.sha }}-python-${{ matrix.python-version }}
           path: certification-evidence.json
