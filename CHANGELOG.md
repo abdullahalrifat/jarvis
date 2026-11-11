@@ -13,6 +13,11 @@
   the credential-scrubbed environment (`sanitized_subprocess_env()`), so model
   or provider secrets such as `INFERENCE_API_KEY` never leak into child
   processes even without the platform runtime override.
+- Project sandbox policy (`.jarvis/sandbox.toml`) is now trust-gated executable
+  configuration and part of the workspace trust digest (trust registry v4): a
+  hostile repository can no longer disable OS isolation by committing a
+  `sandbox.toml` with `mode="off"`, and committing one invalidates an existing
+  trust grant. `JARVIS_SANDBOX` / `JARVIS_NETWORK` remain operator controls.
 
 ### Agent loop correctness
 

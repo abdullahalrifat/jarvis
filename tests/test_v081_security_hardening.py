@@ -66,7 +66,7 @@ def test_trust_registry_is_user_owned_and_atomic(tmp_path, monkeypatch):
     workspace.mkdir()
     target = trust_workspace(workspace)
     payload = json.loads(target.read_text(encoding="utf-8"))
-    assert payload["version"] == 3
+    assert payload["version"] == 4
     assert payload["workspaces"][0]["path"] == str(workspace.resolve())
     assert len(payload["workspaces"][0]["repository_fingerprint"]) == 64
     assert len(payload["workspaces"][0]["executable_config_digest"]) == 64

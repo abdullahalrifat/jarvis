@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 
 from jarvis_core import SandboxRequirements
 
+from .workspace_trust import is_workspace_trusted
+
 try:
     import tomllib
 except ImportError:  # pragma: no cover
@@ -31,7 +33,15 @@ class SandboxPolicy:
         root = Path(workspace).resolve()
         path = root / ".jarvis" / "sandbox.toml"
         data: dict = {}
-        if path.is_file():
+        # CLI-6: project sandbox policy is executable configuration. A
+        # hostile repository must not be able to switch isolation off by
+        # committing `<workspace>/.jarvis/sandbox.toml`, so the file is
+        # only honored for trusted workspaces — exactly like project
+        # hooks.toml — and it participates in the trust digest, so
+        # committing it invalidates an existing trust grant.
+        # `JARVIS_SANDBOX` / `JARVIS_NETWORK` remain the operator's own
+        # controls and keep working in untrusted workspaces.
+        if path.is_file() and is_workspace_trusted(root):
             data = tomllib.loads(path.read_text(encoding="utf-8"))
         sandbox = data.get("sandbox", {}) if isinstance(data, dict) else {}
         network = sandbox.get("network", {}) if isinstance(sandbox, dict) else {}
