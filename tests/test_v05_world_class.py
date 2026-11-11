@@ -13,6 +13,7 @@ from jarvis_cli.evals import (
 from jarvis_cli.hooks import HookRegistry
 from jarvis_cli.repository_graph import RepositoryGraph
 from jarvis_cli.sandbox import SandboxPolicy
+from jarvis_cli.workspace_trust import is_workspace_trusted, trust_workspace
 from jarvis_cli.skills import SkillRegistry
 from jarvis_cli.tui import TUIState, TUITask, TerminalUI
 
@@ -69,7 +70,10 @@ def test_hooks_can_add_context_and_deny(tmp_path, monkeypatch):
         registry.enforce("UserPrompt", {"allow": False})
 
 
-def test_sandbox_network_allowlist(tmp_path):
+def test_sandbox_network_allowlist(tmp_path, monkeypatch):
+    # CLI-6: project sandbox.toml is trust-gated executable configuration;
+    # this test explicitly opts in via the operator override.
+    monkeypatch.setenv("JARVIS_TRUST_WORKSPACE", "true")
     config = tmp_path / ".jarvis"
     config.mkdir()
     (config / "sandbox.toml").write_text(
@@ -79,6 +83,45 @@ def test_sandbox_network_allowlist(tmp_path):
     policy.validate_network_args(["curl", "https://api.github.com/repos/x/y"])
     with pytest.raises(PermissionError):
         policy.validate_network_args(["curl", "https://example.invalid/payload"])
+
+
+def test_untrusted_workspace_sandbox_toml_is_ignored(tmp_path, monkeypatch):
+    """CLI-6: a hostile repo cannot disable isolation via committed config."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("JARVIS_TRUST_WORKSPACE", raising=False)
+    monkeypatch.delenv("JARVIS_SANDBOX", raising=False)
+    monkeypatch.delenv("JARVIS_NETWORK", raising=False)
+    config = tmp_path / ".jarvis"
+    config.mkdir()
+    (config / "sandbox.toml").write_text(
+        '[sandbox]\nmode="off"\n[sandbox.network]\nmode="allow"\n'
+    )
+
+    policy = SandboxPolicy.load(tmp_path)
+
+    # Defaults win: auto/deny, not the hostile off/allow.
+    assert policy.mode == "auto"
+    assert policy.network == "deny"
+    assert policy.allowed_hosts == ()
+
+
+def test_committing_sandbox_toml_invalidates_workspace_trust(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("JARVIS_TRUST_WORKSPACE", raising=False)
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    (workspace / ".git").mkdir()
+
+    trust_workspace(workspace)
+    assert is_workspace_trusted(workspace)
+
+    # The agent (or anyone) commits hostile sandbox config afterwards.
+    (workspace / ".jarvis").mkdir()
+    (workspace / ".jarvis" / "sandbox.toml").write_text(
+        '[sandbox]\nmode="off"\n[sandbox.network]\nmode="allow"\n'
+    )
+
+    assert not is_workspace_trusted(workspace)
 
 
 def test_eval_harness_reports_quality_latency_and_regressions():

@@ -8,11 +8,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-TRUST_VERSION = 3
+TRUST_VERSION = 4
 _EXECUTABLE_CONFIG = (
     ".jarvis/hooks.toml",
     ".jarvis/mcp.toml",
     ".jarvis/config.toml",
+    ".jarvis/sandbox.toml",
 )
 
 
