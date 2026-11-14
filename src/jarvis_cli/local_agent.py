@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
@@ -157,10 +158,23 @@ class LocalConfig:
     accept_commands: bool = False
     max_steps: int = 30
     timeout: float = 180.0
+    # Run-scoped wall-clock deadline (CLI-11); --timeout above only bounds a
+    # single model call, so without this a 30-step run can legally run for hours.
+    run_timeout_seconds: float = 3600.0
     multi_agent: bool = False
     max_input_tokens: int = 16_000
     max_output_tokens: int = 6_000
     think: bool = False
+
+
+def _max_steps_cap() -> int:
+    """Hard upper bound on ``--max-steps`` (CLI-11).
+
+    The cap exists so a confused model cannot spin indefinitely, but it was
+    previously silent and undocumented, so advice to "raise --max-steps"
+    failed above 100. Set ``JARVIS_MAX_STEPS_CAP`` to raise it deliberately.
+    """
+    return max(1, int(os.getenv("JARVIS_MAX_STEPS_CAP", "100")))
 
 
 def resolve_local_config(args: Any) -> LocalConfig:
@@ -239,8 +253,11 @@ def resolve_local_config(args: Any) -> LocalConfig:
         allow_edits=bool(args.write),
         accept_edits=bool(args.accept_edits),
         accept_commands=bool(getattr(args, "accept_commands", False)),
-        max_steps=max(1, min(int(args.max_steps), 100)),
+        max_steps=max(1, min(int(args.max_steps), _max_steps_cap())),
         timeout=max(10.0, float(args.timeout)),
+        run_timeout_seconds=max(
+            0.0, float(os.getenv("JARVIS_RUN_TIMEOUT_SECONDS", "3600"))
+        ),
         multi_agent=bool(
             getattr(args, "multi_agent", False)
             or os.getenv("JARVIS_MULTI_AGENT", "").lower() in {"1", "true", "yes"}
@@ -1059,7 +1076,9 @@ def _patch_filenames(patch: str) -> list[str]:
     return names
 
 
-def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
+def _budget_stop_summary(
+    messages: list[dict[str, Any]], reason: str, *, advice: str | None = None
+) -> str:
     """Deterministic end-of-run report when the token budget is exhausted.
 
     A frontier-grade agent stops with status and context instead of crashing
@@ -1108,8 +1127,11 @@ def _budget_stop_summary(messages: list[dict[str, Any]], reason: str) -> str:
             "Run 'jarvis undo' before starting the next attempt to reverse them."
         )
     lines.append(
-        "Raise the budget with JARVIS_MAX_OUTPUT_TOKENS / JARVIS_MAX_INPUT_TOKENS "
-        "and retry, or narrow the task."
+        advice
+        or (
+            "Raise the budget with JARVIS_MAX_OUTPUT_TOKENS / JARVIS_MAX_INPUT_TOKENS "
+            "and retry, or narrow the task."
+        )
     )
     return "\n".join(lines)
 
@@ -1164,7 +1186,31 @@ def _run_single_agent(
     active_schemas = _ready_schemas(
         [*TOOL_SCHEMAS, VERDICT_TOOL_SCHEMA] if role == "verifier" else TOOL_SCHEMAS
     )
+    # CLI-11: the per-call --timeout does not bound the run itself, so 30
+    # steps at 180s each could legally run for hours. Honor a run-scoped
+    # wall-clock deadline between steps (0 disables it).
+    run_deadline = (
+        time.monotonic() + config.run_timeout_seconds
+        if config.run_timeout_seconds > 0
+        else None
+    )
     for _step in range(config.max_steps):
+        if run_deadline is not None and time.monotonic() >= run_deadline:
+            trace.record(
+                "run_deadline_exceeded",
+                role=role,
+                step=_step,
+                limit_seconds=config.run_timeout_seconds,
+            )
+            return _budget_stop_summary(
+                messages,
+                f"run wall-clock deadline of {config.run_timeout_seconds:.0f}s "
+                "(JARVIS_RUN_TIMEOUT_SECONDS) exceeded",
+                advice=(
+                    "Raise the deadline with JARVIS_RUN_TIMEOUT_SECONDS "
+                    "and retry, or narrow the task."
+                ),
+            )
         if estimate_tokens(messages) >= min(24_000, config.max_input_tokens * 3 // 4):
             messages, saved = compact_messages(messages, keep_recent=4)
         else:

@@ -4,7 +4,7 @@ Jarvis consumes the published `jarvis-agent-core` package from PyPI. Core owns i
 
 ## Current coordinated release
 
-Jarvis 0.12.4 consumes the immutable `jarvis-agent-core==0.17.4` release. Core 0.17.4 provides the shared inference gateway client and provider-neutral routing/runtime contracts. Jarvis owns local workload execution and task-level evaluation; AI Stack independently owns its own remote orchestration, persistence, telemetry and integrations. Neither application calls the other.
+Jarvis 0.12.5 consumes the immutable `jarvis-agent-core==0.17.4` release. Core 0.17.4 provides the shared inference gateway client and provider-neutral routing/runtime contracts. Jarvis owns local workload execution and task-level evaluation; AI Stack independently owns its own remote orchestration, persistence, telemetry and integrations. Neither application calls the other.
 
 ## Update flow
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.5
+
+### Agent loop hardening
+
+- `jarvis local` / `session-resume` runs now honor a run-scoped wall-clock
+  deadline (`JARVIS_RUN_TIMEOUT_SECONDS`, default 3600, `0` disables). When it
+  expires between steps the run stops with a deterministic status summary
+  (completed tool sequence, applied patches, undo advice) instead of continuing
+  for hours. `--timeout` / `JARVIS_TIMEOUT` continue to bound a single model
+  call only — the README now spells out that distinction.
+- The previously undocumented 100-step hard cap on `--max-steps` is documented
+  and env-overridable via `JARVIS_MAX_STEPS_CAP` (minimum 1).
+- `session-resume` refuses sessions still marked `running` (they belong to a
+  live or SIGKILLed process; silently resuming them would duplicate the run
+  and interleave two writers into one transcript). Re-run with the new
+  `--force` flag to resume anyway. Session id prefix shorthand now requires an
+  unambiguous match: exact id first, and an ambiguous prefix raises an error
+  listing the matching sessions instead of silently resuming the most recent
+  one.
+
 ## 0.12.4
 
 ### Platform runtime & secrets (security)
