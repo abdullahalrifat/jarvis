@@ -272,11 +272,20 @@ class SessionStore:
         self.connection.commit()
 
     def resume(
-        self, session_id: str
+        self, session_id: str, *, force: bool = False
     ) -> tuple[LocalSession, list[dict[str, Any]], list[dict[str, Any]]]:
         session = self.get(session_id)
         if session.archived_at:
             raise ValueError("archived sessions must be restored before resuming")
+        if session.status == "running" and not force:
+            # CLI-13: a 'running' session belongs to a live (or SIGKILLed)
+            # process; resuming it silently would duplicate the run and
+            # interleave two writers into one transcript.
+            raise ValueError(
+                f"session {session.id} is still marked 'running'; it may be "
+                "active in another process or was killed mid-run. Re-run with "
+                "--force to resume it anyway."
+            )
         return session, self.transcript(session.id), self.pending_approvals(session.id)
 
     def fork(self, session_id: str, *, name: str | None = None) -> LocalSession:
@@ -339,9 +348,22 @@ class SessionStore:
 
     def get(self, session_id: str) -> LocalSession:
         row = self.connection.execute(
-            "SELECT * FROM sessions WHERE id=? OR id LIKE ? ORDER BY updated_at DESC LIMIT 1",
-            (session_id, f"{session_id}%"),
+            "SELECT * FROM sessions WHERE id=?", (session_id,)
         ).fetchone()
+        if row is None and session_id:
+            # CLI-13: prefix shorthand must resolve unambiguously. The old
+            # `OR id LIKE ? ... ORDER BY updated_at DESC LIMIT 1` silently
+            # picked the most recent of several matching sessions.
+            rows = self.connection.execute(
+                "SELECT * FROM sessions WHERE id LIKE ?", (f"{session_id}%",)
+            ).fetchall()
+            if len(rows) > 1:
+                matches = ", ".join(sorted(item["id"] for item in rows))
+                raise LookupError(
+                    f"session id prefix '{session_id}' is ambiguous and "
+                    f"matches {len(rows)} sessions: {matches}"
+                )
+            row = rows[0] if rows else None
         if row is None:
             raise LookupError(f"local session not found: {session_id}")
         return LocalSession(

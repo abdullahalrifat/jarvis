@@ -33,7 +33,9 @@ def test_checkpoint_round_trips_openai_tool_protocol(tmp_path):
         {"role": "tool", "tool_call_id": "call-1", "content": "print('ok')"},
     ]
     store.checkpoint(session.id, messages)
-    _, restored, _ = store.resume(session.id)
+    # force=True: the session was never run, but resume() no longer silently
+    # accepts 'running' sessions (CLI-13).
+    _, restored, _ = store.resume(session.id, force=True)
     assert restored == messages
 
 

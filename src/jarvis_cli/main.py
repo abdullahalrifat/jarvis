@@ -891,6 +891,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_resume.add_argument("--accept-edits", action="store_true")
     local_resume.add_argument("--accept-commands", action="store_true")
     local_resume.add_argument("--approve-pending", action="store_true")
+    local_resume.add_argument(
+        "--force",
+        action="store_true",
+        help="Resume even if the session is still marked 'running'",
+    )
     local_resume.set_defaults(write=True, multi_agent=False)
     local_fork = subparsers.add_parser("session-fork", help="Fork a local session")
     local_fork.add_argument("session_id")
@@ -998,7 +1003,9 @@ def main(argv: list[str] | None = None) -> int:
             from .sessions import SessionStore
 
             store = SessionStore()
-            session, messages, pending = store.resume(args.session_id)
+            session, messages, pending = store.resume(
+                args.session_id, force=bool(args.force)
+            )
             if pending and not args.approve_pending:
                 print(json.dumps(pending, indent=2), file=sys.stderr)
                 print(

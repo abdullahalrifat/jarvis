@@ -473,3 +473,122 @@ def test_read_file_out_of_range_is_corrective_not_silent(tmp_path) -> None:
         tools.execute("read_file", {"path": "a.txt", "start_line": 2, "end_line": 2})
         == "2: two"
     )
+
+
+# --- CLI-11: run wall-clock deadline and documented step cap ---------------
+
+
+def test_run_deadline_stops_run_between_steps(monkeypatch, tmp_path) -> None:
+    """The run stops with a deterministic summary once the wall clock expires."""
+    ticks = iter([100.0, 105.0, 111.0, 120.0, 130.0])
+    monkeypatch.setattr("jarvis_cli.local_agent.time.monotonic", lambda: next(ticks))
+    provider = ScriptedProvider([("read_file", {"path": "a.txt"}, "")])
+    tools = CountingTools(tmp_path)
+    cfg = config(tmp_path, run_timeout_seconds=10.0, max_steps=5)
+
+    result = _run_single_agent("t", cfg, provider=provider, tools=tools)
+
+    assert "run wall-clock deadline of 10s" in result
+    assert "JARVIS_RUN_TIMEOUT_SECONDS" in result
+    # Exactly one step ran; the deadline check blocked the second model call.
+    assert tools.calls == [("read_file", {"path": "a.txt"})]
+
+
+def test_run_deadline_is_disabled_when_zero(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("jarvis_cli.local_agent.time.monotonic", lambda: 10**9)
+    provider = ScriptedProvider([(None, {}, "all done")])
+    cfg = config(tmp_path, run_timeout_seconds=0.0, max_steps=3)
+
+    result = _run_single_agent(
+        "t", cfg, provider=provider, tools=CountingTools(tmp_path)
+    )
+
+    assert result == "all done"
+
+
+def test_max_steps_cap_is_env_overridable(monkeypatch) -> None:
+    from jarvis_cli.local_agent import _max_steps_cap
+
+    monkeypatch.delenv("JARVIS_MAX_STEPS_CAP", raising=False)
+    assert _max_steps_cap() == 100
+    monkeypatch.setenv("JARVIS_MAX_STEPS_CAP", "250")
+    assert _max_steps_cap() == 250
+    monkeypatch.setenv("JARVIS_MAX_STEPS_CAP", "0")
+    assert _max_steps_cap() == 1  # never below 1
+
+
+def test_resolve_local_config_applies_cap_and_run_deadline(monkeypatch) -> None:
+    from jarvis_cli.local_agent import resolve_local_config
+
+    monkeypatch.setenv("INFERENCE_BASE_URL", "http://model.test/v1")
+    monkeypatch.setenv("INFERENCE_API_KEY", "k")
+    monkeypatch.setenv("JARVIS_RUN_TIMEOUT_SECONDS", "60")
+    monkeypatch.setenv("JARVIS_MAX_STEPS_CAP", "200")
+
+    class Args:
+        provider = "openai"
+        model = "scripted-test-model"
+        max_steps = 500
+        timeout = 60.0
+        write = False
+        accept_edits = False
+        accept_commands = False
+
+    cfg = resolve_local_config(Args)
+    assert cfg.max_steps == 200  # clamped by the env-overridable cap
+    assert cfg.run_timeout_seconds == 60.0
+
+
+# --- CLI-13: resume status and ambiguous-prefix guards ---------------------
+
+
+def test_resume_refuses_running_session(tmp_path) -> None:
+    store = SessionStore(tmp_path / "sessions.sqlite3")
+    session = store.create(workspace=str(tmp_path), task="t", model="scripted")
+    assert session.status == "running"
+
+    with pytest.raises(ValueError, match="still marked 'running'"):
+        store.resume(session.id)
+
+    # The explicit escape hatch for SIGKILLed sessions still works.
+    resumed, _, _ = store.resume(session.id, force=True)
+    assert resumed.id == session.id
+
+
+def test_resume_allows_finished_sessions(tmp_path) -> None:
+    store = SessionStore(tmp_path / "sessions.sqlite3")
+    session = store.create(workspace=str(tmp_path), task="t", model="scripted")
+    store.finish(session.id, result="done")
+    resumed, messages, _ = store.resume(session.id)
+    assert resumed.status == "completed"
+    assert messages
+
+
+def test_get_requires_unique_prefix_match(tmp_path) -> None:
+    store = SessionStore(tmp_path / "sessions.sqlite3")
+    first = store.create(workspace=str(tmp_path), task="t", model="scripted")
+
+    # Exact ids always resolve.
+    assert store.get(first.id).id == first.id
+    # A unique prefix still resolves...
+    assert store.get(first.id[:12]).id == first.id
+
+    # ...but an ambiguous prefix must fail loudly instead of silently
+    # picking the most recently updated session (CLI-13).
+    store.connection.execute(
+        "INSERT INTO sessions"
+        " (id, workspace, task, status, model, created_at, updated_at, metadata)"
+        " VALUES (?, ?, ?, 'completed', 'scripted', ?, ?, '{}')",
+        (
+            first.id[:8] + "-ambiguous",
+            str(tmp_path),
+            "t",
+            first.created_at,
+            first.created_at,
+        ),
+    )
+    store.connection.commit()
+    with pytest.raises(LookupError, match="ambiguous"):
+        store.get(first.id[:8])
+    with pytest.raises(LookupError, match="not found"):
+        store.get("00000000")
