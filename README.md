@@ -10,7 +10,7 @@ Qwen3-family models always claim a reasoning capability, but reasoning mode on C
 
 ## Current contract line
 
-Jarvis **0.12.4** consumes the provider-neutral Jarvis Core **0.17.4** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
+Jarvis **0.12.5** consumes the provider-neutral Jarvis Core **0.17.4** contracts. All model requests use the direct inference API; the CLI has no AI Stack remote execution mode.
 
 Jarvis Core 0.17.3 is published as an immutable PyPI release; the CLI pins that exact release so Jarvis and Core can evolve independently.
 
@@ -67,7 +67,7 @@ cd jarvis
 python3 -m pip install -e .
 ```
 
-Jarvis 0.12.4 consumes `jarvis-agent-core==0.17.4` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
+Jarvis 0.12.5 consumes `jarvis-agent-core==0.17.4` from PyPI. The dependency is pinned to the exact Core release in `pyproject.toml`.
 
 See [docs/install.md](docs/install.md) for the complete distribution and upgrade guide.
 
